@@ -5,11 +5,14 @@ import {
   clipEnd,
   clipSnapTargets,
   clipSourceAt,
+  clipSpeedAt,
   clipTimelineDuration,
+  evalSpeedAt,
   isClipActiveAt,
   projectDuration,
   snapStart,
 } from '@/lib/timeline';
+import { makeSpeedCurve } from '@/types/editor';
 import { makeClip } from '@/test/factories';
 
 describe('audioFadeGain', () => {
@@ -84,6 +87,44 @@ describe('clipSourceAt', () => {
     const clip = makeClip({ start: 0, in: 1, out: 5, speed: 1 });
     expect(clipSourceAt(clip, -10)).toBe(1);
     expect(clipSourceAt(clip, 100)).toBe(5);
+  });
+});
+
+describe('speed curves', () => {
+  it('evalSpeedAt interpolates linearly between control points', () => {
+    const c = makeSpeedCurve('rampUp'); // 0.4× -> 2×
+    expect(evalSpeedAt(c, 0)).toBeCloseTo(0.4, 5);
+    expect(evalSpeedAt(c, 1)).toBeCloseTo(2, 5);
+    expect(evalSpeedAt(c, 0.5)).toBeCloseTo(1.2, 5);
+  });
+
+  // A 0..12s source ramped slow -> fast.
+  const curved = makeClip({ start: 0, in: 0, out: 12, speed: 1, speedCurve: makeSpeedCurve('rampUp') });
+
+  it('maps timeline time to a monotonic source position spanning in..out', () => {
+    const dur = clipTimelineDuration(curved);
+    expect(dur).toBeGreaterThan(0);
+    expect(clipSourceAt(curved, 0)).toBeCloseTo(0, 5);
+    expect(clipSourceAt(curved, dur)).toBeCloseTo(12, 5);
+    let prev = -1;
+    for (let i = 0; i <= 12; i++) {
+      const p = clipSourceAt(curved, (dur * i) / 12);
+      expect(p).toBeGreaterThanOrEqual(prev - 1e-9);
+      prev = p;
+    }
+  });
+
+  it('runs slower at the start than the end for a ramp up', () => {
+    const dur = clipTimelineDuration(curved);
+    expect(clipSpeedAt(curved, 0.01)).toBeLessThan(clipSpeedAt(curved, dur - 0.01));
+  });
+
+  it('keeps a symmetric (bullet-time) curve centered on the source midpoint', () => {
+    const bullet = makeClip({ start: 0, in: 0, out: 12, speed: 1, speedCurve: makeSpeedCurve('bulletTime') });
+    const dur = clipTimelineDuration(bullet);
+    // The profile is symmetric about the middle, so half the timeline reaches
+    // the source midpoint regardless of how slow the dwell is.
+    expect(clipSourceAt(bullet, dur / 2)).toBeCloseTo(6, 1);
   });
 });
 

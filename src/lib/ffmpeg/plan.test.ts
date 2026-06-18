@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TEXT_STYLE } from '@/types/editor';
+import { DEFAULT_TEXT_STYLE, makeSpeedCurve } from '@/types/editor';
+import { SPEED_CURVE_SLICES } from '@/lib/constants';
 import { buildExportPlan } from '@/lib/ffmpeg/plan';
 import { makeClip, makeMedia, makeTrack } from '@/test/factories';
 
@@ -72,6 +73,39 @@ describe('buildExportPlan', () => {
     const clips = [makeClip({ trackId: 't1', mediaId: 'm1', flipH: true, rotation: 90 })];
     const plan = buildExportPlan([track], clips, [media]);
     expect(plan.clips[0]).toMatchObject({ flipH: true, flipV: false, rotation: 90 });
+  });
+
+  it('expands a speed-curved clip into tiled constant-speed segments', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1', kind: 'video', duration: 12 });
+    const clip = makeClip({ trackId: 't1', mediaId: 'm1', start: 0, in: 0, out: 12, speedCurve: makeSpeedCurve('rampUp') });
+    const plan = buildExportPlan([track], [clip], [media]);
+    expect(plan.clips).toHaveLength(SPEED_CURVE_SLICES);
+    expect(plan.clips.every((c) => c.kind === 'video')).toBe(true);
+    // Segments span the full source range, in order, with no gaps.
+    expect(plan.clips[0].in).toBeCloseTo(0, 5);
+    expect(plan.clips.at(-1)!.out).toBeCloseTo(12, 5);
+    for (let i = 1; i < plan.clips.length; i++) {
+      expect(plan.clips[i].in).toBeCloseTo(plan.clips[i - 1].out, 5);
+      expect(plan.clips[i].start).toBeGreaterThan(plan.clips[i - 1].start);
+    }
+    // Still one source file, referenced by every segment.
+    expect(plan.media).toHaveLength(1);
+    expect(plan.clipMediaIds.every((id) => id === 'm1')).toBe(true);
+  });
+
+  it('puts fades on the first and last segments of a curved clip only', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1', kind: 'video', duration: 12 });
+    const clip = makeClip({
+      trackId: 't1', mediaId: 'm1', start: 0, in: 0, out: 12,
+      fadeIn: 1, fadeOut: 1, speedCurve: makeSpeedCurve('rampUp'),
+    });
+    const plan = buildExportPlan([track], [clip], [media]);
+    expect(plan.clips[0].fadeIn).toBe(1);
+    expect(plan.clips.at(-1)!.fadeOut).toBe(1);
+    expect(plan.clips[1].fadeIn).toBe(0);
+    expect(plan.clips[1].fadeOut).toBe(0);
   });
 
   it('deduplicates media referenced by multiple clips', () => {

@@ -548,6 +548,29 @@ describe('setClipsSpeed', () => {
   });
 });
 
+describe('setClipCurve', () => {
+  beforeEach(seed);
+
+  it('applies a speed-curve preset to the selected clips', () => {
+    get().setClipCurve(['c1'], 'rampUp');
+    expect(get().clips[0].speedCurve?.preset).toBe('rampUp');
+    expect(get().clips[0].speedCurve?.points.length).toBeGreaterThan(1);
+  });
+
+  it('clears the curve when passed null', () => {
+    get().setClipCurve(['c1'], 'bulletTime');
+    get().setClipCurve(['c1'], null);
+    expect(get().clips[0].speedCurve).toBeUndefined();
+  });
+
+  it('a constant speed change drops any curve', () => {
+    get().setClipCurve(['c1'], 'rampUp');
+    get().setClipsSpeed(['c1'], 2);
+    expect(get().clips[0].speedCurve).toBeUndefined();
+    expect(get().clips[0].speed).toBe(2);
+  });
+});
+
 describe('clip audio: volume, fades & extract', () => {
   beforeEach(seed);
 
