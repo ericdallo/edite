@@ -2,6 +2,7 @@ import { type FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
 import { getFFmpeg, onFFmpegLog, terminateFFmpeg } from './client';
 import { buildExportCommand, extFromMime, type BuiltCommand, type MultiExportParams } from './command';
+import { renderTextToBlob } from '@/lib/text/raster';
 import { logger } from '@/lib/log';
 
 export type { MultiExportParams, ExportClip, BuiltCommand } from './command';
@@ -77,6 +78,7 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
   signal?.addEventListener('abort', onAbort);
 
   const nameById = new Map<string, string>();
+  const textNames: string[] = [];
   const logLines: string[] = [];
   let offLog: (() => void) | undefined;
   let built: BuiltCommand | undefined;
@@ -104,7 +106,22 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
       ...c,
       hasAudio: c.hasAudio && (audioByMedia.get(req.clipMediaIds[k]) ?? false),
     }));
-    const inputNames = req.clipMediaIds.map((id) => nameById.get(id) ?? '');
+
+    // Each clip needs one input file: a media file, or a freshly rasterized text PNG.
+    const inputNames: string[] = [];
+    for (let k = 0; k < clips.length; k++) {
+      throwIfAborted();
+      const c = clips[k];
+      if (c.kind === 'text' && c.text) {
+        const blob = await renderTextToBlob(c.text, c.rect, req.params.canvasW, req.params.canvasH);
+        const name = `txt_${k}.png`;
+        await ffmpeg.writeFile(name, await fetchFile(blob));
+        inputNames.push(name);
+        textNames.push(name);
+      } else {
+        inputNames.push(nameById.get(req.clipMediaIds[k]) ?? '');
+      }
+    }
     built = buildExportCommand(inputNames, { ...req.params, clips });
     logger.info('ffmpeg command:\n' + ['ffmpeg', ...built.args].join(' '));
 
@@ -141,6 +158,7 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
     // starts from a freshly loaded instance with a clean filesystem.
     if (!signal?.aborted) {
       for (const name of nameById.values()) await ffmpeg.deleteFile(name).catch(() => undefined);
+      for (const name of textNames) await ffmpeg.deleteFile(name).catch(() => undefined);
       if (built) await ffmpeg.deleteFile(built.outputName).catch(() => undefined);
     }
   }

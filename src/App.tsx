@@ -16,18 +16,22 @@ export default function App() {
   usePersistence();
   useHistory();
   useKeyboardShortcuts();
-  const hasMedia = useEditorStore((s) => s.media.length > 0);
+  const hasContent = useEditorStore((s) => s.media.length > 0 || s.clips.length > 0);
+  const selectedTool = useEditorStore((s) => s.selectedTool);
   const [exportOpen, setExportOpen] = useState(false);
+  // Show the panel for the Text tool even on an empty project, so the first
+  // text overlay can be added without any media.
+  const showPanel = hasContent || selectedTool === 'text';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Topbar onExport={() => setExportOpen(true)} />
       <EditorLayout
         rail={<Sidebar />}
-        panel={hasMedia ? <ToolPanel /> : null}
-        stage={hasMedia ? <VideoPreview /> : <Dropzone />}
+        panel={showPanel ? <ToolPanel /> : null}
+        stage={hasContent ? <VideoPreview /> : <Dropzone />}
         timeline={
-          hasMedia ? (
+          hasContent ? (
             <Timeline />
           ) : (
             <div className="h-[120px] shrink-0 border-t border-line bg-surface/40">

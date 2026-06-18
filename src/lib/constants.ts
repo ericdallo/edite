@@ -16,3 +16,7 @@ export const CLIP_SPEED_MAX = 16;
 /** Hard bounds for the timeline zoom factor. */
 export const ZOOM_MIN = 0.25;
 export const ZOOM_MAX = 12;
+
+/** Text overlay font size bounds, as a fraction of the canvas height. */
+export const TEXT_SIZE_MIN = 0.02;
+export const TEXT_SIZE_MAX = 0.4;

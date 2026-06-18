@@ -5,6 +5,7 @@ import {
   type BuiltCommand,
   type MultiExportParams,
 } from '@/lib/ffmpeg/command';
+import { DEFAULT_TEXT_STYLE } from '@/types/editor';
 import { makeExportClip } from '@/test/factories';
 import type { ExportClip } from '@/lib/ffmpeg/command';
 
@@ -49,6 +50,17 @@ describe('buildExportCommand inputs', () => {
     const vid = build([makeExportClip({ kind: 'video' })]);
     expect(strOf(vid)).not.toContain('-loop');
     expect(strOf(vid)).toContain('-i in_0.mp4');
+  });
+});
+
+describe('buildExportCommand text', () => {
+  it('loops a text overlay like a still and gates it to its window', () => {
+    const cmd = build([
+      makeExportClip({ kind: 'text', start: 0, in: 0, out: 4, hasAudio: false, text: DEFAULT_TEXT_STYLE }),
+    ]);
+    expect(strOf(cmd)).toContain('-loop 1 -framerate 30 -t 4.000 -i in_0.mp4');
+    expect(graphOf(cmd)).toContain("enable='between(t,0.000,4.000)'");
+    expect(strOf(cmd)).toContain('-an');
   });
 });
 

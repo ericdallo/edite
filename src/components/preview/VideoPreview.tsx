@@ -3,6 +3,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { resolveAspectRatio } from '@/types/editor';
 import { clipSourceAt, isClipActiveAt, projectDuration } from '@/lib/timeline';
 import { TransformOverlay } from './TransformOverlay';
+import { TextLayer } from './TextLayer';
 
 export function VideoPreview() {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -19,8 +20,13 @@ export function VideoPreview() {
   const setPlaying = useEditorStore((s) => s.setPlaying);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const selectedTool = useEditorStore((s) => s.selectedTool);
+  const activeClipId = useEditorStore((s) => s.activeClipId);
 
   const ratio = resolveAspectRatio(aspect, media);
+  const activeClip = clips.find((c) => c.id === activeClipId);
+  const showOverlay =
+    selectedTool === 'transform' || (selectedTool === 'text' && activeClip?.text != null);
+  const interactive = selectedTool === 'transform' || selectedTool === 'text';
 
   const [box, setBox] = useState({ w: 0, h: 0 });
   useEffect(() => {
@@ -114,11 +120,9 @@ export function VideoPreview() {
       <div
         className="relative overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-line"
         style={{ width: box.w || '60%', height: box.h || '60%' }}
-        onClick={() => selectedTool !== 'transform' && setPlaying(!playing)}
+        onClick={() => !interactive && setPlaying(!playing)}
       >
         {layers.map(({ clip, track }) => {
-          const m = media.find((x) => x.id === clip.mediaId);
-          if (!m) return null;
           const active = isClipActiveAt(clip, currentTime) && !track.hidden;
           // Keep clips mounted and painted (opacity 0 when inactive) instead of
           // display:none so their parked frame stays decoded and shows instantly
@@ -131,6 +135,17 @@ export function VideoPreview() {
             opacity: active ? clip.opacity : 0,
             zIndex: active ? 1 : 0,
           } as const;
+
+          if (clip.text) {
+            return (
+              <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
+                <TextLayer text={clip.text} boxW={clip.rect.w * box.w} boxH={clip.rect.h * box.h} canvasH={box.h} />
+              </div>
+            );
+          }
+
+          const m = media.find((x) => x.id === clip.mediaId);
+          if (!m) return null;
           return (
             <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
               {m.kind === 'video' ? (
@@ -152,7 +167,7 @@ export function VideoPreview() {
           );
         })}
 
-        {selectedTool === 'transform' && box.w > 0 && <TransformOverlay width={box.w} height={box.h} />}
+        {showOverlay && box.w > 0 && <TransformOverlay width={box.w} height={box.h} />}
       </div>
     </div>
   );

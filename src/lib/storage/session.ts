@@ -48,7 +48,7 @@ export function snapshotFromState(s: PersistableState): ProjectSnapshot {
 /** Persist the active project (no-op when there's nothing to save). */
 export async function saveCurrentProject(): Promise<void> {
   const s = useEditorStore.getState();
-  if (!s.projectId || s.media.length === 0) return;
+  if (!s.projectId || (s.media.length === 0 && s.clips.length === 0)) return;
   await saveSnapshot(snapshotFromState(s));
   setLastProjectId(s.projectId);
 }

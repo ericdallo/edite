@@ -29,7 +29,7 @@ export function usePersistence() {
     let lastExport: ExportSettings = useEditorStore.getState().exportSettings;
 
     const unsub = useEditorStore.subscribe((state) => {
-      if (!state.projectId || state.media.length === 0) return;
+      if (!state.projectId || (state.media.length === 0 && state.clips.length === 0)) return;
       // Ignore playback-only ticks (currentTime advances ~60×/s while playing):
       // only re-arm the debounce when the persisted document actually changes.
       const doc = selectDoc(state);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_TEXT_STYLE } from '@/types/editor';
 import { buildExportPlan } from '@/lib/ffmpeg/plan';
 import { makeClip, makeMedia, makeTrack } from '@/test/factories';
 
@@ -47,6 +48,22 @@ describe('buildExportPlan', () => {
     const media = makeMedia({ id: 'm1' });
     const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1' })], [media]);
     expect(plan.clips[0].muted).toBe(true);
+  });
+
+  it('includes text clips in z-order without adding a media entry', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1' });
+    const clips = [
+      makeClip({ id: 'vid', trackId: 't1', mediaId: 'm1', start: 0 }),
+      makeClip({ id: 'txt', trackId: 't1', mediaId: '', start: 1, text: { ...DEFAULT_TEXT_STYLE } }),
+    ];
+    const plan = buildExportPlan([track], clips, [media]);
+    expect(plan.clips.map((c) => c.kind)).toEqual(['video', 'text']);
+    expect(plan.clipMediaIds).toEqual(['m1', '']);
+    expect(plan.media).toHaveLength(1);
+    expect(plan.clips[1].text?.content).toBe('Your text');
+    expect(plan.clips[1].speed).toBe(1);
+    expect(plan.clips[1].hasAudio).toBe(false);
   });
 
   it('deduplicates media referenced by multiple clips', () => {

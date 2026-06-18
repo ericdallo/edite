@@ -45,10 +45,32 @@ export interface Track {
   muted: boolean;
 }
 
+export type TextAlign = 'left' | 'center' | 'right';
+
+/** Styling for a text overlay. `fontSize` is a fraction of the canvas height so it scales with resolution. */
+export interface TextStyle {
+  content: string;
+  /** CSS font-family string, also valid for the canvas `font` shorthand. */
+  fontFamily: string;
+  /** fraction of canvas height (e.g. 0.1 = 10% of height). */
+  fontSize: number;
+  fontWeight: number;
+  italic: boolean;
+  color: string;
+  align: TextAlign;
+  /** line spacing multiplier. */
+  lineHeight: number;
+  /** background box color, or null for none. */
+  background: string | null;
+  backgroundOpacity: number;
+  shadow: boolean;
+}
+
 /**
  * A clip placed on a track. `start` is its timeline position (seconds); `in`/`out`
  * are the trimmed source range. Timeline length is (out-in)/speed. `rect` places
- * it on the output canvas (fractions); `opacity` 0..1.
+ * it on the output canvas (fractions); `opacity` 0..1. A clip with `text` is a
+ * text overlay (it has no media and `mediaId` is empty).
  */
 export interface Clip {
   id: string;
@@ -62,6 +84,11 @@ export interface Clip {
   opacity: number;
   muted: boolean;
   hidden: boolean;
+  text?: TextStyle;
+}
+
+export function isTextClip(clip: Clip): clip is Clip & { text: TextStyle } {
+  return clip.text != null;
 }
 
 export type ExportFormat = 'mp4' | 'webm' | 'gif';
@@ -107,6 +134,46 @@ export const ASPECT_RATIOS: AspectRatioOption[] = [
 ];
 
 export const SPEED_PRESETS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
+
+export interface FontOption {
+  label: string;
+  /** CSS font-family stack, used verbatim for both DOM and canvas rendering. */
+  family: string;
+}
+
+/**
+ * Curated, web-safe font stacks. They render the same in the canvas preview and
+ * the canvas-rasterized export (same machine), so what you see is what you get,
+ * with no network or bundled font files. Add self-hosted families here later.
+ */
+export const FONT_OPTIONS: FontOption[] = [
+  { label: 'Inter', family: "'Inter', system-ui, sans-serif" },
+  { label: 'Arial', family: 'Arial, Helvetica, sans-serif' },
+  { label: 'Verdana', family: 'Verdana, Geneva, sans-serif' },
+  { label: 'Trebuchet', family: "'Trebuchet MS', Tahoma, sans-serif" },
+  { label: 'Impact', family: 'Impact, Haettenschweiler, sans-serif' },
+  { label: 'Georgia', family: 'Georgia, Cambria, serif' },
+  { label: 'Times', family: "'Times New Roman', Times, serif" },
+  { label: 'Courier', family: "'Courier New', Courier, monospace" },
+  { label: 'Comic Sans', family: "'Comic Sans MS', 'Comic Sans', cursive" },
+];
+
+export const DEFAULT_TEXT_STYLE: TextStyle = {
+  content: 'Your text',
+  fontFamily: FONT_OPTIONS[0].family,
+  fontSize: 0.1,
+  fontWeight: 700,
+  italic: false,
+  color: '#ffffff',
+  align: 'center',
+  lineHeight: 1.2,
+  background: null,
+  backgroundOpacity: 0.5,
+  shadow: true,
+};
+
+/** Default text box: a centered lower third (fractions of the canvas). */
+export const DEFAULT_TEXT_RECT: Rect = { x: 0.1, y: 0.66, w: 0.8, h: 0.2 };
 
 export interface ResolutionOption {
   id: ExportResolution;

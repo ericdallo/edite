@@ -54,7 +54,16 @@ export function useKeyboardShortcuts() {
         }
       }
 
-      if (s.media.length === 0) return;
+      // Add a text overlay (works even on an empty project).
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        const st = useEditorStore.getState();
+        if (!st.projectId) st.newProject({ name: 'Untitled project' });
+        useEditorStore.getState().addTextClip();
+        return;
+      }
+
+      if (s.media.length === 0 && s.clips.length === 0) return;
 
       // Caret movement (with modifiers) — handled before the Ctrl letter combos.
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {

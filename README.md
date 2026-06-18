@@ -27,6 +27,8 @@ serializable document describing *how* to interpret the imported media:
 
 - A **Clip** points at a `MediaItem`, a trimmed source range (`in`/`out`), a timeline position
   (`start`), a `speed`, and where to draw it on the output canvas (`rect`, `opacity`).
+- A **text overlay** is just a Clip with a `text` style and no media, so it reuses the whole timeline
+  (move/trim/split/select/undo) and persistence for free.
 - Nothing is rendered until you export.
 
 That document is the single source of truth, and it is interpreted by **two independent render
@@ -51,7 +53,12 @@ Defined in `src/types/editor.ts`:
 | --- | --- |
 | `MediaItem` | An imported source (video or image) plus probed metadata, its `blob`, and a runtime object `url`. |
 | `Track` | A layer. **`tracks[0]` is the bottom layer; the last track is the top.** Tracks can be hidden/muted. |
-| `Clip` | A placement of a media item on a track: `start`, `in`/`out`, `speed`, `rect` (0..1 fractions of the canvas), `opacity`, `muted`, `hidden`. |
+| `Clip` | A placement of a media item on a track: `start`, `in`/`out`, `speed`, `rect` (0..1 fractions of the canvas), `opacity`, `muted`, `hidden`. With an optional `text` (`TextStyle`) it becomes a text overlay (no media). |
+
+Text overlays render through **one** canvas function (`src/lib/text/render.ts`): the preview draws it
+into a `<canvas>` layer, and the exporter rasterizes the same function to a transparent PNG that
+ffmpeg overlays — so wrapping, alignment and sizing match exactly. Fonts are a curated web-safe
+catalog so it stays offline with no bundled font files.
 
 Timeline math is centralized and pure in `src/lib/timeline.ts`:
 

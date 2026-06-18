@@ -11,16 +11,16 @@ export interface TopbarProps {
 }
 
 export function Topbar({ onExport }: TopbarProps) {
-  const hasMedia = useEditorStore((s) => s.media.length > 0);
+  const hasContent = useEditorStore((s) => s.media.length > 0 || s.clips.length > 0);
   const projectName = useEditorStore((s) => s.projectName);
   const setProjectName = useEditorStore((s) => s.setProjectName);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
-  const showHistory = hasMedia || canUndo || canRedo;
+  const showHistory = hasContent || canUndo || canRedo;
   const projects = useProjects();
-  const showProjects = hasMedia || projects.items.length > 0;
+  const showProjects = hasContent || projects.items.length > 0;
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface/60 px-3 backdrop-blur-md">
@@ -30,7 +30,7 @@ export function Topbar({ onExport }: TopbarProps) {
 
       {showProjects && <ProjectMenu projects={projects} />}
 
-      {hasMedia && (
+      {hasContent && (
         <input
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
@@ -63,13 +63,13 @@ export function Topbar({ onExport }: TopbarProps) {
             </button>
           </div>
         )}
-        {hasMedia && <KeyboardHelp />}
-        {hasMedia && (
+        {hasContent && <KeyboardHelp />}
+        {hasContent && (
           <Button variant="subtle" size="sm" onClick={() => void projects.create()}>
             <Plus size={16} /> New
           </Button>
         )}
-        <Button variant="primary" size="md" disabled={!hasMedia} onClick={onExport}>
+        <Button variant="primary" size="md" disabled={!hasContent} onClick={onExport}>
           <Download size={16} /> Export
         </Button>
       </div>

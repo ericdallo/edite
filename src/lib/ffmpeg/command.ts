@@ -1,7 +1,7 @@
-import type { ExportFormat, ExportQuality } from '@/types/editor';
+import type { ExportFormat, ExportQuality, TextStyle } from '@/types/editor';
 
 export interface ExportClip {
-  kind: 'video' | 'image';
+  kind: 'video' | 'image' | 'text';
   /** timeline position (s) */
   start: number;
   in: number;
@@ -12,6 +12,8 @@ export interface ExportClip {
   opacity: number;
   hasAudio: boolean;
   muted: boolean;
+  /** text overlay spec, present when kind === 'text' (rasterized to a PNG input). */
+  text?: TextStyle;
 }
 
 export interface MultiExportParams {
@@ -94,7 +96,8 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
 
   const inputArgs: string[] = [];
   clips.forEach((c, k) => {
-    if (c.kind === 'image') {
+    // Text overlays are pre-rasterized to a PNG, so they're looped like images.
+    if (c.kind === 'image' || c.kind === 'text') {
       inputArgs.push('-loop', '1', '-framerate', String(fps), '-t', fmt(timelineLen(c)), '-i', inputNames[k]);
     } else {
       inputArgs.push('-i', inputNames[k]);
@@ -116,7 +119,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // the enable window; without this the input reaches EOF early and the slot
     // renders black (e.g. the tail clip of a split).
     const delay = c.start > 1e-6 ? `+${fmt(c.start)}/TB` : '';
-    if (c.kind === 'image') {
+    if (c.kind === 'image' || c.kind === 'text') {
       const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
       graph.push(`[${k}:v]${pts}${cover}${op}[c${k}]`);
     } else {

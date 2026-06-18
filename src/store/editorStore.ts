@@ -3,10 +3,13 @@ import {
   type AspectRatioId,
   type Clip,
   DEFAULT_EXPORT_SETTINGS,
+  DEFAULT_TEXT_RECT,
+  DEFAULT_TEXT_STYLE,
   type ExportSettings,
   FULL_RECT,
   type MediaItem,
   type Rect,
+  type TextStyle,
   type Track,
 } from '@/types/editor';
 import { clipEnd, clipSourceAt, clipTimelineDuration, projectDuration } from '@/lib/timeline';
@@ -18,11 +21,13 @@ import {
   HISTORY_LIMIT,
   IMAGE_DEFAULT_DUR,
   MIN_CLIP,
+  TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN,
   ZOOM_MAX,
   ZOOM_MIN,
 } from '@/lib/constants';
 
-export type ToolId = 'media' | 'transform' | 'speed' | 'aspect' | 'audio';
+export type ToolId = 'media' | 'transform' | 'speed' | 'aspect' | 'audio' | 'text';
 
 const DEFAULT_EXPORT: ExportSettings = DEFAULT_EXPORT_SETTINGS;
 
@@ -115,6 +120,8 @@ export interface EditorState {
 
   addMedia: (item: MediaItem) => void;
   addClipFromMedia: (mediaId: string, opts?: { trackId?: string; start?: number }) => void;
+  addTextClip: (opts?: { start?: number }) => void;
+  updateText: (id: string, patch: Partial<TextStyle>) => void;
 
   addTrack: () => string;
   removeTrack: (id: string) => void;
@@ -284,6 +291,41 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         hidden: false,
       };
       return { tracks, clips: [...state.clips, clip], ...selectOne(clip.id) };
+    }),
+
+  addTextClip: (opts) =>
+    set((state) => {
+      const t: Track = { id: uid(), name: `Text ${state.tracks.length + 1}`, hidden: false, muted: false };
+      const clip: Clip = {
+        id: uid(),
+        mediaId: '',
+        trackId: t.id,
+        start: Math.max(0, opts?.start ?? state.playback.currentTime),
+        in: 0,
+        out: IMAGE_DEFAULT_DUR,
+        speed: 1,
+        rect: { ...DEFAULT_TEXT_RECT },
+        opacity: 1,
+        muted: true,
+        hidden: false,
+        text: { ...DEFAULT_TEXT_STYLE },
+      };
+      return {
+        tracks: [...state.tracks, t],
+        clips: [...state.clips, clip],
+        selectedTool: 'text',
+        ...selectOne(clip.id),
+      };
+    }),
+
+  updateText: (id, patch) =>
+    set((state) => {
+      const target = state.clips.find((c) => c.id === id);
+      if (!target?.text) return {};
+      const text: TextStyle = { ...target.text, ...patch };
+      if (patch.fontSize !== undefined) text.fontSize = clamp(patch.fontSize, TEXT_SIZE_MIN, TEXT_SIZE_MAX);
+      if (patch.backgroundOpacity !== undefined) text.backgroundOpacity = clamp(patch.backgroundOpacity, 0, 1);
+      return { clips: state.clips.map((c) => (c.id === id ? { ...c, text } : c)) };
     }),
 
   addTrack: () => {

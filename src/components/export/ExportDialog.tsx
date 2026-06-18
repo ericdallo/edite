@@ -66,7 +66,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [result, setResult] = useState<{ url: string; size: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  if (media.length === 0) return null;
+  if (clips.length === 0) return null;
 
   const { width: canvasW, height: canvasH } = canvasSize(resolveAspectRatio(aspect, media), exportSettings.resolution);
   const duration = projectDuration(clips);

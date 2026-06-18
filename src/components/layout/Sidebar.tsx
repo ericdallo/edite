@@ -1,4 +1,4 @@
-import { Film, Gauge, type LucideIcon, Move, Ratio, Volume2 } from 'lucide-react';
+import { Film, Gauge, type LucideIcon, Move, Ratio, Type, Volume2 } from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +10,7 @@ interface ToolDef {
 
 const TOOLS: ToolDef[] = [
   { id: 'media', label: 'Media', icon: Film },
+  { id: 'text', label: 'Text', icon: Type },
   { id: 'transform', label: 'Layout', icon: Move },
   { id: 'speed', label: 'Speed', icon: Gauge },
   { id: 'aspect', label: 'Ratio', icon: Ratio },

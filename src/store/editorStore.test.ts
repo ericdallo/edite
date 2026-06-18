@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useEditorStore } from '@/store/editorStore';
-import { CLIP_SPEED_MAX, IMAGE_DEFAULT_DUR } from '@/lib/constants';
+import { CLIP_SPEED_MAX, IMAGE_DEFAULT_DUR, TEXT_SIZE_MAX } from '@/lib/constants';
 import { makeClip, makeMedia, makeTrack } from '@/test/factories';
 
 const store = useEditorStore;
@@ -39,6 +39,40 @@ describe('addClipFromMedia', () => {
   it('is a no-op for unknown media', () => {
     get().addClipFromMedia('nope');
     expect(get().clips).toHaveLength(0);
+  });
+});
+
+describe('addTextClip', () => {
+  it('creates a text clip on a new top track and selects it', () => {
+    get().setCurrentTime(2);
+    get().addTextClip();
+    const s = get();
+    expect(s.tracks).toHaveLength(1);
+    expect(s.clips).toHaveLength(1);
+    const clip = s.clips[0];
+    expect(clip.text?.content).toBe('Your text');
+    expect(clip.mediaId).toBe('');
+    expect(clip.muted).toBe(true);
+    expect(clip.start).toBe(2);
+    expect(s.activeClipId).toBe(clip.id);
+    expect(s.selectedTool).toBe('text');
+  });
+});
+
+describe('updateText', () => {
+  it('merges a patch into the clip text and clamps the size', () => {
+    get().addTextClip();
+    const id = get().clips[0].id;
+    get().updateText(id, { content: 'Hello', fontWeight: 400 });
+    expect(get().clips[0].text).toMatchObject({ content: 'Hello', fontWeight: 400 });
+    get().updateText(id, { fontSize: 99 });
+    expect(get().clips[0].text?.fontSize).toBe(TEXT_SIZE_MAX);
+  });
+
+  it('ignores clips that are not text', () => {
+    seed();
+    get().updateText('c1', { content: 'x' });
+    expect(get().clips.find((c) => c.id === 'c1')?.text).toBeUndefined();
   });
 });
 

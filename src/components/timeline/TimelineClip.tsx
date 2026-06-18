@@ -4,7 +4,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { EyeOff, VolumeX } from 'lucide-react';
+import { EyeOff, Type, VolumeX } from 'lucide-react';
 import type { Clip, MediaItem } from '@/types/editor';
 import { clipTimelineDuration } from '@/lib/timeline';
 import { generateThumbnails, type Thumbnail } from '@/lib/media/thumbnails';
@@ -27,6 +27,7 @@ export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDo
   const width = Math.max(2, clipTimelineDuration(clip) * pxPerSec);
   const left = clip.start * pxPerSec;
   const isVideo = media?.kind === 'video';
+  const isText = clip.text != null;
 
   const [thumbs, setThumbs] = useState<Thumbnail[]>([]);
   const count = clamp(Math.round(width / 70), 1, 12);
@@ -69,8 +70,15 @@ export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDo
       onPointerDown={onBodyDown}
       onContextMenu={onContext}
     >
-      <div className="absolute inset-0 flex overflow-hidden bg-surface-3">
-        {isVideo ? (
+      <div className="absolute inset-0 flex items-center overflow-hidden bg-surface-3">
+        {isText ? (
+          <div className="flex h-full w-full items-center gap-1.5 bg-gradient-to-r from-brand/35 to-accent/20 px-2">
+            <Type size={13} className="shrink-0 text-brand-bright" />
+            <span className="truncate text-[11px] font-medium text-white/90">
+              {clip.text?.content || 'Text'}
+            </span>
+          </div>
+        ) : isVideo ? (
           thumbs.map((t, i) => (
             <img key={i} src={t.url} alt="" draggable={false} className="h-full min-w-0 flex-1 object-cover" />
           ))
@@ -85,7 +93,7 @@ export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDo
       <div className={cn('pointer-events-none absolute inset-0', active || selected ? 'bg-brand/10' : '')} />
 
       <div className="pointer-events-none absolute left-1.5 top-1.5 flex gap-1">
-        {clip.muted && (
+        {clip.muted && !isText && (
           <span className="grid h-5 w-5 place-items-center rounded bg-black/60 text-danger">
             <VolumeX size={12} />
           </span>
