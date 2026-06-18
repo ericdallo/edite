@@ -76,12 +76,13 @@ src/
     ids.ts / utils.ts    uid, clamp, formatters, cn()
     media/               probe (metadata via <video>/<img>) + thumbnail sampling
     storage/projects.ts  IndexedDB persistence (snapshots + media blobs)
+    storage/session.ts   open/save a project into the store (switching, restore)
     ffmpeg/
       client.ts          lazy singleton loader for the wasm core + terminate()
       plan.ts            document -> flat, ordered, render-ready clip list (pure)
       command.ts         plan + canvas/fps/format -> ffmpeg args (pure)
       operations.ts      runs ffmpeg in the wasm FS; cancelable via AbortSignal
-  hooks/                 useImportMedia, useFfmpeg, usePersistence, useHistory, useKeyboardShortcuts
+  hooks/                 useImportMedia, useFfmpeg, usePersistence, useProjects, useHistory, useKeyboardShortcuts
   components/            layout, upload, media, preview, timeline, tools, export, ui primitives
 ```
 
@@ -96,7 +97,8 @@ A few decisions worth calling out:
   debounced, so one drag/trim/slider gesture is one undo step.
 - **Persistence is automatic and local.** `usePersistence` debounces writes of the snapshot + media
   blobs to IndexedDB and restores the last project on load. It ignores playback-only changes so the
-  ~60fps clock doesn't thrash the save timer.
+  ~60fps clock doesn't thrash the save timer. Many projects live side by side: the Projects dropdown
+  (left of the title) lists them and switches by flushing the current one then hydrating the next.
 - **The hot, risky logic is pure and isolated.** Timeline math, snapping, the export *plan*, and the
   ffmpeg *command* are plain functions with no React/DOM, which is why they can be unit tested
   directly. Components stay declarative and thin.

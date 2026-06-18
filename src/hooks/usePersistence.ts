@@ -1,17 +1,12 @@
 import { useEffect } from 'react';
-import { DEFAULT_EXPORT_SETTINGS, type ExportSettings, type MediaItem, type MediaMeta } from '@/types/editor';
+import type { ExportSettings } from '@/types/editor';
 import { docsEqual, selectDoc, useEditorStore } from '@/store/editorStore';
-import {
-  getLastProjectId,
-  getMedia,
-  getSnapshot,
-  saveSnapshot,
-  setLastProjectId,
-} from '@/lib/storage/projects';
+import { getLastProjectId } from '@/lib/storage/projects';
+import { openProject, saveCurrentProject } from '@/lib/storage/session';
 
 let restored = false;
 
-/** Restores the last project (media metadata + blobs) and auto-saves edits. */
+/** Restores the last project on load and auto-saves edits to the browser. */
 export function usePersistence() {
   useEffect(() => {
     if (restored) return;
@@ -21,29 +16,7 @@ export function usePersistence() {
       try {
         const id = getLastProjectId();
         if (!id || useEditorStore.getState().media.length > 0) return;
-        const snap = await getSnapshot(id);
-        if (!snap) return;
-
-        const items: MediaItem[] = [];
-        for (const meta of snap.media) {
-          const blob = await getMedia(meta.id);
-          if (blob) items.push({ ...meta, blob, url: URL.createObjectURL(blob) });
-        }
-        if (items.length === 0) return;
-
-        useEditorStore.getState().hydrate({
-          projectId: snap.id,
-          projectName: snap.name,
-          media: items,
-          tracks: snap.tracks,
-          clips: snap.clips,
-          aspect: snap.aspect,
-          muted: snap.muted,
-          exportSettings: { ...DEFAULT_EXPORT_SETTINGS, ...snap.exportSettings },
-          activeClipId: snap.clips[0]?.id ?? null,
-          selectedIds: snap.clips[0] ? [snap.clips[0].id] : [],
-          playback: { currentTime: 0, playing: false, volume: useEditorStore.getState().playback.volume },
-        });
+        await openProject(id);
       } catch {
         // a failed restore should never block starting fresh
       }
@@ -64,35 +37,7 @@ export function usePersistence() {
       lastDoc = doc;
       lastExport = state.exportSettings;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const s = useEditorStore.getState();
-        if (!s.projectId || s.media.length === 0) return;
-        void saveSnapshot({
-          id: s.projectId,
-          name: s.projectName,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          media: s.media.map(
-            (m): MediaMeta => ({
-              id: m.id,
-              kind: m.kind,
-              fileName: m.fileName,
-              mimeType: m.mimeType,
-              size: m.size,
-              duration: m.duration,
-              width: m.width,
-              height: m.height,
-              hasAudio: m.hasAudio,
-            }),
-          ),
-          tracks: s.tracks,
-          clips: s.clips,
-          aspect: s.aspect,
-          muted: s.muted,
-          exportSettings: s.exportSettings,
-        });
-        setLastProjectId(s.projectId);
-      }, 700);
+      timer = setTimeout(() => void saveCurrentProject(), 700);
     });
     return () => {
       if (timer) clearTimeout(timer);

@@ -1,15 +1,16 @@
 import { Download, Plus, Redo2, Undo2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { useProjects } from '@/hooks/useProjects';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ProjectMenu } from '@/components/layout/ProjectMenu';
 import { Button } from '@/components/ui/Button';
 import { KeyboardHelp } from '@/components/KeyboardHelp';
 
 export interface TopbarProps {
   onExport?: () => void;
-  onNew?: () => void;
 }
 
-export function Topbar({ onExport, onNew }: TopbarProps) {
+export function Topbar({ onExport }: TopbarProps) {
   const hasMedia = useEditorStore((s) => s.media.length > 0);
   const projectName = useEditorStore((s) => s.projectName);
   const setProjectName = useEditorStore((s) => s.setProjectName);
@@ -18,12 +19,16 @@ export function Topbar({ onExport, onNew }: TopbarProps) {
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
   const showHistory = hasMedia || canUndo || canRedo;
+  const projects = useProjects();
+  const showProjects = hasMedia || projects.items.length > 0;
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface/60 px-3 backdrop-blur-md">
       <BrandLogo className="pl-1" />
 
       <div className="mx-2 hidden h-6 w-px bg-line md:block" />
+
+      {showProjects && <ProjectMenu projects={projects} />}
 
       {hasMedia && (
         <input
@@ -60,7 +65,7 @@ export function Topbar({ onExport, onNew }: TopbarProps) {
         )}
         {hasMedia && <KeyboardHelp />}
         {hasMedia && (
-          <Button variant="subtle" size="sm" onClick={onNew}>
+          <Button variant="subtle" size="sm" onClick={() => void projects.create()}>
             <Plus size={16} /> New
           </Button>
         )}

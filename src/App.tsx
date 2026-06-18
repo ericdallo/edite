@@ -17,12 +17,11 @@ export default function App() {
   useHistory();
   useKeyboardShortcuts();
   const hasMedia = useEditorStore((s) => s.media.length > 0);
-  const closeProject = useEditorStore((s) => s.closeProject);
   const [exportOpen, setExportOpen] = useState(false);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <Topbar onNew={closeProject} onExport={() => setExportOpen(true)} />
+      <Topbar onExport={() => setExportOpen(true)} />
       <EditorLayout
         rail={<Sidebar />}
         panel={hasMedia ? <ToolPanel /> : null}
