@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useEditorStore } from '@/store/editorStore';
-import { CLIP_SPEED_MAX, IMAGE_DEFAULT_DUR, TEXT_SIZE_MAX } from '@/lib/constants';
+import {
+  AUDIO_FADE_MAX,
+  CLIP_SPEED_MAX,
+  CLIP_VOLUME_MAX,
+  FREEZE_DEFAULT_DUR,
+  IMAGE_DEFAULT_DUR,
+  TEXT_SIZE_MAX,
+} from '@/lib/constants';
 import { makeClip, makeMedia, makeTrack } from '@/test/factories';
 
 const store = useEditorStore;
@@ -190,6 +197,47 @@ describe('mergeClips', () => {
     get().moveClip(b.id, 7, b.trackId); // open a gap
     get().mergeClips([a.id, b.id]);
     expect(get().clips).toHaveLength(2);
+  });
+});
+
+describe('freezeFrame', () => {
+  beforeEach(seed);
+
+  it('splits the clip and inserts a held still that ripples the tail right', () => {
+    get().setActiveClip('c1');
+    get().setCurrentTime(4);
+    get().freezeFrame();
+    const s = get();
+    expect(s.clips).toHaveLength(3);
+    const left = s.clips.find((c) => c.start === 0)!;
+    const frozen = s.clips.find((c) => c.freeze != null)!;
+    const right = s.clips.find((c) => c.start === 4 + FREEZE_DEFAULT_DUR)!;
+    expect(left.out).toBe(4);
+    expect(frozen).toMatchObject({ start: 4, freeze: 4, in: 0, out: FREEZE_DEFAULT_DUR, speed: 1, muted: true });
+    expect(right).toMatchObject({ in: 4, out: 10 });
+    expect(s.selectedIds).toEqual([frozen.id]);
+  });
+
+  it('pushes following clips on the same track by the hold length', () => {
+    store.setState({
+      media: [makeMedia({ id: 'm1', kind: 'video', duration: 10 })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [
+        makeClip({ id: 'c1', mediaId: 'm1', trackId: 't1', start: 0, in: 0, out: 10 }),
+        makeClip({ id: 'c2', mediaId: 'm1', trackId: 't1', start: 10, in: 0, out: 5 }),
+      ],
+    });
+    get().setActiveClip('c1');
+    get().setCurrentTime(4);
+    get().freezeFrame();
+    expect(get().clips.find((c) => c.id === 'c2')!.start).toBe(10 + FREEZE_DEFAULT_DUR);
+  });
+
+  it('is a no-op when the playhead is outside any clip', () => {
+    get().setActiveClip('c1');
+    get().setCurrentTime(50);
+    get().freezeFrame();
+    expect(get().clips).toHaveLength(1);
   });
 });
 
@@ -497,5 +545,59 @@ describe('setClipsSpeed', () => {
     get().setClipsSpeed(['c1'], 2);
     expect(by('c1').speed).toBe(2);
     expect(by('c1').start).toBe(7);
+  });
+});
+
+describe('clip audio: volume, fades & extract', () => {
+  beforeEach(seed);
+
+  it('defaults new media clips to full volume and no fades', () => {
+    get().addMedia(makeMedia({ id: 'm2', kind: 'video', duration: 5 }));
+    get().addClipFromMedia('m2');
+    expect(get().clips.at(-1)).toMatchObject({ volume: 1, fadeIn: 0, fadeOut: 0 });
+  });
+
+  it('clamps per-clip volume to the allowed range', () => {
+    get().updateClips(['c1'], { volume: 99 });
+    expect(get().clips[0].volume).toBe(CLIP_VOLUME_MAX);
+    get().updateClips(['c1'], { volume: -1 });
+    expect(get().clips[0].volume).toBe(0);
+  });
+
+  it('caps fades at the clip length and the global maximum', () => {
+    // c1 is 10s long, so a huge fade is capped at AUDIO_FADE_MAX (5s).
+    get().updateClips(['c1'], { fadeIn: 99, fadeOut: 99 });
+    expect(get().clips[0].fadeIn).toBe(AUDIO_FADE_MAX);
+    // Shorten the clip to 2s: fades can't exceed its on-timeline length.
+    get().updateClips(['c1'], { out: 2, fadeIn: 99 });
+    expect(get().clips[0].fadeIn).toBe(2);
+  });
+
+  it('extracts audio onto a new muted-source track', () => {
+    get().extractAudio('c1');
+    const s = get();
+    expect(s.tracks).toHaveLength(2);
+    expect(s.clips).toHaveLength(2);
+    const source = s.clips.find((c) => c.id === 'c1')!;
+    const audio = s.clips.find((c) => c.id !== 'c1')!;
+    expect(source.muted).toBe(true);
+    expect(audio.audioOnly).toBe(true);
+    expect(audio.muted).toBe(false);
+    expect(audio.mediaId).toBe('m1');
+    expect(audio.trackId).not.toBe('t1');
+    expect(s.activeClipId).toBe(audio.id);
+  });
+
+  it('does not extract from a silent video, audio-only, or text clip', () => {
+    store.setState({ media: [makeMedia({ id: 'mq', kind: 'video', duration: 5, hasAudio: false })] });
+    store.setState({ clips: [makeClip({ id: 'cq', mediaId: 'mq', trackId: 't1' })] });
+    get().extractAudio('cq');
+    expect(get().clips).toHaveLength(1);
+
+    get().extractAudio('cq'); // still no-op
+    const audioOnly = makeClip({ id: 'ca', mediaId: 'm1', trackId: 't1', audioOnly: true });
+    store.setState({ media: [makeMedia({ id: 'm1', kind: 'video', duration: 10 })], clips: [audioOnly] });
+    get().extractAudio('ca');
+    expect(get().clips).toHaveLength(1);
   });
 });

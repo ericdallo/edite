@@ -13,6 +13,22 @@ export const HISTORY_LIMIT = 100;
 export const CLIP_SPEED_MIN = 0.1;
 export const CLIP_SPEED_MAX = 16;
 
+/** Max per-clip audio gain (2 = +100% boost). Preview caps at 1.0; export applies the full gain. */
+export const CLIP_VOLUME_MAX = 2;
+
+/** Longest audio fade in/out, in seconds (also bounded by the clip's length). */
+export const AUDIO_FADE_MAX = 5;
+
+/** Default hold length for an inserted freeze frame (seconds). */
+export const FREEZE_DEFAULT_DUR = 2;
+
+/**
+ * A clip's speed curve is realised as this many constant-speed slices (for the
+ * timeline integral, preview, and export segmentation). More = smoother ramps
+ * but more ffmpeg segments on export.
+ */
+export const SPEED_CURVE_SLICES = 12;
+
 /** Hard bounds for the timeline zoom factor. */
 export const ZOOM_MIN = 0.25;
 export const ZOOM_MAX = 12;

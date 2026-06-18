@@ -4,11 +4,15 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { EyeOff, Type, VolumeX } from 'lucide-react';
+import { EyeOff, Music, Type, VolumeX } from 'lucide-react';
 import type { Clip, MediaItem } from '@/types/editor';
 import { clipTimelineDuration } from '@/lib/timeline';
 import { generateThumbnails, type Thumbnail } from '@/lib/media/thumbnails';
 import { clamp, cn } from '@/lib/utils';
+import { Waveform } from './Waveform';
+
+/** Drawn height (px) of a clip's waveform inside the timeline row. */
+const WAVE_H = 44;
 
 export interface TimelineClipProps {
   clip: Clip;
@@ -26,13 +30,15 @@ export interface TimelineClipProps {
 export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDown, onHandleDown, onContext }: TimelineClipProps) {
   const width = Math.max(2, clipTimelineDuration(clip) * pxPerSec);
   const left = clip.start * pxPerSec;
-  const isVideo = media?.kind === 'video';
   const isText = clip.text != null;
+  // A clip reads as audio when its media is audio, or it was detached from video.
+  const isAudio = !!media && (media.kind === 'audio' || clip.audioOnly === true);
+  const isVideo = media?.kind === 'video' && !clip.audioOnly;
 
   const [thumbs, setThumbs] = useState<Thumbnail[]>([]);
   const count = clamp(Math.round(width / 70), 1, 12);
   useEffect(() => {
-    if (!media || media.kind !== 'video') {
+    if (!media || media.kind !== 'video' || clip.audioOnly) {
       setThumbs([]);
       return;
     }
@@ -77,6 +83,20 @@ export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDo
             <span className="truncate text-[11px] font-medium text-white/90">
               {clip.text?.content || 'Text'}
             </span>
+          </div>
+        ) : isAudio && media ? (
+          <div className="relative flex h-full w-full items-center bg-gradient-to-r from-brand/30 to-accent/15">
+            <Waveform
+              mediaId={media.id}
+              blob={media.blob}
+              inSec={clip.in}
+              outSec={clip.out}
+              duration={media.duration}
+              width={width}
+              height={WAVE_H}
+              className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2"
+            />
+            <Music size={13} className="relative ml-2 shrink-0 text-brand-bright" />
           </div>
         ) : isVideo ? (
           thumbs.map((t, i) => (

@@ -42,12 +42,20 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
         flipH: false,
         flipV: false,
         rotation: 0,
+        volume: 1,
+        fadeIn: 0,
+        fadeOut: 0,
         text: clip.text,
       };
     }
     const m = mediaById.get(clip.mediaId)!;
+    const frozen = clip.freeze != null;
+    // Audio-only when the media is audio or the clip was detached from its video.
+    const audioOnly = m.kind === 'audio' || clip.audioOnly === true;
     return {
-      kind: m.kind,
+      // A frozen clip renders as a single held frame: a looped image input;
+      // audio-only clips contribute sound with no video layer.
+      kind: frozen ? 'image' : audioOnly ? 'audio' : m.kind,
       start: clip.start,
       in: clip.in,
       out: clip.out,
@@ -59,6 +67,10 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
       flipH: clip.flipH ?? false,
       flipV: clip.flipV ?? false,
       rotation: clip.rotation ?? 0,
+      volume: clip.volume ?? 1,
+      fadeIn: clip.fadeIn ?? 0,
+      fadeOut: clip.fadeOut ?? 0,
+      freeze: clip.freeze,
     };
   });
 

@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import {
+  AudioLines,
   Clipboard,
   Copy,
   CopyPlus,
@@ -16,13 +17,14 @@ import {
   MousePointerClick,
   Plus,
   Scissors,
+  Snowflake,
   Trash2,
   Volume2,
   VolumeX,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { canMergeClips, clipSnapTargets, clipTimelineDuration, projectDuration, snapStart } from '@/lib/timeline';
-import { ZOOM_MAX, ZOOM_MIN } from '@/lib/constants';
+import { MIN_CLIP, ZOOM_MAX, ZOOM_MIN } from '@/lib/constants';
 import { clamp, cn, formatClock } from '@/lib/utils';
 import { ContextMenu, type ContextMenuState, type MenuItem } from '@/components/ui/ContextMenu';
 import { PlaybackControls } from '@/components/preview/PlaybackControls';
@@ -64,6 +66,8 @@ export function Timeline() {
   const updateClips = useEditorStore((s) => s.updateClips);
   const splitAt = useEditorStore((s) => s.splitAt);
   const mergeClips = useEditorStore((s) => s.mergeClips);
+  const freezeFrame = useEditorStore((s) => s.freezeFrame);
+  const extractAudio = useEditorStore((s) => s.extractAudio);
   const duplicateClips = useEditorStore((s) => s.duplicateClips);
   const copyClips = useEditorStore((s) => s.copyClips);
   const pasteClips = useEditorStore((s) => s.pasteClips);
@@ -291,35 +295,63 @@ export function Timeline() {
     const suffix = n > 1 ? ` ${n} clips` : '';
     const idSet = new Set(ids);
     const sel = clips.filter((c) => idSet.has(c.id));
-    // Only video clips that actually carry sound can be muted — text and images can't.
+    // Clips that carry sound (a video with audio, or standalone/detached audio) can be muted.
     const audioIds = sel
       .filter((c) => {
         const m = media.find((x) => x.id === c.mediaId);
-        return m?.kind === 'video' && m.hasAudio;
+        return m?.kind === 'audio' || (m?.kind === 'video' && m.hasAudio);
       })
       .map((c) => c.id);
     const allMuted = audioIds.length > 0 && audioIds.every((id) => sel.find((c) => c.id === id)!.muted);
     const allHidden = sel.length > 0 && sel.every((c) => c.hidden);
+    const single = sel.length === 1 ? sel[0] : undefined;
+    const singleMedia = single ? media.find((x) => x.id === single.mediaId) : undefined;
+    const singleIsVideo = singleMedia?.kind === 'video';
+    const canFreeze =
+      !!single &&
+      singleIsVideo &&
+      !single.audioOnly &&
+      single.freeze == null &&
+      !single.speedCurve &&
+      currentTime > single.start + MIN_CLIP &&
+      currentTime < single.start + clipTimelineDuration(single) - MIN_CLIP;
+    // Detach a video clip's audio onto its own track (the source clip is muted).
+    const canExtract =
+      !!single && singleIsVideo && !single.audioOnly && single.freeze == null && !!singleMedia?.hasAudio;
     const items: MenuItem[] = [
       { id: 'split', label: 'Split at playhead', icon: <Scissors size={14} />, shortcut: 'S', onClick: () => splitAt(currentTime) },
       ...((canMergeClips(sel)
         ? [{ id: 'merge', label: 'Merge clips', icon: <Merge size={14} />, shortcut: 'J', onClick: () => mergeClips(ids) }]
         : []) as MenuItem[]),
+      ...((canFreeze
+        ? [{ id: 'freeze', label: 'Freeze frame', icon: <Snowflake size={14} />, shortcut: 'F', onClick: () => freezeFrame() }]
+        : []) as MenuItem[]),
       { id: 'dup', label: `Duplicate${suffix}`, icon: <CopyPlus size={14} />, shortcut: '⌘D', onClick: () => duplicateClips(ids) },
       { id: 'copy', label: `Copy${suffix}`, icon: <Copy size={14} />, shortcut: '⌘C', onClick: () => copyClips(ids) },
       { id: 'paste', label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0, onClick: () => pasteClips(currentTime) },
+      ...((canExtract
+        ? [
+            {
+              id: 'extract',
+              label: 'Extract audio',
+              icon: <AudioLines size={14} />,
+              separatorBefore: true,
+              onClick: () => extractAudio(single!.id),
+            },
+          ]
+        : []) as MenuItem[]),
       ...((audioIds.length > 0
         ? [
             {
               id: 'mute',
               label: allMuted ? 'Unmute' : 'Mute',
               icon: allMuted ? <Volume2 size={14} /> : <VolumeX size={14} />,
-              separatorBefore: true,
+              separatorBefore: !canExtract,
               onClick: () => updateClips(audioIds, { muted: !allMuted }),
             },
           ]
         : []) as MenuItem[]),
-      { id: 'hide', label: allHidden ? `Show${suffix}` : `Hide${suffix}`, icon: allHidden ? <Eye size={14} /> : <EyeOff size={14} />, separatorBefore: audioIds.length === 0, onClick: () => updateClips(ids, { hidden: !allHidden }) },
+      { id: 'hide', label: allHidden ? `Show${suffix}` : `Hide${suffix}`, icon: allHidden ? <Eye size={14} /> : <EyeOff size={14} />, separatorBefore: audioIds.length === 0 && !canExtract, onClick: () => updateClips(ids, { hidden: !allHidden }) },
       { id: 'del', label: `Delete${suffix}`, icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, separatorBefore: true, onClick: () => deleteClips(ids) },
     ];
     setMenu({ x: e.clientX, y: e.clientY, items });
@@ -334,7 +366,7 @@ export function Timeline() {
     const trackClipIds = trackClips.map((c) => c.id);
     const trackHasAudio = trackClips.some((c) => {
       const m = media.find((x) => x.id === c.mediaId);
-      return m?.kind === 'video' && m.hasAudio;
+      return m?.kind === 'audio' || (m?.kind === 'video' && m.hasAudio);
     });
     const items: MenuItem[] = [
       { id: 'paste', label: 'Paste here', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0, onClick: () => pasteClips(at) },

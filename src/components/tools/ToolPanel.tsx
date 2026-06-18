@@ -6,7 +6,7 @@ import { TextTool } from './TextTool';
 import { TransformTool } from './TransformTool';
 import { SpeedTool } from './SpeedTool';
 import { AspectRatioTool } from './AspectRatioTool';
-import { MuteTool } from './MuteTool';
+import { AudioTool } from './AudioTool';
 
 const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = {
   media: { title: 'Media', desc: 'Your clips and uploads', icon: Film },
@@ -14,7 +14,7 @@ const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = 
   transform: { title: 'Transform', desc: 'Position, size & opacity', icon: Move },
   speed: { title: 'Speed', desc: 'Speed up or slow down', icon: Gauge },
   aspect: { title: 'Aspect ratio', desc: 'Output canvas', icon: Ratio },
-  audio: { title: 'Audio', desc: 'Mute or adjust the sound', icon: Volume2 },
+  audio: { title: 'Audio', desc: 'Volume, fades & mute', icon: Volume2 },
 };
 
 export function ToolPanel() {
@@ -80,7 +80,7 @@ export function ToolPanel() {
           ) : tool === 'aspect' ? (
             <AspectRatioTool />
           ) : (
-            <MuteTool />
+            <AudioTool />
           )}
         </div>
       </aside>

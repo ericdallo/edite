@@ -1,8 +1,8 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { type Clip, resolveAspectRatio } from '@/types/editor';
-import { clipSourceAt, isClipActiveAt, projectDuration } from '@/lib/timeline';
-import { cn } from '@/lib/utils';
+import { audioFadeGain, clipSourceAt, clipSpeedAt, isClipActiveAt, projectDuration } from '@/lib/timeline';
+import { clamp, cn } from '@/lib/utils';
 import { TransformOverlay } from './TransformOverlay';
 import { TextLayer } from './TextLayer';
 
@@ -29,7 +29,8 @@ function orientMediaStyle(clip: Clip, wrapperW: number, wrapperH: number): CSSPr
 
 export function VideoPreview() {
   const stageRef = useRef<HTMLDivElement>(null);
-  const videoEls = useRef<Map<string, HTMLVideoElement>>(new Map());
+  // Holds every playable element (videos and standalone/detached audio) by clip id.
+  const mediaEls = useRef<Map<string, HTMLMediaElement>>(new Map());
 
   const media = useEditorStore((s) => s.media);
   const tracks = useEditorStore((s) => s.tracks);
@@ -107,17 +108,25 @@ export function VideoPreview() {
     return () => cancelAnimationFrame(raf);
   }, [playing, setCurrentTime, setPlaying]);
 
-  // Keep each <video> in sync with the master clock.
+  // Keep each <video>/<audio> in sync with the master clock.
   useEffect(() => {
     for (const { clip, track } of layers) {
       const m = media.find((x) => x.id === clip.mediaId);
-      if (!m || m.kind !== 'video') continue;
-      const el = videoEls.current.get(clip.id);
+      // Videos and audio (standalone or detached) drive a media element; images don't.
+      if (!m || (m.kind !== 'video' && m.kind !== 'audio')) continue;
+      const el = mediaEls.current.get(clip.id);
       if (!el) continue;
       const active = isClipActiveAt(clip, currentTime) && !track.hidden;
       el.muted = muted || clip.muted || track.muted;
-      el.volume = volume;
-      el.playbackRate = clip.speed;
+      // Per-clip gain × fade ramp, capped at 1.0 (HTMLMediaElement can't boost above 100%).
+      el.volume = clamp(volume * (clip.volume ?? 1) * audioFadeGain(clip, currentTime), 0, 1);
+      if (clip.freeze != null) {
+        // Held still: pin the element to the frozen frame and never advance it.
+        if (!el.paused) el.pause();
+        if (Math.abs(el.currentTime - clip.freeze) > 0.05) el.currentTime = clip.freeze;
+        continue;
+      }
+      el.playbackRate = clamp(clipSpeedAt(clip, currentTime), 0.0625, 16);
       if (active) {
         const want = clipSourceAt(clip, currentTime);
         const tol = playing ? 0.34 : 0.05;
@@ -169,6 +178,22 @@ export function VideoPreview() {
 
           const m = media.find((x) => x.id === clip.mediaId);
           if (!m) return null;
+          // Standalone or detached audio has no visual — render a hidden element
+          // that the sync loop drives for sound only.
+          if (m.kind === 'audio' || clip.audioOnly) {
+            return (
+              <audio
+                key={clip.id}
+                ref={(el) => {
+                  if (el) mediaEls.current.set(clip.id, el);
+                  else mediaEls.current.delete(clip.id);
+                }}
+                src={m.url}
+                preload="auto"
+                className="hidden"
+              />
+            );
+          }
           const orient = orientMediaStyle(clip, clip.rect.w * box.w, clip.rect.h * box.h);
           const mediaCls = cn('object-cover', orient ? '' : 'h-full w-full');
           return (
@@ -176,8 +201,8 @@ export function VideoPreview() {
               {m.kind === 'video' ? (
                 <video
                   ref={(el) => {
-                    if (el) videoEls.current.set(clip.id, el);
-                    else videoEls.current.delete(clip.id);
+                    if (el) mediaEls.current.set(clip.id, el);
+                    else mediaEls.current.delete(clip.id);
                   }}
                   src={m.url}
                   className={mediaCls}

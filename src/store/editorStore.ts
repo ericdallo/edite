@@ -8,8 +8,10 @@ import {
   DEFAULT_TEXT_STYLE,
   type ExportSettings,
   FULL_RECT,
+  makeSpeedCurve,
   type MediaItem,
   type Rect,
+  type SpeedCurveId,
   type TextStyle,
   type Track,
 } from '@/types/editor';
@@ -17,8 +19,11 @@ import { canMergeClips, clipEnd, clipSourceAt, clipTimelineDuration, projectDura
 import { clamp } from '@/lib/utils';
 import { uid } from '@/lib/ids';
 import {
+  AUDIO_FADE_MAX,
   CLIP_SPEED_MAX,
   CLIP_SPEED_MIN,
+  CLIP_VOLUME_MAX,
+  FREEZE_DEFAULT_DUR,
   HISTORY_LIMIT,
   IMAGE_DEFAULT_DUR,
   MIN_CLIP,
@@ -156,6 +161,9 @@ export interface EditorState {
   setClipStarts: (starts: ClipStart[]) => void;
   splitAt: (timelineTime: number) => void;
   mergeClips: (ids: string[]) => void;
+  freezeFrame: () => void;
+  setClipCurve: (ids: string[], preset: SpeedCurveId | null) => void;
+  extractAudio: (id: string) => void;
   duplicateClips: (ids: string[]) => void;
   copyClips: (ids: string[]) => void;
   pasteClips: (timelineTime?: number) => void;
@@ -195,18 +203,27 @@ function mediaFor(state: EditorState, mediaId: string): MediaItem | undefined {
 }
 
 function clampClip(c: Clip, media: MediaItem | undefined): Clip {
-  const isVideo = media?.kind === 'video';
+  // A frozen clip holds one frame, so its in/out is a free hold window, not a
+  // source range — don't cap it to the source video's duration.
+  const isVideo = media?.kind === 'video' && c.freeze == null;
   const maxOut = isVideo ? media!.duration : Number.POSITIVE_INFINITY;
   const inUpper = isVideo ? Math.max(0, media!.duration - MIN_CLIP) : Math.max(0, c.out - MIN_CLIP);
   const nin = clamp(c.in, 0, inUpper);
   const nout = clamp(c.out, nin + MIN_CLIP, maxOut);
+  const nspeed = clamp(c.speed, CLIP_SPEED_MIN, CLIP_SPEED_MAX);
+  // Fades live in timeline seconds, so they can't exceed the clip's on-timeline length.
+  const dur = Math.max(0, (nout - nin) / Math.max(0.0001, nspeed));
+  const fadeCap = Math.min(AUDIO_FADE_MAX, dur);
   return {
     ...c,
     start: Math.max(0, c.start),
     in: nin,
     out: nout,
-    speed: clamp(c.speed, CLIP_SPEED_MIN, CLIP_SPEED_MAX),
+    speed: nspeed,
     opacity: clamp(c.opacity, 0, 1),
+    volume: clamp(c.volume ?? 1, 0, CLIP_VOLUME_MAX),
+    fadeIn: clamp(c.fadeIn ?? 0, 0, fadeCap),
+    fadeOut: clamp(c.fadeOut ?? 0, 0, fadeCap),
   };
 }
 
@@ -325,6 +342,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         flipH: false,
         flipV: false,
         rotation: 0,
+        volume: 1,
+        fadeIn: 0,
+        fadeOut: 0,
       };
       return { tracks, clips: [...state.clips, clip], ...selectOne(clip.id) };
     }),
@@ -347,6 +367,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         flipH: false,
         flipV: false,
         rotation: 0,
+        volume: 1,
+        fadeIn: 0,
+        fadeOut: 0,
         text: { ...DEFAULT_TEXT_STYLE },
       };
       return {
@@ -409,7 +432,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (ids.length === 0) return {};
       const idset = new Set(ids);
       let clips = state.clips.map((c) =>
-        idset.has(c.id) ? clampClip({ ...c, speed }, mediaFor(state, c.mediaId)) : c,
+        idset.has(c.id) ? clampClip({ ...c, speed, speedCurve: undefined }, mediaFor(state, c.mediaId)) : c,
       );
       // A speed change resizes each clip on the timeline, which would leave gaps
       // between previously back-to-back clips. Re-flow the selected clips in
@@ -483,6 +506,83 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         return [merged];
       });
       return { clips, ...selectOne(merged.id) };
+    }),
+
+  freezeFrame: () =>
+    set((state) => {
+      const t = state.playback.currentTime;
+      const within = (c: Clip): boolean => {
+        if (c.text || !c.mediaId || c.hidden || c.freeze != null || c.speedCurve) return false;
+        if (mediaFor(state, c.mediaId)?.kind !== 'video') return false;
+        return t > c.start + MIN_CLIP && t < clipEnd(c) - MIN_CLIP;
+      };
+      let clip = state.activeClipId ? state.clips.find((c) => c.id === state.activeClipId) : undefined;
+      if (!clip || !within(clip)) clip = [...state.clips].reverse().find(within);
+      if (!clip || !within(clip)) return {};
+      const srcT = clipSourceAt(clip, t);
+      const hold = FREEZE_DEFAULT_DUR;
+      const trackEnd = clipEnd(clip);
+      const left: Clip = { ...clip, id: uid(), out: srcT };
+      const frozen: Clip = {
+        ...clip, id: uid(), start: t, in: 0, out: hold, speed: 1, muted: true, freeze: srcT,
+      };
+      const right: Clip = { ...clip, id: uid(), start: t + hold, in: srcT };
+      // Insert the held still and push the rest of this track right by the hold
+      // so the inserted time doesn't overlap following clips.
+      const clips = state.clips.flatMap((c) => {
+        if (c.id === clip!.id) return [left, frozen, right];
+        if (c.trackId === clip!.trackId && c.start >= trackEnd - 1e-6) {
+          return [{ ...c, start: c.start + hold }];
+        }
+        return [c];
+      });
+      return { clips, ...selectOne(frozen.id) };
+    }),
+
+  setClipCurve: (ids, preset) =>
+    set((state) => {
+      if (ids.length === 0) return {};
+      const idset = new Set(ids);
+      const curve = preset ? makeSpeedCurve(preset) : undefined;
+      const clips = state.clips.map((c) => {
+        if (!idset.has(c.id) || c.text || c.freeze != null) return c;
+        return clampClip({ ...c, speedCurve: curve }, mediaFor(state, c.mediaId));
+      });
+      return { clips };
+    }),
+
+  extractAudio: (id) =>
+    set((state) => {
+      const src = state.clips.find((c) => c.id === id);
+      // Only a sounding video clip can be detached (not text, images, freezes,
+      // or clips that are already audio-only).
+      if (!src || src.text || src.audioOnly || src.freeze != null) return {};
+      const m = mediaFor(state, src.mediaId);
+      if (!m || m.kind !== 'video' || !m.hasAudio) return {};
+      const track: Track = {
+        id: uid(),
+        name: `Audio ${state.tracks.length + 1}`,
+        hidden: false,
+        muted: false,
+      };
+      // Reuse the same source bytes/range; drop the visual + variable speed so it
+      // is a clean, independent audio lane. The source clip is muted to avoid
+      // doubling the sound.
+      const audioClip: Clip = {
+        ...src,
+        id: uid(),
+        trackId: track.id,
+        audioOnly: true,
+        muted: false,
+        speedCurve: undefined,
+        rect: { ...FULL_RECT },
+        opacity: 1,
+        flipH: false,
+        flipV: false,
+        rotation: 0,
+      };
+      const clips = state.clips.map((c) => (c.id === id ? { ...c, muted: true } : c));
+      return { tracks: [...state.tracks, track], clips: [...clips, audioClip], ...selectOne(audioClip.id) };
     }),
 
   duplicateClips: (ids) =>

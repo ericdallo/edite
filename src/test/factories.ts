@@ -44,6 +44,9 @@ export function makeClip(over: Partial<Clip> = {}): Clip {
     flipH: false,
     flipV: false,
     rotation: 0,
+    volume: 1,
+    fadeIn: 0,
+    fadeOut: 0,
     ...over,
   };
 }
@@ -62,6 +65,9 @@ export function makeExportClip(over: Partial<ExportClip> = {}): ExportClip {
     flipH: false,
     flipV: false,
     rotation: 0,
+    volume: 1,
+    fadeIn: 0,
+    fadeOut: 0,
     ...over,
   };
 }

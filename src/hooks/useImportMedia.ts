@@ -11,17 +11,18 @@ export interface UseImportMedia {
   error: string | null;
 }
 
-/** Probe + register uploaded media (video or image) and persist the bytes. */
+/** Probe + register uploaded media (video, image or audio) and persist the bytes. */
 export function useImportMedia(): UseImportMedia {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const importFiles = useCallback<UseImportMedia['importFiles']>(async (files, opts) => {
     const arr = Array.from(files).filter(
-      (f) => f.type.startsWith('video/') || f.type.startsWith('image/'),
+      (f) =>
+        f.type.startsWith('video/') || f.type.startsWith('image/') || f.type.startsWith('audio/'),
     );
     if (arr.length === 0) {
-      setError('Please choose a video or image file.');
+      setError('Please choose a video, image or audio file.');
       return;
     }
     setError(null);

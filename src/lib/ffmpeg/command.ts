@@ -1,7 +1,8 @@
 import type { ExportFormat, ExportQuality, TextStyle } from '@/types/editor';
 
 export interface ExportClip {
-  kind: 'video' | 'image' | 'text';
+  /** 'audio' = sound only, no video overlay (standalone audio or detached track). */
+  kind: 'video' | 'image' | 'text' | 'audio';
   /** timeline position (s) */
   start: number;
   in: number;
@@ -18,8 +19,16 @@ export interface ExportClip {
   flipV: boolean;
   /** clockwise rotation in degrees (0, 90, 180, 270) */
   rotation: number;
+  /** linear audio gain (1 = original level). */
+  volume: number;
+  /** audio fade-in length, in timeline seconds. */
+  fadeIn: number;
+  /** audio fade-out length, in timeline seconds. */
+  fadeOut: number;
   /** text overlay spec, present when kind === 'text' (rasterized to a PNG input). */
   text?: TextStyle;
+  /** source-time (s) of a held still; when set the clip is rasterized to a frozen PNG input. */
+  freeze?: number;
 }
 
 export interface MultiExportParams {
@@ -72,6 +81,16 @@ function atempoChain(speed: number): string {
 }
 
 export function extFromMime(mime: string): string {
+  if (mime.startsWith('audio/')) {
+    if (mime.includes('mpeg') || mime.includes('mp3')) return 'mp3';
+    if (mime.includes('wav')) return 'wav';
+    if (mime.includes('ogg')) return 'ogg';
+    if (mime.includes('flac')) return 'flac';
+    if (mime.includes('aac')) return 'aac';
+    if (mime.includes('mp4') || mime.includes('m4a')) return 'm4a';
+    if (mime.includes('webm')) return 'webm';
+    return 'mp3';
+  }
   if (mime.includes('webm')) return 'webm';
   if (mime.includes('quicktime')) return 'mov';
   if (mime.includes('matroska')) return 'mkv';
@@ -135,6 +154,8 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
 
   let acc = 'bg';
   clips.forEach((c, k) => {
+    // Audio-only clips contribute no video layer; they're handled in the audio graph.
+    if (c.kind === 'audio') return;
     const rw = makeEven(c.rect.w * W);
     const rh = makeEven(c.rect.h * H);
     const x = Math.round(c.rect.x * W);
@@ -168,11 +189,20 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
   const audioLabels: string[] = [];
   if (useAudio) {
     clips.forEach((c, k) => {
-      if (c.kind !== 'video' || !c.hasAudio || c.muted) return;
+      // Both real video clips and audio-only clips carry sound.
+      if ((c.kind !== 'video' && c.kind !== 'audio') || !c.hasAudio || c.muted) return;
       const ms = Math.round(c.start * 1000);
       const sp = Math.abs(c.speed - 1) > 1e-3 ? `,${atempoChain(c.speed)}` : '';
+      const gain = c.volume ?? 1;
+      const vol = Math.abs(gain - 1) > 1e-3 ? `,volume=${gain.toFixed(3)}` : '';
+      // Fades are in timeline seconds, applied over the clip's post-speed length.
+      const len = timelineLen(c);
+      const fin = c.fadeIn ?? 0;
+      const fout = c.fadeOut ?? 0;
+      const fadeIn = fin > 1e-3 ? `,afade=t=in:st=0:d=${fmt(fin)}` : '';
+      const fadeOut = fout > 1e-3 ? `,afade=t=out:st=${fmt(Math.max(0, len - fout))}:d=${fmt(fout)}` : '';
       graph.push(
-        `[${k}:a]atrim=${fmt(c.in)}:${fmt(c.out)},asetpts=PTS-STARTPTS${sp},adelay=${ms}|${ms}[a${k}]`,
+        `[${k}:a]atrim=${fmt(c.in)}:${fmt(c.out)},asetpts=PTS-STARTPTS${sp}${vol}${fadeIn}${fadeOut},adelay=${ms}|${ms}[a${k}]`,
       );
       audioLabels.push(`[a${k}]`);
     });

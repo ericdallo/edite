@@ -66,12 +66,40 @@ function probeVideo(file: File): Promise<{ duration: number; width: number; heig
   });
 }
 
-/** Read metadata for a video or image file. */
+function probeAudio(file: File): Promise<{ duration: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    const cleanup = () => {
+      audio.removeAttribute('src');
+      audio.load();
+      URL.revokeObjectURL(url);
+    };
+    audio.onloadedmetadata = () => {
+      const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+      cleanup();
+      if (duration <= 0) reject(new Error('Could not read this audio file.'));
+      else resolve({ duration });
+    };
+    audio.onerror = () => {
+      cleanup();
+      reject(new Error('Could not read this audio file. Try MP3, M4A, WAV or OGG.'));
+    };
+    audio.src = url;
+  });
+}
+
+/** Read metadata for a video, image or audio file. */
 export async function probeMedia(file: File): Promise<ProbedMedia> {
   const base = { fileName: file.name, mimeType: file.type, size: file.size };
   if (file.type.startsWith('image/')) {
     const { width, height } = await probeImage(file);
     return { kind: 'image', duration: 0, width, height, hasAudio: false, ...base };
+  }
+  if (file.type.startsWith('audio/')) {
+    const { duration } = await probeAudio(file);
+    return { kind: 'audio', duration, width: 0, height: 0, hasAudio: true, ...base };
   }
   const { duration, width, height, hasAudio } = await probeVideo(file);
   return { kind: 'video', duration, width, height, hasAudio, ...base };

@@ -136,6 +136,11 @@ export function useKeyboardShortcuts() {
           e.preventDefault();
           s.mergeClips(s.selectedIds);
           break;
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          s.freezeFrame();
+          break;
         case 'm':
           e.preventDefault();
           s.toggleMute();

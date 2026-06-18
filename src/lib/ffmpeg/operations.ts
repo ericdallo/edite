@@ -3,6 +3,7 @@ import { fetchFile } from '@ffmpeg/util';
 import { getFFmpeg, onFFmpegLog, terminateFFmpeg } from './client';
 import { buildExportCommand, extFromMime, type BuiltCommand, type MultiExportParams } from './command';
 import { renderTextToBlob } from '@/lib/text/raster';
+import { renderFrameToBlob } from '@/lib/media/frame';
 import { logger } from '@/lib/log';
 
 export type { MultiExportParams, ExportClip, BuiltCommand } from './command';
@@ -107,7 +108,9 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
       hasAudio: c.hasAudio && (audioByMedia.get(req.clipMediaIds[k]) ?? false),
     }));
 
-    // Each clip needs one input file: a media file, or a freshly rasterized text PNG.
+    // Each clip needs one input file: a media file, a rasterized text PNG, or a
+    // frozen single-frame PNG decoded from its source video.
+    const blobById = new Map(req.media.map((m) => [m.id, m.blob]));
     const inputNames: string[] = [];
     for (let k = 0; k < clips.length; k++) {
       throwIfAborted();
@@ -116,6 +119,14 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
         const blob = await renderTextToBlob(c.text, c.rect, req.params.canvasW, req.params.canvasH);
         const name = `txt_${k}.png`;
         await ffmpeg.writeFile(name, await fetchFile(blob));
+        inputNames.push(name);
+        textNames.push(name);
+      } else if (c.freeze != null) {
+        const blob = blobById.get(req.clipMediaIds[k]);
+        if (!blob) throw new Error('Missing source media for a freeze frame.');
+        const png = await renderFrameToBlob(blob, c.freeze);
+        const name = `frz_${k}.png`;
+        await ffmpeg.writeFile(name, await fetchFile(png));
         inputNames.push(name);
         textNames.push(name);
       } else {

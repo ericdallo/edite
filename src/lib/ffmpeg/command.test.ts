@@ -139,6 +139,58 @@ describe('buildExportCommand audio', () => {
   });
 });
 
+describe('buildExportCommand per-clip audio', () => {
+  it('applies a volume gain only when it differs from 1', () => {
+    expect(graphOf(build([makeExportClip({ volume: 1.5 })]))).toContain('volume=1.500');
+    expect(graphOf(build([makeExportClip({ volume: 0.2 })]))).toContain('volume=0.200');
+    expect(graphOf(build([makeExportClip({ volume: 1 })]))).not.toContain('volume=');
+  });
+
+  it('adds fade-in and fade-out over the clip timeline length', () => {
+    const g = graphOf(build([makeExportClip({ in: 0, out: 5, speed: 1, fadeIn: 1, fadeOut: 2 })]));
+    expect(g).toContain('afade=t=in:st=0:d=1.000');
+    expect(g).toContain('afade=t=out:st=3.000:d=2.000');
+  });
+
+  it('positions the fade-out using the post-speed length', () => {
+    // out-in = 4 at 2x => 2s on the timeline; a 0.5s fade-out starts at 1.5s.
+    const g = graphOf(build([makeExportClip({ in: 0, out: 4, speed: 2, fadeOut: 0.5 })]));
+    expect(g).toContain('afade=t=out:st=1.500:d=0.500');
+  });
+
+  it('omits fades when they are zero', () => {
+    expect(graphOf(build([makeExportClip({ fadeIn: 0, fadeOut: 0 })]))).not.toContain('afade');
+  });
+});
+
+describe('buildExportCommand audio-only clips', () => {
+  it('contributes audio but no video overlay', () => {
+    const cmd = build([makeExportClip({ kind: 'audio', hasAudio: true })]);
+    const g = graphOf(cmd);
+    expect(g).toContain('[0:a]atrim=');
+    expect(g).not.toContain('overlay=');
+    expect(strOf(cmd)).toContain('-map [vout]');
+    expect(strOf(cmd)).toContain('-map [aout]');
+  });
+
+  it('uses a plain (non-looped) input for audio', () => {
+    const s = strOf(build([makeExportClip({ kind: 'audio' })]));
+    expect(s).toContain('-i in_0.mp4');
+    expect(s).not.toContain('-loop');
+  });
+
+  it('mixes an audio-only clip alongside a video clip', () => {
+    const cmd = build([
+      makeExportClip({ kind: 'video', start: 0, hasAudio: true }),
+      makeExportClip({ kind: 'audio', start: 0, hasAudio: true }),
+    ]);
+    const g = graphOf(cmd);
+    expect(g).toContain('overlay='); // the video clip still composites
+    expect(g).toContain('[1:a]atrim='); // the audio clip still sounds
+    expect(g).toContain('amix=inputs=2');
+  });
+});
+
 describe('buildExportCommand codecs', () => {
   it('uses libx264 + faststart for mp4', () => {
     const s = strOf(build([makeExportClip()], { format: 'mp4' }));

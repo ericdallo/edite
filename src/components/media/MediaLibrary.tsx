@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { ImageIcon, Loader2, Plus, Upload, Film } from 'lucide-react';
+import { ImageIcon, Loader2, Music, Plus, Upload, Film } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useImportMedia } from '@/hooks/useImportMedia';
 import { formatClock } from '@/lib/utils';
@@ -16,7 +16,7 @@ export function MediaLibrary() {
       <input
         ref={inputRef}
         type="file"
-        accept="video/*,image/*"
+        accept="video/*,image/*,audio/*"
         multiple
         className="hidden"
         onChange={(e) => {
@@ -38,6 +38,8 @@ export function MediaLibrary() {
             <div className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-lg bg-black">
               {m.kind === 'image' ? (
                 <img src={m.url} alt="" className="h-full w-full object-cover" />
+              ) : m.kind === 'audio' ? (
+                <Music size={18} className="text-brand-bright" />
               ) : (
                 <video src={m.url} muted preload="metadata" className="h-full w-full object-cover" />
               )}
@@ -45,7 +47,13 @@ export function MediaLibrary() {
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs font-medium text-ink">{m.fileName}</div>
               <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
-                {m.kind === 'image' ? <ImageIcon size={11} /> : <Film size={11} />}
+                {m.kind === 'image' ? (
+                  <ImageIcon size={11} />
+                ) : m.kind === 'audio' ? (
+                  <Music size={11} />
+                ) : (
+                  <Film size={11} />
+                )}
                 {m.kind === 'image' ? 'Image' : formatClock(m.duration)}
               </div>
             </div>
@@ -58,7 +66,7 @@ export function MediaLibrary() {
             </button>
           </div>
         ))}
-        {media.length === 0 && <p className="text-sm text-ink-faint">No media yet. Add a video or image to begin.</p>}
+        {media.length === 0 && <p className="text-sm text-ink-faint">No media yet. Add a video, image or audio to begin.</p>}
       </div>
 
       <p className="text-xs leading-relaxed text-ink-faint">

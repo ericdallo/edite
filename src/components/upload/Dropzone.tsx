@@ -32,7 +32,7 @@ export function Dropzone({ compact = false }: DropzoneProps) {
     <input
       ref={inputRef}
       type="file"
-      accept="video/*,image/*"
+      accept="video/*,image/*,audio/*"
       multiple
       className="hidden"
       onChange={(e) => {
@@ -56,7 +56,7 @@ export function Dropzone({ compact = false }: DropzoneProps) {
       >
         {fileInput}
         {busy ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={16} />}
-        <span>Drop videos or images here, or click to upload</span>
+        <span>Drop videos, images or audio here, or click to upload</span>
       </div>
     );
   }
@@ -78,7 +78,7 @@ export function Dropzone({ compact = false }: DropzoneProps) {
           {busy ? <Loader2 className="animate-spin text-white" size={32} /> : <UploadCloud className="text-white" size={32} />}
         </div>
         <h2 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
-          {busy ? 'Reading your files…' : 'Drop videos or images to start'}
+          {busy ? 'Reading your files…' : 'Drop videos, images or audio to start'}
         </h2>
         <p className="mt-2 max-w-md text-ink-muted">
           Stack clips on multiple tracks, trim, crop, change speed, add overlays and export — all
@@ -90,7 +90,7 @@ export function Dropzone({ compact = false }: DropzoneProps) {
           </Button>
         )}
         <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-ink-faint">
-          <span>MP4 · WebM · MOV · PNG · JPG</span>
+          <span>MP4 · WebM · MOV · PNG · JPG · MP3 · WAV</span>
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck size={14} /> 100% private — processed on your device
           </span>

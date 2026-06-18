@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  audioFadeGain,
   canMergeClips,
   clipEnd,
   clipSnapTargets,
@@ -10,6 +11,32 @@ import {
   snapStart,
 } from '@/lib/timeline';
 import { makeClip } from '@/test/factories';
+
+describe('audioFadeGain', () => {
+  it('is 1 with no fades', () => {
+    expect(audioFadeGain(makeClip({ start: 0, in: 0, out: 10 }), 5)).toBe(1);
+  });
+
+  it('ramps up linearly across the fade-in', () => {
+    const c = makeClip({ start: 0, in: 0, out: 10, fadeIn: 2 });
+    expect(audioFadeGain(c, 0)).toBe(0);
+    expect(audioFadeGain(c, 1)).toBeCloseTo(0.5, 5);
+    expect(audioFadeGain(c, 2)).toBe(1);
+  });
+
+  it('ramps down linearly across the fade-out', () => {
+    const c = makeClip({ start: 0, in: 0, out: 10, fadeOut: 2 });
+    expect(audioFadeGain(c, 8)).toBe(1);
+    expect(audioFadeGain(c, 9)).toBeCloseTo(0.5, 5);
+    expect(audioFadeGain(c, 10)).toBe(0);
+  });
+
+  it('respects the clip start offset', () => {
+    const c = makeClip({ start: 4, in: 0, out: 10, fadeIn: 2 });
+    expect(audioFadeGain(c, 4)).toBe(0);
+    expect(audioFadeGain(c, 5)).toBeCloseTo(0.5, 5);
+  });
+});
 
 describe('clipTimelineDuration', () => {
   it('is (out - in) at 1x speed', () => {
@@ -57,6 +84,21 @@ describe('clipSourceAt', () => {
     const clip = makeClip({ start: 0, in: 1, out: 5, speed: 1 });
     expect(clipSourceAt(clip, -10)).toBe(1);
     expect(clipSourceAt(clip, 100)).toBe(5);
+  });
+});
+
+describe('clipSourceAt with a freeze frame', () => {
+  // A held still of source time 3.5, placed at timeline 2 for a 2s hold.
+  const frozen = makeClip({ start: 2, in: 0, out: 2, speed: 1, freeze: 3.5 });
+
+  it('returns the held frame for any time in the clip', () => {
+    expect(clipSourceAt(frozen, 2)).toBe(3.5);
+    expect(clipSourceAt(frozen, 3)).toBe(3.5);
+    expect(clipSourceAt(frozen, 3.99)).toBe(3.5);
+  });
+
+  it('keeps a plain hold window as its timeline duration', () => {
+    expect(clipTimelineDuration(frozen)).toBe(2);
   });
 });
 

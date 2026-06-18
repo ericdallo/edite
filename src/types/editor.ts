@@ -17,7 +17,7 @@ export interface Rect {
 
 export const FULL_RECT: Rect = { x: 0, y: 0, w: 1, h: 1 };
 
-export type MediaKind = 'video' | 'image';
+export type MediaKind = 'video' | 'image' | 'audio';
 
 export interface MediaItem {
   id: string;
@@ -90,11 +90,97 @@ export interface Clip {
   flipV: boolean;
   /** clockwise rotation in degrees (0, 90, 180, 270) */
   rotation: number;
+  /** linear audio gain (1 = original level). */
+  volume: number;
+  /** audio fade-in length, in timeline seconds. */
+  fadeIn: number;
+  /** audio fade-out length, in timeline seconds. */
+  fadeOut: number;
+  /**
+   * When true the clip contributes only audio (no video overlay). Set by
+   * "extract audio" on a video clip; audio-kind media is inherently audio-only.
+   */
+  audioOnly?: boolean;
   text?: TextStyle;
+  /**
+   * Source-time (seconds) held as a still. When set, the clip shows that single
+   * frame for its whole timeline length; `in`/`out` act as the hold window and
+   * `speed` is 1. Created by the freeze-frame action.
+   */
+  freeze?: number;
+  /** Variable-speed profile across the clip; overrides the constant `speed`. */
+  speedCurve?: SpeedCurve;
 }
 
 export function isTextClip(clip: Clip): clip is Clip & { text: TextStyle } {
   return clip.text != null;
+}
+
+export type SpeedCurveId = 'rampUp' | 'rampDown' | 'bulletTime';
+
+/** A control point on a speed curve: `at` is source progress 0..1, `speed` in ×. */
+export interface SpeedPoint {
+  at: number;
+  speed: number;
+}
+
+/** A variable-speed profile, given as piecewise-linear control points (absolute ×). */
+export interface SpeedCurve {
+  preset: SpeedCurveId;
+  points: SpeedPoint[];
+}
+
+export interface SpeedCurveOption {
+  id: SpeedCurveId;
+  label: string;
+  hint: string;
+  points: SpeedPoint[];
+}
+
+/**
+ * Built-in speed curves. Points are absolute speeds (×) over the clip's source
+ * progress; the first/last `at` are 0 and 1. Realised as constant-speed slices
+ * for preview and export, so what you see matches the render.
+ */
+export const SPEED_CURVES: SpeedCurveOption[] = [
+  {
+    id: 'rampUp',
+    label: 'Ramp up',
+    hint: 'Slow → fast',
+    points: [
+      { at: 0, speed: 0.4 },
+      { at: 1, speed: 2 },
+    ],
+  },
+  {
+    id: 'rampDown',
+    label: 'Ramp down',
+    hint: 'Fast → slow',
+    points: [
+      { at: 0, speed: 2 },
+      { at: 1, speed: 0.4 },
+    ],
+  },
+  {
+    id: 'bulletTime',
+    label: 'Bullet time',
+    hint: 'Slow-mo middle',
+    points: [
+      { at: 0, speed: 2 },
+      { at: 0.5, speed: 0.4 },
+      { at: 1, speed: 2 },
+    ],
+  },
+];
+
+export function speedCurveById(id: SpeedCurveId): SpeedCurveOption {
+  return SPEED_CURVES.find((c) => c.id === id) ?? SPEED_CURVES[0];
+}
+
+/** Build a stored SpeedCurve from a preset id. */
+export function makeSpeedCurve(id: SpeedCurveId): SpeedCurve {
+  const opt = speedCurveById(id);
+  return { preset: id, points: opt.points.map((p) => ({ ...p })) };
 }
 
 export type ExportFormat = 'mp4' | 'webm' | 'gif';
