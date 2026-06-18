@@ -3,11 +3,21 @@ import { cn } from '@/lib/utils';
 export interface BrandLogoProps {
   className?: string;
   showBadge?: boolean;
+  /** Where the logo links to. Defaults to the site root. */
+  href?: string;
 }
 
-export function BrandLogo({ className, showBadge = true }: BrandLogoProps) {
+export function BrandLogo({ className, showBadge = true, href = '/' }: BrandLogoProps) {
   return (
-    <div className={cn('flex items-center gap-3', className)} aria-label="edite home">
+    <a
+      href={href}
+      title="edite — home"
+      aria-label="edite home"
+      className={cn(
+        'flex items-center gap-3 rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand/60',
+        className,
+      )}
+    >
       <svg
         className="h-10 w-10 drop-shadow-[0_8px_18px_rgba(139,92,246,0.24)]"
         viewBox="0 0 64 64"
@@ -64,6 +74,6 @@ export function BrandLogo({ className, showBadge = true }: BrandLogoProps) {
           </span>
         )}
       </div>
-    </div>
+    </a>
   );
 }

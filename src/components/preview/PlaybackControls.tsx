@@ -23,6 +23,7 @@ export function PlaybackControls() {
             setCurrentTime(0);
           }}
           className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          title="Jump to start (Home)"
           aria-label="Jump to start"
         >
           <SkipBack size={17} />
@@ -30,6 +31,7 @@ export function PlaybackControls() {
         <button
           onClick={() => setPlaying(!playing)}
           className="grid h-9 w-9 place-items-center rounded-full bg-ink text-canvas transition-transform hover:scale-105 active:scale-95"
+          title={playing ? 'Pause (Space)' : 'Play (Space)'}
           aria-label={playing ? 'Pause' : 'Play'}
         >
           {playing ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
@@ -40,6 +42,7 @@ export function PlaybackControls() {
             setCurrentTime(total);
           }}
           className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          title="Jump to end (End)"
           aria-label="Jump to end"
         >
           <SkipForward size={17} />

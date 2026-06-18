@@ -122,6 +122,8 @@ export interface EditorState {
   selectedTool: ToolId;
   /** mobile only: whether the tool panel sheet is open. */
   panelOpen: boolean;
+  /** desktop only: hide the tool rail + panel to give the preview and timeline more room. */
+  sidebarCollapsed: boolean;
   zoom: number;
   snap: boolean;
   isExporting: boolean;
@@ -133,6 +135,8 @@ export interface EditorState {
   setProjectName: (name: string) => void;
   setSelectedTool: (tool: ToolId) => void;
   setPanelOpen: (open: boolean) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebar: () => void;
 
   addMedia: (item: MediaItem) => void;
   addClipFromMedia: (mediaId: string, opts?: { trackId?: string; start?: number }) => void;
@@ -159,6 +163,7 @@ export interface EditorState {
 
   setActiveClip: (id: string | null) => void;
   toggleSelect: (id: string) => void;
+  selectClips: (ids: string[]) => void;
   selectAll: () => void;
   clearSelection: () => void;
 
@@ -228,6 +233,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   playback: { currentTime: 0, playing: false, volume: 1 },
   selectedTool: 'media',
   panelOpen: false,
+  sidebarCollapsed: false,
   zoom: 1,
   snap: true,
   isExporting: false,
@@ -286,6 +292,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setProjectName: (name) => set({ projectName: name }),
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setPanelOpen: (open) => set({ panelOpen: open }),
+  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
   addMedia: (item) => set((s) => ({ media: [...s.media, item] })),
 
@@ -513,6 +521,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const selectedIds = has ? s.selectedIds.filter((x) => x !== id) : [...s.selectedIds, id];
       const activeClipId = has ? selectedIds.at(-1) ?? null : id;
       return { selectedIds, activeClipId };
+    }),
+
+  selectClips: (ids) =>
+    set((s) => {
+      const present = ids.filter((id) => s.clips.some((c) => c.id === id));
+      return { selectedIds: present, activeClipId: present.at(-1) ?? null };
     }),
 
   selectAll: () =>

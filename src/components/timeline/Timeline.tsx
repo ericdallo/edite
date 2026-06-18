@@ -12,6 +12,7 @@ import {
   Eye,
   EyeOff,
   Magnet,
+  MousePointerClick,
   Plus,
   Scissors,
   Trash2,
@@ -22,7 +23,6 @@ import { useEditorStore } from '@/store/editorStore';
 import { clipSnapTargets, clipTimelineDuration, projectDuration, snapStart } from '@/lib/timeline';
 import { ZOOM_MAX, ZOOM_MIN } from '@/lib/constants';
 import { clamp, cn, formatClock } from '@/lib/utils';
-import { Button } from '@/components/ui/Button';
 import { ContextMenu, type ContextMenuState, type MenuItem } from '@/components/ui/ContextMenu';
 import { PlaybackControls } from '@/components/preview/PlaybackControls';
 import { TimelineClip } from './TimelineClip';
@@ -54,6 +54,7 @@ export function Timeline() {
   const setZoom = useEditorStore((s) => s.setZoom);
   const setActiveClip = useEditorStore((s) => s.setActiveClip);
   const toggleSelect = useEditorStore((s) => s.toggleSelect);
+  const selectClips = useEditorStore((s) => s.selectClips);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const moveClip = useEditorStore((s) => s.moveClip);
   const moveClipToNewTrack = useEditorStore((s) => s.moveClipToNewTrack);
@@ -287,15 +288,32 @@ export function Timeline() {
     const suffix = n > 1 ? ` ${n} clips` : '';
     const idSet = new Set(ids);
     const sel = clips.filter((c) => idSet.has(c.id));
-    const allMuted = sel.length > 0 && sel.every((c) => c.muted);
+    // Only video clips that actually carry sound can be muted — text and images can't.
+    const audioIds = sel
+      .filter((c) => {
+        const m = media.find((x) => x.id === c.mediaId);
+        return m?.kind === 'video' && m.hasAudio;
+      })
+      .map((c) => c.id);
+    const allMuted = audioIds.length > 0 && audioIds.every((id) => sel.find((c) => c.id === id)!.muted);
     const allHidden = sel.length > 0 && sel.every((c) => c.hidden);
     const items: MenuItem[] = [
       { id: 'split', label: 'Split at playhead', icon: <Scissors size={14} />, shortcut: 'S', onClick: () => splitAt(currentTime) },
       { id: 'dup', label: `Duplicate${suffix}`, icon: <CopyPlus size={14} />, shortcut: '⌘D', onClick: () => duplicateClips(ids) },
       { id: 'copy', label: `Copy${suffix}`, icon: <Copy size={14} />, shortcut: '⌘C', onClick: () => copyClips(ids) },
       { id: 'paste', label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0, onClick: () => pasteClips(currentTime) },
-      { id: 'mute', label: allMuted ? `Unmute${suffix}` : `Mute${suffix}`, icon: allMuted ? <Volume2 size={14} /> : <VolumeX size={14} />, separatorBefore: true, onClick: () => updateClips(ids, { muted: !allMuted }) },
-      { id: 'hide', label: allHidden ? `Show${suffix}` : `Hide${suffix}`, icon: allHidden ? <Eye size={14} /> : <EyeOff size={14} />, onClick: () => updateClips(ids, { hidden: !allHidden }) },
+      ...((audioIds.length > 0
+        ? [
+            {
+              id: 'mute',
+              label: allMuted ? 'Unmute' : 'Mute',
+              icon: allMuted ? <Volume2 size={14} /> : <VolumeX size={14} />,
+              separatorBefore: true,
+              onClick: () => updateClips(audioIds, { muted: !allMuted }),
+            },
+          ]
+        : []) as MenuItem[]),
+      { id: 'hide', label: allHidden ? `Show${suffix}` : `Hide${suffix}`, icon: allHidden ? <Eye size={14} /> : <EyeOff size={14} />, separatorBefore: audioIds.length === 0, onClick: () => updateClips(ids, { hidden: !allHidden }) },
       { id: 'del', label: `Delete${suffix}`, icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, separatorBefore: true, onClick: () => deleteClips(ids) },
     ];
     setMenu({ x: e.clientX, y: e.clientY, items });
@@ -306,11 +324,27 @@ export function Timeline() {
     const track = tracks.find((t) => t.id === trackId);
     if (!track) return;
     const at = timeFromClientX(e.clientX);
+    const trackClips = clips.filter((c) => c.trackId === trackId);
+    const trackClipIds = trackClips.map((c) => c.id);
+    const trackHasAudio = trackClips.some((c) => {
+      const m = media.find((x) => x.id === c.mediaId);
+      return m?.kind === 'video' && m.hasAudio;
+    });
     const items: MenuItem[] = [
-      { id: 'split', label: 'Split at playhead', icon: <Scissors size={14} />, shortcut: 'S', onClick: () => splitAt(currentTime) },
       { id: 'paste', label: 'Paste here', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0, onClick: () => pasteClips(at) },
-      { id: 'tmute', label: track.muted ? 'Unmute track' : 'Mute track', icon: track.muted ? <Volume2 size={14} /> : <VolumeX size={14} />, separatorBefore: true, onClick: () => setTrackMuted(trackId, !track.muted) },
-      { id: 'thide', label: track.hidden ? 'Show track' : 'Hide track', icon: track.hidden ? <Eye size={14} /> : <EyeOff size={14} />, onClick: () => setTrackHidden(trackId, !track.hidden) },
+      { id: 'select', label: 'Select clips', icon: <MousePointerClick size={14} />, disabled: trackClipIds.length === 0, onClick: () => selectClips(trackClipIds) },
+      ...((trackHasAudio
+        ? [
+            {
+              id: 'tmute',
+              label: track.muted ? 'Unmute track' : 'Mute track',
+              icon: track.muted ? <Volume2 size={14} /> : <VolumeX size={14} />,
+              separatorBefore: true,
+              onClick: () => setTrackMuted(trackId, !track.muted),
+            },
+          ]
+        : []) as MenuItem[]),
+      { id: 'thide', label: track.hidden ? 'Show track' : 'Hide track', icon: track.hidden ? <Eye size={14} /> : <EyeOff size={14} />, separatorBefore: !trackHasAudio, onClick: () => setTrackHidden(trackId, !track.hidden) },
       { id: 'tdel', label: 'Delete track', icon: <Trash2 size={14} />, danger: true, separatorBefore: true, onClick: () => removeTrack(trackId) },
     ];
     setMenu({ x: e.clientX, y: e.clientY, items });
@@ -322,22 +356,29 @@ export function Timeline() {
     <div className="flex h-[220px] shrink-0 flex-col border-t border-line bg-surface/40 lg:h-[260px]">
       <div className="flex min-h-12 flex-wrap items-center gap-1.5 border-b border-line/60 px-2 py-1.5 lg:h-12 lg:flex-nowrap lg:gap-2 lg:px-3 lg:py-0">
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="subtle" onClick={() => splitAt(currentTime)}>
-            <Scissors size={15} /> Split
-          </Button>
+          <button
+            onClick={() => splitAt(currentTime)}
+            title="Split at playhead (S)"
+            aria-label="Split at playhead"
+            className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <Scissors size={16} />
+          </button>
           <button
             onClick={() => hasSelection && duplicateClips(selectedIds)}
             disabled={!hasSelection}
-            className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+            title="Duplicate selection (⌘D)"
             aria-label="Duplicate selection"
+            className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
           >
             <CopyPlus size={16} />
           </button>
           <button
             onClick={() => hasSelection && deleteClips(selectedIds)}
             disabled={!hasSelection}
-            className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+            title="Delete selection (Del)"
             aria-label="Delete selection"
+            className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
           >
             <Trash2 size={16} />
           </button>
@@ -346,12 +387,14 @@ export function Timeline() {
               {selectedIds.length} selected
             </span>
           )}
+          <div className="mx-0.5 h-5 w-px bg-line/70" />
           <button
             onClick={() => addTrack()}
-            className="ml-1 flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+            title="Add track"
             aria-label="Add track"
+            className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
           >
-            <Plus size={15} /> Track
+            <Plus size={16} />
           </button>
         </div>
 

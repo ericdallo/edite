@@ -33,6 +33,16 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+
+  /* Enabled, clickable controls get a pointer cursor. Disabled buttons and
+     elements with their own cursor utility (cursor-grab / cursor-ew-resize) are
+     left alone — utilities win on specificity ties via the later layer. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  a[href],
+  summary {
+    cursor: pointer;
+  }
 }
 
 ::selection {

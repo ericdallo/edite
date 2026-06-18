@@ -20,3 +20,7 @@ export const ZOOM_MAX = 12;
 /** Text overlay font size bounds, as a fraction of the canvas height. */
 export const TEXT_SIZE_MIN = 0.02;
 export const TEXT_SIZE_MAX = 0.4;
+
+/** Public site (served from the custom domain) and source repository. */
+export const SITE_URL = 'https://edite.video';
+export const REPO_URL = 'https://github.com/ericdallo/edite';

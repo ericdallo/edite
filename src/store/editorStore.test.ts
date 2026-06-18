@@ -264,6 +264,45 @@ describe('selection', () => {
   });
 });
 
+describe('selectClips', () => {
+  beforeEach(() => {
+    store.setState({
+      media: [makeMedia({ id: 'm1', duration: 10 })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [
+        makeClip({ id: 'c1', mediaId: 'm1', trackId: 't1', start: 0 }),
+        makeClip({ id: 'c2', mediaId: 'm1', trackId: 't1', start: 11 }),
+      ],
+    });
+    get().clearSelection();
+  });
+
+  it('selects the given clips and makes the last one primary', () => {
+    get().selectClips(['c1', 'c2']);
+    expect(get().selectedIds).toEqual(['c1', 'c2']);
+    expect(get().activeClipId).toBe('c2');
+  });
+
+  it('drops unknown ids and clears the primary when none remain', () => {
+    get().selectClips(['c1', 'ghost']);
+    expect(get().selectedIds).toEqual(['c1']);
+    get().selectClips(['ghost']);
+    expect(get().selectedIds).toEqual([]);
+    expect(get().activeClipId).toBeNull();
+  });
+});
+
+describe('sidebar collapse', () => {
+  it('toggles and sets the collapsed flag', () => {
+    get().setSidebarCollapsed(false);
+    expect(get().sidebarCollapsed).toBe(false);
+    get().toggleSidebar();
+    expect(get().sidebarCollapsed).toBe(true);
+    get().setSidebarCollapsed(false);
+    expect(get().sidebarCollapsed).toBe(false);
+  });
+});
+
 describe('bulk edits', () => {
   beforeEach(() => {
     store.setState({

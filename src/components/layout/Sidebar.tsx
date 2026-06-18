@@ -22,6 +22,7 @@ export function Sidebar() {
   const setTool = useEditorStore((s) => s.setSelectedTool);
   const panelOpen = useEditorStore((s) => s.panelOpen);
   const setPanelOpen = useEditorStore((s) => s.setPanelOpen);
+  const collapsed = useEditorStore((s) => s.sidebarCollapsed);
 
   return (
     <nav
@@ -30,6 +31,8 @@ export function Sidebar() {
         'order-2 flex w-full shrink-0 flex-row items-stretch justify-around gap-1 border-t border-line bg-surface/85 px-1 py-1 backdrop-blur',
         // desktop: vertical left rail
         'lg:order-1 lg:w-[68px] lg:flex-col lg:items-center lg:justify-start lg:gap-1 lg:border-r lg:border-t-0 lg:bg-surface/40 lg:px-0 lg:py-3 lg:backdrop-blur-none',
+        // desktop: hidden when the user collapses the sidebar (mobile bar stays)
+        collapsed && 'lg:hidden',
       )}
     >
       {TOOLS.map((t) => {
@@ -38,6 +41,8 @@ export function Sidebar() {
         return (
           <button
             key={t.id}
+            title={t.label}
+            aria-label={t.label}
             onClick={() => {
               if (selected === t.id && panelOpen) setPanelOpen(false);
               else {

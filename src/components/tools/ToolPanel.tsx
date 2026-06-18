@@ -21,6 +21,7 @@ export function ToolPanel() {
   const tool = useEditorStore((s) => s.selectedTool);
   const panelOpen = useEditorStore((s) => s.panelOpen);
   const setPanelOpen = useEditorStore((s) => s.setPanelOpen);
+  const collapsed = useEditorStore((s) => s.sidebarCollapsed);
   const meta = META[tool];
   const Icon = meta.icon;
 
@@ -44,6 +45,8 @@ export function ToolPanel() {
           panelOpen ? 'translate-y-0' : 'translate-y-full',
           // desktop: static left column
           'lg:static lg:bottom-auto lg:z-auto lg:order-2 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
+          // desktop: hidden alongside the rail when collapsed (mobile sheet unaffected)
+          collapsed && 'lg:hidden',
         )}
       >
         <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line lg:hidden" />
