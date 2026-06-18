@@ -14,13 +14,16 @@ export interface TimelineClipProps {
   clip: Clip;
   media: MediaItem | undefined;
   pxPerSec: number;
+  /** primary selection: gets trim handles. */
   active: boolean;
+  /** part of the current (possibly multi) selection: gets a brand outline. */
+  selected: boolean;
   onBodyDown: (e: ReactPointerEvent) => void;
   onHandleDown: (e: ReactPointerEvent, edge: 'in' | 'out') => void;
   onContext: (e: ReactMouseEvent) => void;
 }
 
-export function TimelineClip({ clip, media, pxPerSec, active, onBodyDown, onHandleDown, onContext }: TimelineClipProps) {
+export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDown, onHandleDown, onContext }: TimelineClipProps) {
   const width = Math.max(2, clipTimelineDuration(clip) * pxPerSec);
   const left = clip.start * pxPerSec;
   const isVideo = media?.kind === 'video';
@@ -55,7 +58,11 @@ export function TimelineClip({ clip, media, pxPerSec, active, onBodyDown, onHand
     <div
       className={cn(
         'group absolute top-1 bottom-1 cursor-grab overflow-hidden rounded-md active:cursor-grabbing',
-        active ? 'z-10 ring-2 ring-brand' : 'ring-1 ring-white/15 hover:ring-white/30',
+        active
+          ? 'z-10 ring-2 ring-brand'
+          : selected
+            ? 'z-10 ring-2 ring-brand/70'
+            : 'ring-1 ring-white/15 hover:ring-white/30',
         clip.hidden && 'opacity-50',
       )}
       style={{ left, width }}
@@ -75,7 +82,7 @@ export function TimelineClip({ clip, media, pxPerSec, active, onBodyDown, onHand
       {clip.hidden && (
         <div className="pointer-events-none absolute inset-0 bg-canvas/40 bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,rgba(255,255,255,0.05)_6px,rgba(255,255,255,0.05)_12px)]" />
       )}
-      <div className={cn('pointer-events-none absolute inset-0', active ? 'bg-brand/10' : '')} />
+      <div className={cn('pointer-events-none absolute inset-0', active || selected ? 'bg-brand/10' : '')} />
 
       <div className="pointer-events-none absolute left-1.5 top-1.5 flex gap-1">
         {clip.muted && (

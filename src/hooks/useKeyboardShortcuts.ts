@@ -74,20 +74,24 @@ export function useKeyboardShortcuts() {
 
       if (e.ctrlKey || e.metaKey) {
         switch (e.key.toLowerCase()) {
+          case 'a':
+            e.preventDefault();
+            s.selectAll();
+            return;
           case 'c':
-            if (s.activeClipId) {
+            if (s.selectedIds.length) {
               e.preventDefault();
-              s.copyClip(s.activeClipId);
+              s.copyClips(s.selectedIds);
             }
             return;
           case 'v':
             e.preventDefault();
-            s.pasteClip(s.playback.currentTime);
+            s.pasteClips(s.playback.currentTime);
             return;
           case 'd':
-            if (s.activeClipId) {
+            if (s.selectedIds.length) {
               e.preventDefault();
-              s.duplicateClip(s.activeClipId);
+              s.duplicateClips(s.selectedIds);
             }
             return;
           case '=':
@@ -124,9 +128,15 @@ export function useKeyboardShortcuts() {
           break;
         case 'Delete':
         case 'Backspace':
-          if (s.activeClipId) {
+          if (s.selectedIds.length) {
             e.preventDefault();
-            s.deleteClip(s.activeClipId);
+            s.deleteClips(s.selectedIds);
+          }
+          break;
+        case 'Escape':
+          if (s.selectedIds.length) {
+            e.preventDefault();
+            s.clearSelection();
           }
           break;
         case 'Home':

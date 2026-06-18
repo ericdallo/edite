@@ -41,6 +41,7 @@ export function usePersistence() {
           muted: snap.muted,
           exportSettings: { ...DEFAULT_EXPORT_SETTINGS, ...snap.exportSettings },
           activeClipId: snap.clips[0]?.id ?? null,
+          selectedIds: snap.clips[0] ? [snap.clips[0].id] : [],
           playback: { currentTime: 0, playing: false, volume: useEditorStore.getState().playback.volume },
         });
       } catch {

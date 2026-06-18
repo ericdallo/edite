@@ -43,6 +43,7 @@ export function Timeline() {
   const tracks = useEditorStore((s) => s.tracks);
   const clips = useEditorStore((s) => s.clips);
   const activeId = useEditorStore((s) => s.activeClipId);
+  const selectedIds = useEditorStore((s) => s.selectedIds);
   const clipboard = useEditorStore((s) => s.clipboard);
   const zoom = useEditorStore((s) => s.zoom);
   const snap = useEditorStore((s) => s.snap);
@@ -52,22 +53,25 @@ export function Timeline() {
   const setPlaying = useEditorStore((s) => s.setPlaying);
   const setZoom = useEditorStore((s) => s.setZoom);
   const setActiveClip = useEditorStore((s) => s.setActiveClip);
+  const toggleSelect = useEditorStore((s) => s.toggleSelect);
+  const clearSelection = useEditorStore((s) => s.clearSelection);
   const moveClip = useEditorStore((s) => s.moveClip);
   const moveClipToNewTrack = useEditorStore((s) => s.moveClipToNewTrack);
+  const setClipStarts = useEditorStore((s) => s.setClipStarts);
   const updateClip = useEditorStore((s) => s.updateClip);
+  const updateClips = useEditorStore((s) => s.updateClips);
   const splitAt = useEditorStore((s) => s.splitAt);
-  const duplicateClip = useEditorStore((s) => s.duplicateClip);
-  const copyClip = useEditorStore((s) => s.copyClip);
-  const pasteClip = useEditorStore((s) => s.pasteClip);
-  const deleteClip = useEditorStore((s) => s.deleteClip);
-  const toggleClipMuted = useEditorStore((s) => s.toggleClipMuted);
-  const toggleClipHidden = useEditorStore((s) => s.toggleClipHidden);
+  const duplicateClips = useEditorStore((s) => s.duplicateClips);
+  const copyClips = useEditorStore((s) => s.copyClips);
+  const pasteClips = useEditorStore((s) => s.pasteClips);
+  const deleteClips = useEditorStore((s) => s.deleteClips);
   const addTrack = useEditorStore((s) => s.addTrack);
   const removeTrack = useEditorStore((s) => s.removeTrack);
   const setTrackMuted = useEditorStore((s) => s.setTrackMuted);
   const setTrackHidden = useEditorStore((s) => s.setTrackHidden);
 
   const displayDuration = Math.max(projectDuration(clips), 8);
+  const hasSelection = selectedIds.length > 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -133,7 +137,7 @@ export function Timeline() {
     return rowsTopOrder[clamp(idx, 0, rowsTopOrder.length - 1)]?.id;
   };
 
-  // Empty area: click = seek, drag = pan horizontally.
+  // Empty area: click = seek + clear selection, drag = pan horizontally.
   const onAreaPointerDown = (e: ReactPointerEvent) => {
     if (pxPerSec <= 0) return;
     const startX = e.clientX;
@@ -148,6 +152,7 @@ export function Timeline() {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (!moved) {
+        clearSelection();
         setPlaying(false);
         setCurrentTime(timeFromClientX(ev.clientX));
       }
@@ -158,23 +163,46 @@ export function Timeline() {
 
   const onClipBodyDown = (e: ReactPointerEvent, clipId: string) => {
     e.stopPropagation();
-    setActiveClip(clipId);
+    // Modifier-click toggles a clip in/out of the selection (no drag/seek).
+    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+      toggleSelect(clipId);
+      return;
+    }
+    const inSelection = selectedIds.includes(clipId);
+    // Clicking a clip outside the current selection selects just it.
+    if (!inSelection) setActiveClip(clipId);
     const clip = clips.find((c) => c.id === clipId);
     if (!clip) return;
+
+    const group = inSelection && selectedIds.length > 1;
     const startX = e.clientX;
     const startY = e.clientY;
-    const origStart = clip.start;
     const dur = clipTimelineDuration(clip);
-    const targets = snap ? clipSnapTargets(clips, clipId, currentTime) : [];
+
+    // single-drag prep
+    const origStart = clip.start;
+    const targets = !group && snap ? clipSnapTargets(clips, clipId, currentTime) : [];
+    // group-drag prep: capture every selected clip's origin so the translate has no drift
+    const groupOrigins = group
+      ? selectedIds.map((id) => ({ id, start: clips.find((c) => c.id === id)?.start ?? 0 }))
+      : [];
+    const minOrigin = group ? Math.min(...groupOrigins.map((o) => o.start)) : 0;
+
     let moved = false;
     let curStart = origStart;
     let toNewTrack = false;
     const move = (ev: PointerEvent) => {
       if (!moved && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) {
         moved = true;
-        setDragClipId(clipId);
+        if (!group) setDragClipId(clipId);
       }
       if (!moved) return;
+      if (group) {
+        // translate the whole selection, clamped so the earliest clip stays >= 0
+        const delta = Math.max((ev.clientX - startX) / pxPerSec, -minOrigin);
+        setClipStarts(groupOrigins.map((o) => ({ id: o.id, start: o.start + delta })));
+        return;
+      }
       let newStart = Math.max(0, origStart + (ev.clientX - startX) / pxPerSec);
       if (snap) newStart = snapStart(newStart, dur, targets, 8 / pxPerSec);
       curStart = newStart;
@@ -191,9 +219,11 @@ export function Timeline() {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (!moved) {
+        // a plain click on a clip already in a multi-selection collapses to just it
+        if (group) setActiveClip(clipId);
         setPlaying(false);
         setCurrentTime(timeFromClientX(ev.clientX));
-      } else if (toNewTrack) {
+      } else if (!group && toNewTrack) {
         moveClipToNewTrack(clipId, curStart, 'below');
       }
       setDragClipId(null);
@@ -252,17 +282,24 @@ export function Timeline() {
   const openClipMenu = (e: ReactMouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setActiveClip(id);
-    const clip = clips.find((c) => c.id === id);
-    if (!clip) return;
+    // Right-clicking a clip outside the selection selects just it; otherwise act on the whole selection.
+    const already = selectedIds.includes(id);
+    if (!already) setActiveClip(id);
+    const ids = already ? selectedIds : [id];
+    const n = ids.length;
+    const suffix = n > 1 ? ` ${n} clips` : '';
+    const idSet = new Set(ids);
+    const sel = clips.filter((c) => idSet.has(c.id));
+    const allMuted = sel.length > 0 && sel.every((c) => c.muted);
+    const allHidden = sel.length > 0 && sel.every((c) => c.hidden);
     const items: MenuItem[] = [
       { id: 'split', label: 'Split at playhead', icon: <Scissors size={14} />, shortcut: 'S', onClick: () => splitAt(currentTime) },
-      { id: 'dup', label: 'Duplicate', icon: <CopyPlus size={14} />, shortcut: '⌘D', onClick: () => duplicateClip(id) },
-      { id: 'copy', label: 'Copy', icon: <Copy size={14} />, shortcut: '⌘C', onClick: () => copyClip(id) },
-      { id: 'paste', label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: !clipboard, onClick: () => pasteClip(currentTime) },
-      { id: 'mute', label: clip.muted ? 'Unmute' : 'Mute', icon: clip.muted ? <Volume2 size={14} /> : <VolumeX size={14} />, separatorBefore: true, onClick: () => toggleClipMuted(id) },
-      { id: 'hide', label: clip.hidden ? 'Show' : 'Hide', icon: clip.hidden ? <Eye size={14} /> : <EyeOff size={14} />, onClick: () => toggleClipHidden(id) },
-      { id: 'del', label: 'Delete', icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, separatorBefore: true, onClick: () => deleteClip(id) },
+      { id: 'dup', label: `Duplicate${suffix}`, icon: <CopyPlus size={14} />, shortcut: '⌘D', onClick: () => duplicateClips(ids) },
+      { id: 'copy', label: `Copy${suffix}`, icon: <Copy size={14} />, shortcut: '⌘C', onClick: () => copyClips(ids) },
+      { id: 'paste', label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0, onClick: () => pasteClips(currentTime) },
+      { id: 'mute', label: allMuted ? `Unmute${suffix}` : `Mute${suffix}`, icon: allMuted ? <Volume2 size={14} /> : <VolumeX size={14} />, separatorBefore: true, onClick: () => updateClips(ids, { muted: !allMuted }) },
+      { id: 'hide', label: allHidden ? `Show${suffix}` : `Hide${suffix}`, icon: allHidden ? <Eye size={14} /> : <EyeOff size={14} />, onClick: () => updateClips(ids, { hidden: !allHidden }) },
+      { id: 'del', label: `Delete${suffix}`, icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, separatorBefore: true, onClick: () => deleteClips(ids) },
     ];
     setMenu({ x: e.clientX, y: e.clientY, items });
   };
@@ -274,7 +311,7 @@ export function Timeline() {
     const at = timeFromClientX(e.clientX);
     const items: MenuItem[] = [
       { id: 'split', label: 'Split at playhead', icon: <Scissors size={14} />, shortcut: 'S', onClick: () => splitAt(currentTime) },
-      { id: 'paste', label: 'Paste here', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: !clipboard, onClick: () => pasteClip(at) },
+      { id: 'paste', label: 'Paste here', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0, onClick: () => pasteClips(at) },
       { id: 'tmute', label: track.muted ? 'Unmute track' : 'Mute track', icon: track.muted ? <Volume2 size={14} /> : <VolumeX size={14} />, separatorBefore: true, onClick: () => setTrackMuted(trackId, !track.muted) },
       { id: 'thide', label: track.hidden ? 'Show track' : 'Hide track', icon: track.hidden ? <Eye size={14} /> : <EyeOff size={14} />, onClick: () => setTrackHidden(trackId, !track.hidden) },
       { id: 'tdel', label: 'Delete track', icon: <Trash2 size={14} />, danger: true, separatorBefore: true, onClick: () => removeTrack(trackId) },
@@ -292,21 +329,26 @@ export function Timeline() {
             <Scissors size={15} /> Split
           </Button>
           <button
-            onClick={() => activeId && duplicateClip(activeId)}
-            disabled={!activeId}
+            onClick={() => hasSelection && duplicateClips(selectedIds)}
+            disabled={!hasSelection}
             className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
-            aria-label="Duplicate clip"
+            aria-label="Duplicate selection"
           >
             <CopyPlus size={16} />
           </button>
           <button
-            onClick={() => activeId && deleteClip(activeId)}
-            disabled={!activeId}
+            onClick={() => hasSelection && deleteClips(selectedIds)}
+            disabled={!hasSelection}
             className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
-            aria-label="Delete clip"
+            aria-label="Delete selection"
           >
             <Trash2 size={16} />
           </button>
+          {selectedIds.length > 1 && (
+            <span className="ml-1 rounded-md bg-brand/15 px-2 py-0.5 text-xs font-medium text-brand-bright">
+              {selectedIds.length} selected
+            </span>
+          )}
           <button
             onClick={() => addTrack()}
             className="ml-1 flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
@@ -391,6 +433,7 @@ export function Timeline() {
                       media={media.find((m) => m.id === clip.mediaId)}
                       pxPerSec={pxPerSec}
                       active={clip.id === activeId}
+                      selected={selectedIds.includes(clip.id)}
                       onBodyDown={(e) => onClipBodyDown(e, clip.id)}
                       onHandleDown={(e, edge) => onHandleDown(e, clip.id, edge)}
                       onContext={(e) => openClipMenu(e, clip.id)}

@@ -100,16 +100,17 @@ describe('splitAt', () => {
 describe('duplicate / copy / paste', () => {
   beforeEach(seed);
 
-  it('duplicates a clip directly after itself', () => {
-    get().duplicateClip('c1');
+  it('duplicates a clip directly after itself and selects the copy', () => {
+    get().duplicateClips(['c1']);
     const s = get();
     expect(s.clips).toHaveLength(2);
     expect(s.clips[1].start).toBe(10); // clipEnd of the original
+    expect(s.selectedIds).toEqual([s.clips[1].id]);
   });
 
   it('pastes the clipboard at a given time on the same track', () => {
-    get().copyClip('c1');
-    get().pasteClip(5);
+    get().copyClips(['c1']);
+    get().pasteClips(5);
     const s = get();
     expect(s.clips).toHaveLength(2);
     expect(s.clips[1].start).toBe(5);
@@ -117,13 +118,13 @@ describe('duplicate / copy / paste', () => {
   });
 
   it('paste is a no-op with an empty clipboard', () => {
-    get().pasteClip(5);
+    get().pasteClips(5);
     expect(get().clips).toHaveLength(1);
   });
 });
 
-describe('deleteClip', () => {
-  it('reassigns the active clip after deleting the selected one', () => {
+describe('deleteClips', () => {
+  it('removes the clips and reselects the nearest survivor', () => {
     store.setState({
       media: [makeMedia({ id: 'm1' })],
       tracks: [makeTrack({ id: 't1' })],
@@ -132,11 +133,128 @@ describe('deleteClip', () => {
         makeClip({ id: 'c2', mediaId: 'm1', trackId: 't1', start: 11 }),
       ],
       activeClipId: 'c1',
+      selectedIds: ['c1'],
     });
-    get().deleteClip('c1');
+    get().deleteClips(['c1']);
     const s = get();
     expect(s.clips.map((c) => c.id)).toEqual(['c2']);
     expect(s.activeClipId).toBe('c2');
+    expect(s.selectedIds).toEqual(['c2']);
+  });
+
+  it('clears the selection when everything is deleted', () => {
+    store.setState({
+      media: [makeMedia({ id: 'm1' })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [makeClip({ id: 'c1', mediaId: 'm1', trackId: 't1' })],
+      activeClipId: 'c1',
+      selectedIds: ['c1'],
+    });
+    get().deleteClips(['c1']);
+    expect(get().clips).toHaveLength(0);
+    expect(get().selectedIds).toEqual([]);
+    expect(get().activeClipId).toBeNull();
+  });
+});
+
+describe('selection', () => {
+  beforeEach(() => {
+    store.setState({
+      media: [makeMedia({ id: 'm1', duration: 10 })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [
+        makeClip({ id: 'c1', mediaId: 'm1', trackId: 't1', start: 0 }),
+        makeClip({ id: 'c2', mediaId: 'm1', trackId: 't1', start: 11 }),
+        makeClip({ id: 'c3', mediaId: 'm1', trackId: 't1', start: 22 }),
+      ],
+    });
+    get().clearSelection();
+  });
+
+  it('setActiveClip selects exactly one clip and syncs selectedIds', () => {
+    get().setActiveClip('c2');
+    expect(get().selectedIds).toEqual(['c2']);
+    expect(get().activeClipId).toBe('c2');
+    get().setActiveClip(null);
+    expect(get().selectedIds).toEqual([]);
+    expect(get().activeClipId).toBeNull();
+  });
+
+  it('selectAll selects every clip and keeps a still-present primary', () => {
+    get().setActiveClip('c2');
+    get().selectAll();
+    const s = get();
+    expect(s.selectedIds).toEqual(['c1', 'c2', 'c3']);
+    expect(s.activeClipId).toBe('c2');
+  });
+
+  it('toggleSelect adds then removes, updating the primary', () => {
+    get().setActiveClip('c1');
+    get().toggleSelect('c3');
+    expect(get().selectedIds).toEqual(['c1', 'c3']);
+    expect(get().activeClipId).toBe('c3');
+    get().toggleSelect('c3');
+    expect(get().selectedIds).toEqual(['c1']);
+    expect(get().activeClipId).toBe('c1');
+  });
+
+  it('clearSelection empties the selection', () => {
+    get().selectAll();
+    get().clearSelection();
+    expect(get().selectedIds).toEqual([]);
+    expect(get().activeClipId).toBeNull();
+  });
+});
+
+describe('bulk edits', () => {
+  beforeEach(() => {
+    store.setState({
+      media: [makeMedia({ id: 'm1', duration: 10 })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [
+        makeClip({ id: 'c1', mediaId: 'm1', trackId: 't1', start: 0 }),
+        makeClip({ id: 'c2', mediaId: 'm1', trackId: 't1', start: 11 }),
+      ],
+    });
+  });
+
+  it('updateClips applies a clamped patch to many clips at once', () => {
+    get().updateClips(['c1', 'c2'], { speed: 2, muted: true });
+    expect(get().clips.every((c) => c.speed === 2 && c.muted)).toBe(true);
+    get().updateClips(['c1'], { speed: 999 });
+    expect(get().clips.find((c) => c.id === 'c1')!.speed).toBe(CLIP_SPEED_MAX);
+  });
+
+  it('setClipStarts moves clips to absolute starts, clamped to >= 0', () => {
+    get().setClipStarts([
+      { id: 'c1', start: 5 },
+      { id: 'c2', start: -3 },
+    ]);
+    const s = get();
+    expect(s.clips.find((c) => c.id === 'c1')!.start).toBe(5);
+    expect(s.clips.find((c) => c.id === 'c2')!.start).toBe(0);
+  });
+
+  it('duplicateClips copies all clips and selects the copies', () => {
+    get().duplicateClips(['c1', 'c2']);
+    const s = get();
+    expect(s.clips).toHaveLength(4);
+    expect(s.selectedIds).toHaveLength(2);
+    expect(s.selectedIds).not.toContain('c1');
+    expect(s.selectedIds).not.toContain('c2');
+  });
+
+  it('copyClips + pasteClips preserves relative spacing at the playhead', () => {
+    get().copyClips(['c1', 'c2']); // starts 0 and 11 -> spacing 11
+    get().pasteClips(20);
+    const s = get();
+    const pasted = s.clips
+      .filter((c) => c.id !== 'c1' && c.id !== 'c2')
+      .sort((a, b) => a.start - b.start);
+    expect(pasted).toHaveLength(2);
+    expect(pasted[0].start).toBe(20);
+    expect(pasted[1].start).toBe(31);
+    expect(s.selectedIds).toEqual(pasted.map((c) => c.id));
   });
 });
 
