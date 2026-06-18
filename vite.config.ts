@@ -3,10 +3,10 @@ import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-// `base` targets a GitHub Pages project site (https://<user>.github.io/edite/).
-// For the future custom domain (edite.video) set base to '/' and add a CNAME file.
+// Served from the custom domain https://edite.video (see public/CNAME), so the
+// app lives at the root path. BASE_URL ('/') is used for ffmpeg core loading too.
 export default defineConfig({
-  base: '/edite/',
+  base: '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
