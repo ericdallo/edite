@@ -13,7 +13,7 @@ import {
   type TextStyle,
   type Track,
 } from '@/types/editor';
-import { clipEnd, clipSourceAt, clipTimelineDuration, projectDuration } from '@/lib/timeline';
+import { canMergeClips, clipEnd, clipSourceAt, clipTimelineDuration, projectDuration } from '@/lib/timeline';
 import { clamp } from '@/lib/utils';
 import { uid } from '@/lib/ids';
 import {
@@ -155,6 +155,7 @@ export interface EditorState {
   moveClipToNewTrack: (id: string, start: number, edge: 'above' | 'below') => void;
   setClipStarts: (starts: ClipStart[]) => void;
   splitAt: (timelineTime: number) => void;
+  mergeClips: (ids: string[]) => void;
   duplicateClips: (ids: string[]) => void;
   copyClips: (ids: string[]) => void;
   pasteClips: (timelineTime?: number) => void;
@@ -464,6 +465,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const right: Clip = { ...clip, id: uid(), start: t, in: srcT };
       const clips = state.clips.flatMap((c) => (c.id === clip!.id ? [left, right] : [c]));
       return { clips, ...selectOne(right.id) };
+    }),
+
+  mergeClips: (ids) =>
+    set((state) => {
+      const idset = new Set(ids);
+      const sel = state.clips.filter((c) => idset.has(c.id));
+      if (!canMergeClips(sel)) return {};
+      const ordered = [...sel].sort((a, b) => a.start - b.start);
+      const merged: Clip = { ...ordered[0], id: uid(), out: ordered[ordered.length - 1].out };
+      // Replace the contiguous run with the single merged clip at the first one's slot.
+      let placed = false;
+      const clips = state.clips.flatMap((c) => {
+        if (!idset.has(c.id)) return [c];
+        if (placed) return [];
+        placed = true;
+        return [merged];
+      });
+      return { clips, ...selectOne(merged.id) };
     }),
 
   duplicateClips: (ids) =>

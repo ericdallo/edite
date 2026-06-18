@@ -12,6 +12,7 @@ import {
   Eye,
   EyeOff,
   Magnet,
+  Merge,
   MousePointerClick,
   Plus,
   Scissors,
@@ -20,7 +21,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
-import { clipSnapTargets, clipTimelineDuration, projectDuration, snapStart } from '@/lib/timeline';
+import { canMergeClips, clipSnapTargets, clipTimelineDuration, projectDuration, snapStart } from '@/lib/timeline';
 import { ZOOM_MAX, ZOOM_MIN } from '@/lib/constants';
 import { clamp, cn, formatClock } from '@/lib/utils';
 import { ContextMenu, type ContextMenuState, type MenuItem } from '@/components/ui/ContextMenu';
@@ -62,6 +63,7 @@ export function Timeline() {
   const updateClip = useEditorStore((s) => s.updateClip);
   const updateClips = useEditorStore((s) => s.updateClips);
   const splitAt = useEditorStore((s) => s.splitAt);
+  const mergeClips = useEditorStore((s) => s.mergeClips);
   const duplicateClips = useEditorStore((s) => s.duplicateClips);
   const copyClips = useEditorStore((s) => s.copyClips);
   const pasteClips = useEditorStore((s) => s.pasteClips);
@@ -73,6 +75,7 @@ export function Timeline() {
 
   const displayDuration = Math.max(projectDuration(clips), 8);
   const hasSelection = selectedIds.length > 0;
+  const canMerge = canMergeClips(clips.filter((c) => selectedIds.includes(c.id)));
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -299,6 +302,9 @@ export function Timeline() {
     const allHidden = sel.length > 0 && sel.every((c) => c.hidden);
     const items: MenuItem[] = [
       { id: 'split', label: 'Split at playhead', icon: <Scissors size={14} />, shortcut: 'S', onClick: () => splitAt(currentTime) },
+      ...((canMergeClips(sel)
+        ? [{ id: 'merge', label: 'Merge clips', icon: <Merge size={14} />, shortcut: 'J', onClick: () => mergeClips(ids) }]
+        : []) as MenuItem[]),
       { id: 'dup', label: `Duplicate${suffix}`, icon: <CopyPlus size={14} />, shortcut: '⌘D', onClick: () => duplicateClips(ids) },
       { id: 'copy', label: `Copy${suffix}`, icon: <Copy size={14} />, shortcut: '⌘C', onClick: () => copyClips(ids) },
       { id: 'paste', label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0, onClick: () => pasteClips(currentTime) },
@@ -363,6 +369,15 @@ export function Timeline() {
             className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
           >
             <Scissors size={16} />
+          </button>
+          <button
+            onClick={() => canMerge && mergeClips(selectedIds)}
+            disabled={!canMerge}
+            title="Merge selected clips (J)"
+            aria-label="Merge selected clips"
+            className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+          >
+            <Merge size={16} />
           </button>
           <button
             onClick={() => hasSelection && duplicateClips(selectedIds)}

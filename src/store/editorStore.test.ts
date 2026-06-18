@@ -155,6 +155,44 @@ describe('splitAt', () => {
   });
 });
 
+describe('mergeClips', () => {
+  beforeEach(seed);
+
+  it('rejoins split halves into one clip and selects it', () => {
+    get().setActiveClip('c1');
+    get().splitAt(4); // two abutting halves of the 0..10 clip
+    const ids = get().clips.map((c) => c.id);
+    expect(ids).toHaveLength(2);
+    get().mergeClips(ids);
+    const s = get();
+    expect(s.clips).toHaveLength(1);
+    expect(s.clips[0]).toMatchObject({ start: 0, in: 0, out: 10 });
+    expect(s.selectedIds).toEqual([s.clips[0].id]);
+    expect(s.activeClipId).toBe(s.clips[0].id);
+  });
+
+  it('merges a run of three contiguous pieces', () => {
+    get().setActiveClip('c1');
+    get().splitAt(3);
+    const rightId = get().clips.find((c) => c.start === 3)!.id;
+    get().setActiveClip(rightId);
+    get().splitAt(6);
+    expect(get().clips).toHaveLength(3);
+    get().mergeClips(get().clips.map((c) => c.id));
+    expect(get().clips).toHaveLength(1);
+    expect(get().clips[0].out).toBe(10);
+  });
+
+  it('is a no-op when the clips are not contiguous', () => {
+    get().setActiveClip('c1');
+    get().splitAt(4);
+    const [a, b] = get().clips;
+    get().moveClip(b.id, 7, b.trackId); // open a gap
+    get().mergeClips([a.id, b.id]);
+    expect(get().clips).toHaveLength(2);
+  });
+});
+
 describe('duplicate / copy / paste', () => {
   beforeEach(seed);
 

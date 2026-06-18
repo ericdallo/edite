@@ -131,6 +131,11 @@ export function useKeyboardShortcuts() {
           e.preventDefault();
           s.splitAt(s.playback.currentTime);
           break;
+        case 'j':
+        case 'J':
+          e.preventDefault();
+          s.mergeClips(s.selectedIds);
+          break;
         case 'm':
           e.preventDefault();
           s.toggleMute();

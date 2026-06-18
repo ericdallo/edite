@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canMergeClips,
   clipEnd,
   clipSnapTargets,
   clipSourceAt,
@@ -86,6 +87,48 @@ describe('clipSnapTargets', () => {
     expect(targets).toContain(5);
     expect(targets).toContain(8);
     expect(targets).not.toContain(4); // edge of the excluded clip
+  });
+});
+
+describe('canMergeClips', () => {
+  // A 0..10 clip split at t=4 yields these two abutting halves.
+  const left = makeClip({ id: 'l', mediaId: 'm1', trackId: 't1', start: 0, in: 0, out: 4 });
+  const right = makeClip({ id: 'r', mediaId: 'm1', trackId: 't1', start: 4, in: 4, out: 10 });
+
+  it('accepts adjacent same-source halves (the inverse of a split)', () => {
+    expect(canMergeClips([left, right])).toBe(true);
+    expect(canMergeClips([right, left])).toBe(true); // order independent
+  });
+
+  it('accepts a run of three contiguous clips', () => {
+    const a = makeClip({ id: 'a', mediaId: 'm1', trackId: 't1', start: 0, in: 0, out: 3 });
+    const b = makeClip({ id: 'b', mediaId: 'm1', trackId: 't1', start: 3, in: 3, out: 6 });
+    const c = makeClip({ id: 'c', mediaId: 'm1', trackId: 't1', start: 6, in: 6, out: 9 });
+    expect(canMergeClips([a, b, c])).toBe(true);
+  });
+
+  it('rejects a single clip', () => {
+    expect(canMergeClips([left])).toBe(false);
+  });
+
+  it('rejects different media or tracks', () => {
+    expect(canMergeClips([left, { ...right, mediaId: 'm2' }])).toBe(false);
+    expect(canMergeClips([left, { ...right, trackId: 't2' }])).toBe(false);
+  });
+
+  it('rejects a gap or overlap on the timeline', () => {
+    expect(canMergeClips([left, { ...right, start: 5 }])).toBe(false); // gap
+    expect(canMergeClips([left, { ...right, start: 3 }])).toBe(false); // overlap
+  });
+
+  it('rejects a discontinuity in the source range', () => {
+    expect(canMergeClips([left, { ...right, in: 5 }])).toBe(false);
+  });
+
+  it('rejects text overlays (no source to join)', () => {
+    const t1 = makeClip({ id: 't1c', mediaId: '', start: 0, in: 0, out: 3, text: undefined });
+    const t2 = makeClip({ id: 't2c', mediaId: '', start: 3, in: 3, out: 6 });
+    expect(canMergeClips([t1, t2])).toBe(false);
   });
 });
 

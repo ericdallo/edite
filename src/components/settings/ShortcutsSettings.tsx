@@ -1,6 +1,7 @@
 const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: 'Space / K', action: 'Play / pause' },
   { keys: 'S', action: 'Split at playhead' },
+  { keys: 'J', action: 'Merge selected clips' },
   { keys: '⌘/Ctrl + A', action: 'Select all clips' },
   { keys: '⌘/Ctrl/⇧ + click', action: 'Add / remove from selection' },
   { keys: 'T', action: 'Add a text overlay' },
