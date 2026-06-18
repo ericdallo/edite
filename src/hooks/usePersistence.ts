@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { MediaItem, MediaMeta } from '@/types/editor';
+import { DEFAULT_EXPORT_SETTINGS, type MediaItem, type MediaMeta } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import {
   getLastProjectId,
@@ -40,7 +40,7 @@ export function usePersistence() {
           aspect: snap.aspect,
           aspectMode: snap.aspectMode,
           muted: snap.muted,
-          exportSettings: snap.exportSettings,
+          exportSettings: { ...DEFAULT_EXPORT_SETTINGS, ...snap.exportSettings },
           activeClipId: snap.clips[0]?.id ?? null,
           playback: { currentTime: 0, playing: false, volume: useEditorStore.getState().playback.volume },
         });

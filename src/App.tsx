@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { usePersistence } from '@/hooks/usePersistence';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useHistory } from '@/hooks/useHistory';
 import { Topbar } from '@/components/layout/Topbar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { EditorLayout } from '@/components/layout/EditorLayout';
@@ -13,6 +14,7 @@ import { ExportDialog } from '@/components/export/ExportDialog';
 
 export default function App() {
   usePersistence();
+  useHistory();
   useKeyboardShortcuts();
   const hasMedia = useEditorStore((s) => s.media.length > 0);
   const closeProject = useEditorStore((s) => s.closeProject);

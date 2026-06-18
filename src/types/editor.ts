@@ -68,11 +68,23 @@ export interface Clip {
 
 export type ExportFormat = 'mp4' | 'webm' | 'gif';
 export type ExportQuality = 'high' | 'medium' | 'low';
+/** Target short-side resolution in pixels (e.g. 1080 renders 1080p). */
+export type ExportResolution = 480 | 720 | 1080 | 1440 | 2160;
+export type ExportFps = 24 | 30 | 60;
 
 export interface ExportSettings {
   format: ExportFormat;
   quality: ExportQuality;
+  resolution: ExportResolution;
+  fps: ExportFps;
 }
+
+export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
+  format: 'mp4',
+  quality: 'high',
+  resolution: 1080,
+  fps: 30,
+};
 
 export interface ProjectSnapshot {
   id: string;
@@ -99,21 +111,36 @@ export const ASPECT_RATIOS: AspectRatioOption[] = [
 
 export const SPEED_PRESETS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 
+export interface ResolutionOption {
+  id: ExportResolution;
+  label: string;
+  hint: string;
+}
+
+export const RESOLUTIONS: ResolutionOption[] = [
+  { id: 480, label: '480p', hint: 'SD' },
+  { id: 720, label: '720p', hint: 'HD' },
+  { id: 1080, label: '1080p', hint: 'Full HD' },
+  { id: 1440, label: '1440p', hint: '2K' },
+  { id: 2160, label: '2160p', hint: '4K' },
+];
+
+export const FPS_PRESETS: ExportFps[] = [24, 30, 60];
+
 export function aspectById(id: AspectRatioId): AspectRatioOption {
   return ASPECT_RATIOS.find((a) => a.id === id) ?? ASPECT_RATIOS[0];
 }
 
-/** Output canvas pixel size for an aspect ratio (longest side ~1280, even). */
-export function canvasSize(ratio: number): { width: number; height: number } {
-  const long = 1280;
+/** Output canvas pixel size for an aspect ratio at a target short-side resolution (even). */
+export function canvasSize(ratio: number, shortSide = 1080): { width: number; height: number } {
   let w: number;
   let h: number;
   if (ratio >= 1) {
-    w = long;
-    h = Math.round(long / ratio);
+    h = shortSide;
+    w = Math.round(shortSide * ratio);
   } else {
-    h = long;
-    w = Math.round(long * ratio);
+    w = shortSide;
+    h = Math.round(shortSide / ratio);
   }
   const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
   return { width: even(w), height: even(h) };

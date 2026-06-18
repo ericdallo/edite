@@ -1,4 +1,4 @@
-import { Download, Plus } from 'lucide-react';
+import { Download, Plus, Redo2, Undo2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +13,11 @@ export function Topbar({ onExport, onNew }: TopbarProps) {
   const hasMedia = useEditorStore((s) => s.media.length > 0);
   const projectName = useEditorStore((s) => s.projectName);
   const setProjectName = useEditorStore((s) => s.setProjectName);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
+  const canUndo = useEditorStore((s) => s.past.length > 0);
+  const canRedo = useEditorStore((s) => s.future.length > 0);
+  const showHistory = hasMedia || canUndo || canRedo;
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface/60 px-3 backdrop-blur-md">
@@ -31,6 +36,28 @@ export function Topbar({ onExport, onNew }: TopbarProps) {
       )}
 
       <div className="ml-auto flex items-center gap-2">
+        {showHistory && (
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              title="Undo (⌘/Ctrl+Z)"
+              aria-label="Undo"
+              className="grid h-9 w-9 place-items-center rounded-xl text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Undo2 size={18} />
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              title="Redo (⌘/Ctrl+Shift+Z)"
+              aria-label="Redo"
+              className="grid h-9 w-9 place-items-center rounded-xl text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Redo2 size={18} />
+            </button>
+          </div>
+        )}
         {hasMedia && <KeyboardHelp />}
         {hasMedia && (
           <Button variant="subtle" size="sm" onClick={onNew}>

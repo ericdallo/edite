@@ -14,6 +14,8 @@ const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: '⌘/Ctrl + C', action: 'Copy clip' },
   { keys: '⌘/Ctrl + V', action: 'Paste clip' },
   { keys: '⌘/Ctrl + D', action: 'Duplicate clip' },
+  { keys: '⌘/Ctrl + Z', action: 'Undo' },
+  { keys: '⌘/Ctrl + ⇧ + Z', action: 'Redo' },
   { keys: '⌘/Ctrl + / −', action: 'Zoom timeline' },
   { keys: '⌘/Ctrl + 0', action: 'Reset zoom' },
 ];

@@ -64,7 +64,7 @@ export function Dialog({
             )}
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="max-h-[min(80vh,42rem)] overflow-y-auto p-6">{children}</div>
       </div>
     </div>,
     document.body,

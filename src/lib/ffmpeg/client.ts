@@ -22,6 +22,22 @@ export function isFFmpegLoaded(): boolean {
   return instance !== null;
 }
 
+/**
+ * Terminate the running ffmpeg worker — the only way to interrupt an in-flight
+ * exec. Resets the singleton so the next getFFmpeg() loads a fresh instance.
+ */
+export function terminateFFmpeg(): void {
+  if (!instance) return;
+  try {
+    instance.terminate();
+    logger.info('ffmpeg terminated');
+  } catch (e) {
+    logger.warn('ffmpeg terminate failed', e);
+  }
+  instance = null;
+  loadPromise = null;
+}
+
 export async function getFFmpeg(): Promise<FFmpeg> {
   if (instance) return instance;
   if (loadPromise) return loadPromise;

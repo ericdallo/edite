@@ -83,6 +83,7 @@ export function Timeline() {
   const setZoom = useEditorStore((s) => s.setZoom);
   const setActiveClip = useEditorStore((s) => s.setActiveClip);
   const moveClip = useEditorStore((s) => s.moveClip);
+  const moveClipToNewTrack = useEditorStore((s) => s.moveClipToNewTrack);
   const updateClip = useEditorStore((s) => s.updateClip);
   const splitAt = useEditorStore((s) => s.splitAt);
   const duplicateClip = useEditorStore((s) => s.duplicateClip);
@@ -103,6 +104,8 @@ export function Timeline() {
   const rowsRef = useRef<HTMLDivElement>(null);
   const [viewW, setViewW] = useState(0);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const [dragClipId, setDragClipId] = useState<string | null>(null);
+  const [overNewTrack, setOverNewTrack] = useState(false);
   const pendingFocus = useRef<{ time: number; offset: number } | null>(null);
 
   useEffect(() => {
@@ -189,17 +192,30 @@ export function Timeline() {
     const clip = clips.find((c) => c.id === clipId);
     if (!clip) return;
     const startX = e.clientX;
+    const startY = e.clientY;
     const origStart = clip.start;
     const dur = clipTimelineDuration(clip);
     const targets = snap ? snapTargets(clips, clipId, currentTime) : [];
     let moved = false;
+    let curStart = origStart;
+    let toNewTrack = false;
     const move = (ev: PointerEvent) => {
-      const dx = ev.clientX - startX;
-      if (!moved && Math.abs(dx) > 4) moved = true;
+      if (!moved && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) {
+        moved = true;
+        setDragClipId(clipId);
+      }
       if (!moved) return;
-      let newStart = Math.max(0, origStart + dx / pxPerSec);
+      let newStart = Math.max(0, origStart + (ev.clientX - startX) / pxPerSec);
       if (snap) newStart = applySnap(newStart, dur, targets, pxPerSec);
-      moveClip(clipId, newStart, trackFromClientY(ev.clientY) ?? clip.trackId);
+      curStart = newStart;
+      // dropping below the last row creates a new track
+      const rows = rowsRef.current?.getBoundingClientRect();
+      toNewTrack = !!rows && ev.clientY > rows.bottom - 4;
+      setOverNewTrack(toNewTrack);
+      const trackId = toNewTrack
+        ? useEditorStore.getState().clips.find((c) => c.id === clipId)?.trackId ?? clip.trackId
+        : trackFromClientY(ev.clientY) ?? clip.trackId;
+      moveClip(clipId, newStart, trackId);
     };
     const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move);
@@ -207,7 +223,11 @@ export function Timeline() {
       if (!moved) {
         setPlaying(false);
         setCurrentTime(timeFromClientX(ev.clientX));
+      } else if (toNewTrack) {
+        moveClipToNewTrack(clipId, curStart, 'below');
       }
+      setDragClipId(null);
+      setOverNewTrack(false);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -409,6 +429,33 @@ export function Timeline() {
               </div>
             ))}
           </div>
+
+          {dragClipId && (
+            <div
+              className={cn(
+                'relative mx-1 mb-1 rounded-xl border-2 border-dashed transition-colors',
+                overNewTrack ? 'border-brand bg-brand/10' : 'border-line/60 bg-surface-2/20',
+              )}
+              style={{ height: ROW_H - 10 }}
+            >
+              {(() => {
+                const dc = overNewTrack ? clips.find((c) => c.id === dragClipId) : undefined;
+                return dc ? (
+                  <div
+                    className="pointer-events-none absolute inset-y-1 rounded-lg bg-brand/30 ring-1 ring-brand"
+                    style={{
+                      left: dc.start * pxPerSec,
+                      width: Math.max(10, clipTimelineDuration(dc) * pxPerSec),
+                    }}
+                  />
+                ) : (
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center text-xs font-medium text-ink-faint">
+                    Drop here to add a track
+                  </span>
+                );
+              })()}
+            </div>
+          )}
 
           <Playhead left={currentTime * pxPerSec} onGrab={grabPlayhead} />
         </div>

@@ -1,7 +1,7 @@
 import { type FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
-import { getFFmpeg, onFFmpegLog } from './client';
-import { buildExportCommand, extFromMime, type MultiExportParams } from './command';
+import { getFFmpeg, onFFmpegLog, terminateFFmpeg } from './client';
+import { buildExportCommand, extFromMime, type BuiltCommand, type MultiExportParams } from './command';
 import { logger } from '@/lib/log';
 
 export type { MultiExportParams, ExportClip, BuiltCommand } from './command';
@@ -12,6 +12,14 @@ export interface ExportMedia {
   blob: Blob;
 }
 
+/** Thrown when an export is interrupted via its AbortSignal. */
+export class ExportCancelledError extends Error {
+  constructor() {
+    super('Export canceled');
+    this.name = 'ExportCancelledError';
+  }
+}
+
 export interface ExportRequest {
   params: MultiExportParams;
   /** unique media used by the clips */
@@ -19,6 +27,8 @@ export interface ExportRequest {
   /** media id for each clip, in the same order as params.clips */
   clipMediaIds: string[];
   onProgress?: (ratio: number) => void;
+  /** abort to cancel: terminates the ffmpeg worker mid-render */
+  signal?: AbortSignal;
 }
 
 /**
@@ -45,51 +55,67 @@ async function hasAudioStream(ffmpeg: FFmpeg, name: string): Promise<boolean> {
 
 /** Composite + render the multi-track project in ffmpeg.wasm. */
 export async function runExport(req: ExportRequest): Promise<Blob> {
+  const { signal } = req;
+  if (signal?.aborted) throw new ExportCancelledError();
+
   logger.info('export starting', {
     clips: req.params.clips.length,
     media: req.media.length,
     format: req.params.format,
     quality: req.params.quality,
     canvas: `${req.params.canvasW}x${req.params.canvasH}`,
+    fps: req.params.fps,
     duration: Number(req.params.duration.toFixed(2)),
     globalMuted: req.params.globalMuted,
   });
 
   const ffmpeg = await getFFmpeg();
+  const throwIfAborted = () => {
+    if (signal?.aborted) throw new ExportCancelledError();
+  };
+  const onAbort = () => terminateFFmpeg();
+  signal?.addEventListener('abort', onAbort);
 
   const nameById = new Map<string, string>();
-  for (const m of req.media) {
-    const name = `in_${m.id}.${extFromMime(m.blob.type)}`;
-    nameById.set(m.id, name);
-    await ffmpeg.writeFile(name, await fetchFile(m.blob));
-    logger.info(`wrote ${name} (${(m.blob.size / 1024 / 1024).toFixed(1)} MB, ${m.blob.type || 'unknown'})`);
-  }
-
-  const audioByMedia = new Map<string, boolean>();
-  for (const m of req.media) {
-    audioByMedia.set(m.id, await hasAudioStream(ffmpeg, nameById.get(m.id)!));
-  }
-
-  const clips = req.params.clips.map((c, k) => ({
-    ...c,
-    hasAudio: c.hasAudio && (audioByMedia.get(req.clipMediaIds[k]) ?? false),
-  }));
-  const inputNames = req.clipMediaIds.map((id) => nameById.get(id) ?? '');
-  const built = buildExportCommand(inputNames, { ...req.params, clips });
-  logger.info('ffmpeg command:\n' + ['ffmpeg', ...built.args].join(' '));
-
   const logLines: string[] = [];
-  const offLog = onFFmpegLog((m) => {
-    logLines.push(m);
-    if (logLines.length > 200) logLines.shift();
-  });
+  let offLog: (() => void) | undefined;
+  let built: BuiltCommand | undefined;
   const handler = ({ progress }: { progress: number }) => {
     req.onProgress?.(Math.max(0, Math.min(1, progress)));
   };
   ffmpeg.on('progress', handler);
 
   try {
+    for (const m of req.media) {
+      throwIfAborted();
+      const name = `in_${m.id}.${extFromMime(m.blob.type)}`;
+      nameById.set(m.id, name);
+      await ffmpeg.writeFile(name, await fetchFile(m.blob));
+      logger.info(`wrote ${name} (${(m.blob.size / 1024 / 1024).toFixed(1)} MB, ${m.blob.type || 'unknown'})`);
+    }
+
+    const audioByMedia = new Map<string, boolean>();
+    for (const m of req.media) {
+      throwIfAborted();
+      audioByMedia.set(m.id, await hasAudioStream(ffmpeg, nameById.get(m.id)!));
+    }
+
+    const clips = req.params.clips.map((c, k) => ({
+      ...c,
+      hasAudio: c.hasAudio && (audioByMedia.get(req.clipMediaIds[k]) ?? false),
+    }));
+    const inputNames = req.clipMediaIds.map((id) => nameById.get(id) ?? '');
+    built = buildExportCommand(inputNames, { ...req.params, clips });
+    logger.info('ffmpeg command:\n' + ['ffmpeg', ...built.args].join(' '));
+
+    offLog = onFFmpegLog((m) => {
+      logLines.push(m);
+      if (logLines.length > 200) logLines.shift();
+    });
+
+    throwIfAborted();
     await ffmpeg.exec(built.args);
+    throwIfAborted();
     const data = await ffmpeg.readFile(built.outputName);
     const bytes = data as Uint8Array;
     const out = new Uint8Array(bytes.byteLength);
@@ -97,6 +123,10 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
     logger.info(`export done: ${(out.byteLength / 1024 / 1024).toFixed(2)} MB`);
     return new Blob([out], { type: built.mime });
   } catch (err) {
+    if (signal?.aborted || err instanceof ExportCancelledError) {
+      logger.info('export canceled');
+      throw new ExportCancelledError();
+    }
     logger.error('export failed:', err);
     logger.error('full ffmpeg log:\n' + logLines.join('\n'));
     const cause = logLines.find((l) =>
@@ -104,9 +134,14 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
     );
     throw new Error(cause ? cause.trim() : err instanceof Error ? err.message : 'Export failed.');
   } finally {
-    offLog();
+    signal?.removeEventListener('abort', onAbort);
+    offLog?.();
     ffmpeg.off('progress', handler);
-    for (const name of nameById.values()) await ffmpeg.deleteFile(name).catch(() => undefined);
-    await ffmpeg.deleteFile(built.outputName).catch(() => undefined);
+    // Skip FS cleanup when aborted: the worker is gone and the next export
+    // starts from a freshly loaded instance with a clean filesystem.
+    if (!signal?.aborted) {
+      for (const name of nameById.values()) await ffmpeg.deleteFile(name).catch(() => undefined);
+      if (built) await ffmpeg.deleteFile(built.outputName).catch(() => undefined);
+    }
   }
 }

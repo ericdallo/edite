@@ -3,13 +3,14 @@ import {
   type AspectMode,
   type AspectRatioId,
   type Clip,
+  DEFAULT_EXPORT_SETTINGS,
   type ExportSettings,
   FULL_RECT,
   type MediaItem,
   type Rect,
   type Track,
 } from '@/types/editor';
-import { clipEnd, clipSourceAt } from '@/lib/timeline';
+import { clipEnd, clipSourceAt, projectDuration } from '@/lib/timeline';
 
 export type ToolId = 'media' | 'transform' | 'speed' | 'aspect' | 'audio';
 
@@ -22,7 +23,51 @@ function clamp(v: number, lo: number, hi: number): number {
 
 const MIN_CLIP = 0.06;
 const IMAGE_DEFAULT_DUR = 3;
-const DEFAULT_EXPORT: ExportSettings = { format: 'mp4', quality: 'high' };
+const DEFAULT_EXPORT: ExportSettings = DEFAULT_EXPORT_SETTINGS;
+const HISTORY_LIMIT = 100;
+
+/** The subset of state that undo/redo tracks (the "document"). */
+interface DocSnapshot {
+  media: MediaItem[];
+  tracks: Track[];
+  clips: Clip[];
+  aspect: AspectRatioId;
+  aspectMode: AspectMode;
+  muted: boolean;
+  projectName: string;
+}
+
+function snapshotDoc(s: DocSnapshot): DocSnapshot {
+  return {
+    media: s.media,
+    tracks: s.tracks,
+    clips: s.clips,
+    aspect: s.aspect,
+    aspectMode: s.aspectMode,
+    muted: s.muted,
+    projectName: s.projectName,
+  };
+}
+
+// All store updates are immutable, so reference equality is an exact change test.
+function sameDoc(a: DocSnapshot, b: DocSnapshot): boolean {
+  return (
+    a.media === b.media &&
+    a.tracks === b.tracks &&
+    a.clips === b.clips &&
+    a.aspect === b.aspect &&
+    a.aspectMode === b.aspectMode &&
+    a.muted === b.muted &&
+    a.projectName === b.projectName
+  );
+}
+
+function emptyDoc(projectName = 'Untitled project'): DocSnapshot {
+  return { media: [], tracks: [], clips: [], aspect: '16:9', aspectMode: 'fill', muted: false, projectName };
+}
+
+export const selectDoc = (s: DocSnapshot): DocSnapshot => snapshotDoc(s);
+export const docsEqual = sameDoc;
 
 interface PlaybackState {
   currentTime: number;
@@ -45,6 +90,10 @@ export interface EditorState {
 
   activeClipId: string | null;
   clipboard: Clip | null;
+
+  past: DocSnapshot[];
+  future: DocSnapshot[];
+  committed: DocSnapshot;
 
   playback: PlaybackState;
   selectedTool: ToolId;
@@ -69,6 +118,7 @@ export interface EditorState {
 
   updateClip: (id: string, patch: Partial<Clip>) => void;
   moveClip: (id: string, start: number, trackId: string) => void;
+  moveClipToNewTrack: (id: string, start: number, edge: 'above' | 'below') => void;
   splitAt: (timelineTime: number) => void;
   duplicateClip: (id: string) => void;
   copyClip: (id: string) => void;
@@ -95,6 +145,10 @@ export interface EditorState {
   toggleSnap: () => void;
   setExporting: (v: boolean) => void;
   setExportProgress: (p: number, stage?: string) => void;
+
+  commitHistory: () => void;
+  undo: () => void;
+  redo: () => void;
 
   hydrate: (partial: Partial<EditorState>) => void;
 }
@@ -131,6 +185,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   exportSettings: DEFAULT_EXPORT,
   activeClipId: null,
   clipboard: null,
+  past: [],
+  future: [],
+  committed: emptyDoc(),
   playback: { currentTime: 0, playing: false, volume: 1 },
   selectedTool: 'media',
   zoom: 1,
@@ -153,6 +210,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         muted: false,
         activeClipId: null,
         clipboard: null,
+        past: [],
+        future: [],
+        committed: emptyDoc(name ?? 'Untitled project'),
         playback: { currentTime: 0, playing: false, volume: s.playback.volume },
         selectedTool: 'media',
         zoom: 1,
@@ -173,6 +233,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         clips: [],
         activeClipId: null,
         clipboard: null,
+        past: [],
+        future: [],
+        committed: emptyDoc(),
         playback: { currentTime: 0, playing: false, volume: s.playback.volume },
       };
     }),
@@ -242,6 +305,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           c.id === id ? { ...c, start: Math.max(0, start), trackId: exists ? trackId : c.trackId } : c,
         ),
       };
+    }),
+
+  moveClipToNewTrack: (id, start, edge) =>
+    set((state) => {
+      const t: Track = { id: uid(), name: `Track ${state.tracks.length + 1}`, hidden: false, muted: false };
+      const tracks = edge === 'below' ? [t, ...state.tracks] : [...state.tracks, t];
+      const clips = state.clips.map((c) =>
+        c.id === id ? { ...c, start: Math.max(0, start), trackId: t.id } : c,
+      );
+      return { tracks, clips, activeClipId: id };
     }),
 
   splitAt: (t) =>
@@ -321,5 +394,48 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setExportProgress: (p, stage) =>
     set((s) => ({ exportProgress: clamp(p, 0, 1), exportStage: stage ?? s.exportStage })),
 
-  hydrate: (partial) => set(partial),
+  commitHistory: () =>
+    set((s) => {
+      const cur = snapshotDoc(s);
+      if (sameDoc(cur, s.committed)) return {};
+      return { past: [...s.past, s.committed].slice(-HISTORY_LIMIT), future: [], committed: cur };
+    }),
+
+  undo: () =>
+    set((s) => {
+      if (s.past.length === 0) return {};
+      const prev = s.past[s.past.length - 1];
+      const cur = snapshotDoc(s);
+      const activeClipId = prev.clips.some((c) => c.id === s.activeClipId) ? s.activeClipId : null;
+      return {
+        ...prev,
+        past: s.past.slice(0, -1),
+        future: [cur, ...s.future].slice(0, HISTORY_LIMIT),
+        committed: prev,
+        activeClipId,
+        playback: { ...s.playback, playing: false, currentTime: clamp(s.playback.currentTime, 0, projectDuration(prev.clips)) },
+      };
+    }),
+
+  redo: () =>
+    set((s) => {
+      if (s.future.length === 0) return {};
+      const next = s.future[0];
+      const cur = snapshotDoc(s);
+      const activeClipId = next.clips.some((c) => c.id === s.activeClipId) ? s.activeClipId : null;
+      return {
+        ...next,
+        past: [...s.past, cur].slice(-HISTORY_LIMIT),
+        future: s.future.slice(1),
+        committed: next,
+        activeClipId,
+        playback: { ...s.playback, playing: false, currentTime: clamp(s.playback.currentTime, 0, projectDuration(next.clips)) },
+      };
+    }),
+
+  hydrate: (partial) =>
+    set((s) => {
+      const merged = { ...s, ...partial };
+      return { ...partial, past: [], future: [], committed: snapshotDoc(merged) };
+    }),
 }));

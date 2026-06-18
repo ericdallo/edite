@@ -6,6 +6,8 @@ dist-ssr
 public/ffmpeg
 
 *.local
+# temp design scratch files
+palette-preview.html
 .DS_Store
 .vscode/*
 !.vscode/extensions.json

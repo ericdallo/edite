@@ -36,7 +36,25 @@ export function useKeyboardShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = useEditorStore.getState();
-      if (s.media.length === 0 || isTyping()) return;
+      if (isTyping()) return;
+
+      // Undo/redo work even with no media (so redo is reachable after undoing to empty).
+      if (e.ctrlKey || e.metaKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) s.redo();
+          else s.undo();
+          return;
+        }
+        if (k === 'y') {
+          e.preventDefault();
+          s.redo();
+          return;
+        }
+      }
+
+      if (s.media.length === 0) return;
 
       // Caret movement (with modifiers) — handled before the Ctrl letter combos.
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
