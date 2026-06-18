@@ -137,25 +137,22 @@ export function Timeline() {
     return rowsTopOrder[clamp(idx, 0, rowsTopOrder.length - 1)]?.id;
   };
 
-  // Empty area: click = seek + clear selection, drag = pan horizontally.
+  // Empty area / ruler: press and drag to scrub the playhead. A plain click
+  // (no drag) also clears the selection.
   const onAreaPointerDown = (e: ReactPointerEvent) => {
     if (pxPerSec <= 0) return;
     const startX = e.clientX;
-    const startScroll = scrollRef.current?.scrollLeft ?? 0;
     let moved = false;
+    setPlaying(false);
+    setCurrentTime(timeFromClientX(e.clientX));
     const move = (ev: PointerEvent) => {
-      const dx = ev.clientX - startX;
-      if (!moved && Math.abs(dx) > 4) moved = true;
-      if (moved && scrollRef.current) scrollRef.current.scrollLeft = startScroll - dx;
+      if (!moved && Math.abs(ev.clientX - startX) > 3) moved = true;
+      setCurrentTime(timeFromClientX(ev.clientX));
     };
-    const up = (ev: PointerEvent) => {
+    const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      if (!moved) {
-        clearSelection();
-        setPlaying(false);
-        setCurrentTime(timeFromClientX(ev.clientX));
-      }
+      if (!moved) clearSelection();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
