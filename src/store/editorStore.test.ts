@@ -319,3 +319,48 @@ describe('history (commit / undo / redo)', () => {
     expect(get().clips[0].start).toBe(5);
   });
 });
+
+describe('setClipsSpeed', () => {
+  const by = (id: string) => get().clips.find((c) => c.id === id)!;
+
+  function seedSeq(starts: number[], trackIds?: string[]) {
+    store.setState({
+      media: [makeMedia({ id: 'm1', duration: 100 })],
+      tracks: [makeTrack({ id: 't1' }), makeTrack({ id: 't2' })],
+      clips: starts.map((s, i) =>
+        makeClip({ id: `c${i + 1}`, mediaId: 'm1', trackId: trackIds?.[i] ?? 't1', start: s, in: 0, out: 10 }),
+      ),
+    });
+  }
+
+  it('keeps multiple clips back-to-back after speeding them up', () => {
+    seedSeq([0, 10, 20]); // three 10s clips, contiguous
+    get().setClipsSpeed(['c1', 'c2', 'c3'], 2);
+    expect(by('c1').speed).toBe(2);
+    expect(by('c1').start).toBe(0);
+    expect(by('c2').start).toBe(5);
+    expect(by('c3').start).toBe(10);
+  });
+
+  it('closes pre-existing gaps and anchors at the earliest start', () => {
+    seedSeq([3, 20]); // a gap between the two clips
+    get().setClipsSpeed(['c1', 'c2'], 1); // 1x: each stays 10s long
+    expect(by('c1').start).toBe(3);
+    expect(by('c2').start).toBe(13);
+  });
+
+  it('re-flows across tracks in start order while keeping each track', () => {
+    seedSeq([0, 10], ['t1', 't2']);
+    get().setClipsSpeed(['c1', 'c2'], 2);
+    expect(by('c1').start).toBe(0);
+    expect(by('c2').start).toBe(5);
+    expect(by('c2').trackId).toBe('t2');
+  });
+
+  it('only changes speed for a single clip (no reflow)', () => {
+    seedSeq([7]);
+    get().setClipsSpeed(['c1'], 2);
+    expect(by('c1').speed).toBe(2);
+    expect(by('c1').start).toBe(7);
+  });
+});

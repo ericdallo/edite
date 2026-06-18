@@ -7,7 +7,7 @@ export function SpeedTool() {
   const activeId = useEditorStore((s) => s.activeClipId);
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const clips = useEditorStore((s) => s.clips);
-  const updateClips = useEditorStore((s) => s.updateClips);
+  const setClipsSpeed = useEditorStore((s) => s.setClipsSpeed);
   const clip = clips.find((c) => c.id === activeId);
 
   if (!clip) {
@@ -15,7 +15,7 @@ export function SpeedTool() {
   }
   const speed = clip.speed;
   const count = selectedIds.length;
-  const setSpeed = (v: number) => updateClips(selectedIds, { speed: v });
+  const setSpeed = (v: number) => setClipsSpeed(selectedIds, v);
 
   return (
     <div className="space-y-5">
@@ -44,7 +44,7 @@ export function SpeedTool() {
       </div>
       <p className="text-xs leading-relaxed text-ink-faint">
         {count > 1
-          ? `Applies to all ${count} selected clips. Higher speed shortens them; audio is time-stretched to match.`
+          ? `Applies to all ${count} selected clips and keeps them back-to-back. Audio is time-stretched to match.`
           : 'Higher speed shortens the clip on the timeline; audio is time-stretched to match.'}
       </p>
     </div>

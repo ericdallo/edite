@@ -9,7 +9,7 @@ import {
   type Rect,
   type Track,
 } from '@/types/editor';
-import { clipEnd, clipSourceAt, projectDuration } from '@/lib/timeline';
+import { clipEnd, clipSourceAt, clipTimelineDuration, projectDuration } from '@/lib/timeline';
 import { clamp } from '@/lib/utils';
 import { uid } from '@/lib/ids';
 import {
@@ -123,6 +123,7 @@ export interface EditorState {
 
   updateClip: (id: string, patch: Partial<Clip>) => void;
   updateClips: (ids: string[], patch: Partial<Clip>) => void;
+  setClipsSpeed: (ids: string[], speed: number) => void;
   moveClip: (id: string, start: number, trackId: string) => void;
   moveClipToNewTrack: (id: string, start: number, edge: 'above' | 'below') => void;
   setClipStarts: (starts: ClipStart[]) => void;
@@ -320,6 +321,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           idset.has(c.id) ? clampClip({ ...c, ...patch }, mediaFor(state, c.mediaId)) : c,
         ),
       };
+    }),
+
+  setClipsSpeed: (ids, speed) =>
+    set((state) => {
+      if (ids.length === 0) return {};
+      const idset = new Set(ids);
+      let clips = state.clips.map((c) =>
+        idset.has(c.id) ? clampClip({ ...c, speed }, mediaFor(state, c.mediaId)) : c,
+      );
+      // A speed change resizes each clip on the timeline, which would leave gaps
+      // between previously back-to-back clips. Re-flow the selected clips in
+      // start order, anchored at the earliest one, so they stay contiguous.
+      const selected = clips.filter((c) => idset.has(c.id)).sort((a, b) => a.start - b.start);
+      if (selected.length > 1) {
+        const starts = new Map<string, number>();
+        let cursor = selected[0].start;
+        for (const c of selected) {
+          starts.set(c.id, cursor);
+          cursor += clipTimelineDuration(c);
+        }
+        clips = clips.map((c) => (starts.has(c.id) ? { ...c, start: starts.get(c.id)! } : c));
+      }
+      return { clips };
     }),
 
   moveClip: (id, start, trackId) =>
