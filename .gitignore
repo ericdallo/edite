@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-ssr
+
+# ffmpeg core is copied in from node_modules at pre dev/build time
+public/ffmpeg
+
+*.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
