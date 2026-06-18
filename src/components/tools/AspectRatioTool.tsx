@@ -1,4 +1,4 @@
-import { ASPECT_RATIOS, resolveAspectRatio } from '@/types/editor';
+import { ASPECT_RATIOS, BACKGROUND_SWATCHES, resolveAspectRatio } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +15,9 @@ function RatioGlyph({ ratio }: { ratio: number }) {
 export function AspectRatioTool() {
   const aspect = useEditorStore((s) => s.aspect);
   const media = useEditorStore((s) => s.media);
+  const background = useEditorStore((s) => s.background);
   const setAspect = useEditorStore((s) => s.setAspect);
+  const setBackground = useEditorStore((s) => s.setBackground);
 
   const originalRatio = resolveAspectRatio('original', media);
   const isOriginal = aspect === 'original';
@@ -61,6 +63,40 @@ export function AspectRatioTool() {
         Sets the output canvas. <span className="text-ink-muted">Original</span> keeps your video&rsquo;s
         shape; the presets crop clips to fit. Use Transform to reposition a clip within the frame.
       </p>
+
+      <div className="border-t border-line pt-4">
+        <div className="mb-2 text-xs font-medium text-ink-muted">Background</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {BACKGROUND_SWATCHES.map((c) => (
+            <button
+              key={c}
+              onClick={() => setBackground(c)}
+              aria-label={`Background ${c}`}
+              className={cn(
+                'h-7 w-7 rounded-full border transition-transform hover:scale-110',
+                background.toLowerCase() === c ? 'border-white ring-2 ring-brand' : 'border-black/40',
+              )}
+              style={{ background: c }}
+            />
+          ))}
+          <label className="relative h-7 w-7 overflow-hidden rounded-full border border-line" title="Custom color">
+            <span
+              className="block h-full w-full"
+              style={{ background: 'conic-gradient(from 180deg, #f43f5e, #fbbf24, #34d399, #22d3ee, #8b5cf6, #f43f5e)' }}
+            />
+            <input
+              type="color"
+              value={background}
+              onChange={(e) => setBackground(e.target.value)}
+              className="absolute inset-0 cursor-pointer opacity-0"
+              aria-label="Custom background color"
+            />
+          </label>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+          Fills the canvas behind clips that don&rsquo;t cover the whole frame.
+        </p>
+      </div>
     </div>
   );
 }

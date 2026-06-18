@@ -39,6 +39,9 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
         opacity: clip.opacity,
         hasAudio: false,
         muted: true,
+        flipH: false,
+        flipV: false,
+        rotation: 0,
         text: clip.text,
       };
     }
@@ -53,6 +56,9 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
       opacity: clip.opacity,
       hasAudio: m.hasAudio,
       muted: clip.muted || track.muted,
+      flipH: clip.flipH ?? false,
+      flipV: clip.flipV ?? false,
+      rotation: clip.rotation ?? 0,
     };
   });
 

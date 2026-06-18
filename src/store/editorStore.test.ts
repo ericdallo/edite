@@ -76,6 +76,30 @@ describe('updateText', () => {
   });
 });
 
+describe('orientation & background', () => {
+  it('defaults new media clips to no flip/rotation', () => {
+    get().addMedia(makeMedia({ id: 'm1', kind: 'video', duration: 5 }));
+    get().addClipFromMedia('m1');
+    expect(get().clips[0]).toMatchObject({ flipH: false, flipV: false, rotation: 0 });
+  });
+
+  it('updateClips applies flips and rotation', () => {
+    seed();
+    get().updateClips(['c1'], { flipH: true, rotation: 90 });
+    expect(get().clips[0]).toMatchObject({ flipH: true, rotation: 90 });
+  });
+
+  it('tracks the background color in undo history', () => {
+    seed();
+    get().commitHistory();
+    get().setBackground('#22d3ee');
+    get().commitHistory();
+    expect(get().background).toBe('#22d3ee');
+    get().undo();
+    expect(get().background).toBe('#000000');
+  });
+});
+
 describe('moveClip', () => {
   beforeEach(seed);
 

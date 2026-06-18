@@ -20,6 +20,7 @@ function build(clips: ExportClip[], over: Partial<MultiExportParams> = {}): Buil
     format: 'mp4',
     quality: 'high',
     globalMuted: false,
+    background: '#000000',
     ...over,
   });
 }
@@ -65,8 +66,22 @@ describe('buildExportCommand text', () => {
 });
 
 describe('buildExportCommand video graph', () => {
-  it('lays a black background canvas at the requested size and fps', () => {
-    expect(graphOf(build([makeExportClip()]))).toContain('color=c=black:s=1920x1080:r=30');
+  it('lays a background canvas at the requested size and fps', () => {
+    expect(graphOf(build([makeExportClip()]))).toContain('color=c=0x000000:s=1920x1080:r=30');
+  });
+
+  it('uses the chosen background color', () => {
+    expect(graphOf(build([makeExportClip()], { background: '#22d3ee' }))).toContain('color=c=0x22d3ee');
+  });
+
+  it('applies flips and rotation before the scale, only when set', () => {
+    expect(graphOf(build([makeExportClip({ flipH: true })]))).toContain('hflip,scale=');
+    expect(graphOf(build([makeExportClip({ flipV: true })]))).toContain('vflip,scale=');
+    expect(graphOf(build([makeExportClip({ rotation: 90 })]))).toContain('transpose=1,scale=');
+    expect(graphOf(build([makeExportClip({ rotation: 270 })]))).toContain('transpose=2,scale=');
+    const plain = graphOf(build([makeExportClip()]));
+    expect(plain).not.toContain('hflip');
+    expect(plain).not.toContain('transpose');
   });
 
   it('gates each clip to its timeline window and holds the last frame at the edge', () => {

@@ -12,6 +12,12 @@ export interface ExportClip {
   opacity: number;
   hasAudio: boolean;
   muted: boolean;
+  /** mirror horizontally */
+  flipH: boolean;
+  /** flip vertically */
+  flipV: boolean;
+  /** clockwise rotation in degrees (0, 90, 180, 270) */
+  rotation: number;
   /** text overlay spec, present when kind === 'text' (rasterized to a PNG input). */
   text?: TextStyle;
 }
@@ -26,6 +32,8 @@ export interface MultiExportParams {
   format: ExportFormat;
   quality: ExportQuality;
   globalMuted: boolean;
+  /** output canvas background color (hex, e.g. #000000) */
+  background: string;
 }
 
 export interface BuiltCommand {
@@ -85,6 +93,24 @@ function timelineLen(c: ExportClip): number {
   return Math.max(0, (c.out - c.in) / Math.max(0.0001, c.speed));
 }
 
+/** ffmpeg color literal from a #rrggbb hex (falls back to black). */
+function colorArg(hex: string): string {
+  const h = (hex || '').replace('#', '').trim();
+  return /^[0-9a-fA-F]{6}$/.test(h) ? `0x${h}` : 'black';
+}
+
+/** Orientation filter chain (flips then rotation), trailing comma so it prefixes the scale. */
+function orientFilters(c: ExportClip): string {
+  const parts: string[] = [];
+  if (c.flipH) parts.push('hflip');
+  if (c.flipV) parts.push('vflip');
+  const rot = (((Math.round((c.rotation || 0) / 90) * 90) % 360) + 360) % 360;
+  if (rot === 90) parts.push('transpose=1');
+  else if (rot === 270) parts.push('transpose=2');
+  else if (rot === 180) parts.push('transpose=1,transpose=1');
+  return parts.length > 0 ? `${parts.join(',')},` : '';
+}
+
 /**
  * Build a compositing ffmpeg command: each clip is one input, scaled to its rect
  * and overlaid (bottom -> top) onto a canvas, enabled only during its time span.
@@ -105,7 +131,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
   });
 
   const graph: string[] = [];
-  graph.push(`color=c=black:s=${W}x${H}:r=${fps}:d=${fmt(duration)},format=yuv420p[bg]`);
+  graph.push(`color=c=${colorArg(p.background)}:s=${W}x${H}:r=${fps}:d=${fmt(duration)},format=yuv420p[bg]`);
 
   let acc = 'bg';
   clips.forEach((c, k) => {
@@ -119,12 +145,13 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // the enable window; without this the input reaches EOF early and the slot
     // renders black (e.g. the tail clip of a split).
     const delay = c.start > 1e-6 ? `+${fmt(c.start)}/TB` : '';
+    const orient = orientFilters(c);
     if (c.kind === 'image' || c.kind === 'text') {
       const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
-      graph.push(`[${k}:v]${pts}${cover}${op}[c${k}]`);
+      graph.push(`[${k}:v]${pts}${orient}${cover}${op}[c${k}]`);
     } else {
       const base = Math.abs(c.speed - 1) > 1e-3 ? `(PTS-STARTPTS)/${c.speed}` : 'PTS-STARTPTS';
-      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${cover}${op}[c${k}]`);
+      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${orient}${cover}${op}[c${k}]`);
     }
     const end = c.start + timelineLen(c);
     // eof_action=repeat (not pass): once a clip's frames run out it holds its

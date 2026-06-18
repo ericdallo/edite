@@ -1,9 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { resolveAspectRatio } from '@/types/editor';
+import { type Clip, resolveAspectRatio } from '@/types/editor';
 import { clipSourceAt, isClipActiveAt, projectDuration } from '@/lib/timeline';
+import { cn } from '@/lib/utils';
 import { TransformOverlay } from './TransformOverlay';
 import { TextLayer } from './TextLayer';
+
+/**
+ * CSS to mirror/flip/rotate a clip's media so it matches the export. For 90/270
+ * the element is sized with swapped pixel dimensions and rotated, so the clip
+ * still cover-fills its box. Returns undefined when there's nothing to apply.
+ */
+function orientMediaStyle(clip: Clip, wrapperW: number, wrapperH: number): CSSProperties | undefined {
+  const rot = (((Math.round((clip.rotation || 0) / 90) * 90) % 360) + 360) % 360;
+  const sx = clip.flipH ? -1 : 1;
+  const sy = clip.flipV ? -1 : 1;
+  if ((rot === 0 && sx === 1 && sy === 1) || wrapperW <= 0 || wrapperH <= 0) return undefined;
+  const swap = rot === 90 || rot === 270;
+  return {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: swap ? wrapperH : wrapperW,
+    height: swap ? wrapperW : wrapperH,
+    transform: `translate(-50%, -50%) rotate(${rot}deg) scaleX(${sx}) scaleY(${sy})`,
+  };
+}
 
 export function VideoPreview() {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -13,6 +35,7 @@ export function VideoPreview() {
   const tracks = useEditorStore((s) => s.tracks);
   const clips = useEditorStore((s) => s.clips);
   const aspect = useEditorStore((s) => s.aspect);
+  const background = useEditorStore((s) => s.background);
   const muted = useEditorStore((s) => s.muted);
   const volume = useEditorStore((s) => s.playback.volume);
   const playing = useEditorStore((s) => s.playback.playing);
@@ -118,8 +141,8 @@ export function VideoPreview() {
       className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_-10%,rgba(139,92,246,0.10),transparent_55%)] p-3 sm:p-5 lg:p-7"
     >
       <div
-        className="relative overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-line"
-        style={{ width: box.w || '60%', height: box.h || '60%' }}
+        className="relative overflow-hidden rounded-xl shadow-2xl ring-1 ring-line"
+        style={{ width: box.w || '60%', height: box.h || '60%', backgroundColor: background }}
         onClick={() => !interactive && setPlaying(!playing)}
       >
         {layers.map(({ clip, track }) => {
@@ -146,6 +169,8 @@ export function VideoPreview() {
 
           const m = media.find((x) => x.id === clip.mediaId);
           if (!m) return null;
+          const orient = orientMediaStyle(clip, clip.rect.w * box.w, clip.rect.h * box.h);
+          const mediaCls = cn('object-cover', orient ? '' : 'h-full w-full');
           return (
             <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
               {m.kind === 'video' ? (
@@ -155,13 +180,14 @@ export function VideoPreview() {
                     else videoEls.current.delete(clip.id);
                   }}
                   src={m.url}
-                  className="h-full w-full object-cover"
+                  className={mediaCls}
+                  style={orient}
                   playsInline
                   muted
                   preload="auto"
                 />
               ) : (
-                <img src={m.url} alt="" className="h-full w-full object-cover" />
+                <img src={m.url} alt="" className={mediaCls} style={orient} />
               )}
             </div>
           );

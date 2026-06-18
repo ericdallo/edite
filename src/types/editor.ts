@@ -84,6 +84,12 @@ export interface Clip {
   opacity: number;
   muted: boolean;
   hidden: boolean;
+  /** mirror horizontally */
+  flipH: boolean;
+  /** flip vertically */
+  flipV: boolean;
+  /** clockwise rotation in degrees (0, 90, 180, 270) */
+  rotation: number;
   text?: TextStyle;
 }
 
@@ -120,6 +126,7 @@ export interface ProjectSnapshot {
   tracks: Track[];
   clips: Clip[];
   aspect: AspectRatioId;
+  background: string;
   muted: boolean;
   exportSettings: ExportSettings;
 }
@@ -134,6 +141,20 @@ export const ASPECT_RATIOS: AspectRatioOption[] = [
 ];
 
 export const SPEED_PRESETS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
+
+/** Output canvas background, shown behind clips that don't fill the frame. */
+export const DEFAULT_BACKGROUND = '#000000';
+
+export const BACKGROUND_SWATCHES = [
+  '#000000',
+  '#ffffff',
+  '#0a0a11',
+  '#8b5cf6',
+  '#22d3ee',
+  '#f43f5e',
+  '#fbbf24',
+  '#34d399',
+];
 
 export interface FontOption {
   label: string;

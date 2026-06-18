@@ -1,6 +1,40 @@
+import { type ReactNode } from 'react';
+import { FlipHorizontal, FlipVertical, RotateCcw, RotateCw } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { FULL_RECT, type Rect } from '@/types/editor';
+import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
+
+const norm = (deg: number): number => (((Math.round(deg / 90) * 90) % 360) + 360) % 360;
+
+function OrientButton({
+  active = false,
+  onClick,
+  label,
+  children,
+}: {
+  active?: boolean;
+  onClick: () => void;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={cn(
+        'flex h-10 items-center justify-center rounded-lg border transition-colors',
+        active
+          ? 'border-brand bg-brand/15 text-ink'
+          : 'border-line bg-surface-2 text-ink-muted hover:text-ink',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 const PRESETS: { label: string; rect: Rect }[] = [
   { label: 'Fill', rect: FULL_RECT },
@@ -27,6 +61,7 @@ export function TransformTool() {
   }
 
   const count = selectedIds.length;
+  const isMedia = !clip.text;
 
   return (
     <div className="space-y-5">
@@ -44,6 +79,40 @@ export function TransformTool() {
           </button>
         ))}
       </div>
+      {isMedia && (
+        <div>
+          <div className="mb-2 text-xs font-medium text-ink-muted">Orientation</div>
+          <div className="grid grid-cols-4 gap-2">
+            <OrientButton
+              active={!!clip.flipH}
+              label="Mirror horizontally"
+              onClick={() => updateClips(selectedIds, { flipH: !clip.flipH })}
+            >
+              <FlipHorizontal size={16} />
+            </OrientButton>
+            <OrientButton
+              active={!!clip.flipV}
+              label="Flip vertically"
+              onClick={() => updateClips(selectedIds, { flipV: !clip.flipV })}
+            >
+              <FlipVertical size={16} />
+            </OrientButton>
+            <OrientButton
+              label="Rotate left"
+              onClick={() => updateClips(selectedIds, { rotation: norm((clip.rotation || 0) - 90) })}
+            >
+              <RotateCcw size={16} />
+            </OrientButton>
+            <OrientButton
+              label="Rotate right"
+              onClick={() => updateClips(selectedIds, { rotation: norm((clip.rotation || 0) + 90) })}
+            >
+              <RotateCw size={16} />
+            </OrientButton>
+          </div>
+        </div>
+      )}
+
       <div>
         <div className="mb-2 flex items-center justify-between text-sm">
           <span className="text-ink-muted">Opacity</span>

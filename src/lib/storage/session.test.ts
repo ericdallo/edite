@@ -21,6 +21,7 @@ describe('snapshotFromState', () => {
       tracks: [makeTrack({ id: 't1' })],
       clips: [makeClip({ id: 'c1' })],
       aspect: '16:9',
+      background: '#101014',
       muted: true,
       exportSettings: DEFAULT_EXPORT_SETTINGS,
     });

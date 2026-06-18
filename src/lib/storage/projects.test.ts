@@ -14,6 +14,7 @@ function makeSnapshot(over: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
     tracks: [makeTrack({ id: 't1' })],
     clips: [makeClip({ id: 'c1' }), makeClip({ id: 'c2' }), makeClip({ id: 'c3' })],
     aspect: 'original',
+    background: '#000000',
     muted: false,
     exportSettings: DEFAULT_EXPORT_SETTINGS,
     ...over,

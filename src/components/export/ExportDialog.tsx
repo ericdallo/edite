@@ -54,6 +54,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const tracks = useEditorStore((s) => s.tracks);
   const clips = useEditorStore((s) => s.clips);
   const aspect = useEditorStore((s) => s.aspect);
+  const background = useEditorStore((s) => s.background);
   const muted = useEditorStore((s) => s.muted);
   const projectName = useEditorStore((s) => s.projectName);
   const exportSettings = useEditorStore((s) => s.exportSettings);
@@ -111,6 +112,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
         format: exportSettings.format,
         quality: exportSettings.quality,
         globalMuted: muted,
+        background,
       };
 
       const out = await runExport({

@@ -66,6 +66,14 @@ describe('buildExportPlan', () => {
     expect(plan.clips[1].hasAudio).toBe(false);
   });
 
+  it('copies clip orientation onto media export clips', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1' });
+    const clips = [makeClip({ trackId: 't1', mediaId: 'm1', flipH: true, rotation: 90 })];
+    const plan = buildExportPlan([track], clips, [media]);
+    expect(plan.clips[0]).toMatchObject({ flipH: true, flipV: false, rotation: 90 });
+  });
+
   it('deduplicates media referenced by multiple clips', () => {
     const track = makeTrack({ id: 't1' });
     const media = makeMedia({ id: 'm1' });

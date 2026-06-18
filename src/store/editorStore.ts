@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   type AspectRatioId,
   type Clip,
+  DEFAULT_BACKGROUND,
   DEFAULT_EXPORT_SETTINGS,
   DEFAULT_TEXT_RECT,
   DEFAULT_TEXT_STYLE,
@@ -37,6 +38,7 @@ interface DocSnapshot {
   tracks: Track[];
   clips: Clip[];
   aspect: AspectRatioId;
+  background: string;
   muted: boolean;
   projectName: string;
 }
@@ -47,6 +49,7 @@ function snapshotDoc(s: DocSnapshot): DocSnapshot {
     tracks: s.tracks,
     clips: s.clips,
     aspect: s.aspect,
+    background: s.background,
     muted: s.muted,
     projectName: s.projectName,
   };
@@ -59,13 +62,22 @@ function sameDoc(a: DocSnapshot, b: DocSnapshot): boolean {
     a.tracks === b.tracks &&
     a.clips === b.clips &&
     a.aspect === b.aspect &&
+    a.background === b.background &&
     a.muted === b.muted &&
     a.projectName === b.projectName
   );
 }
 
 function emptyDoc(projectName = 'Untitled project'): DocSnapshot {
-  return { media: [], tracks: [], clips: [], aspect: 'original', muted: false, projectName };
+  return {
+    media: [],
+    tracks: [],
+    clips: [],
+    aspect: 'original',
+    background: DEFAULT_BACKGROUND,
+    muted: false,
+    projectName,
+  };
 }
 
 export const selectDoc = (s: DocSnapshot): DocSnapshot => snapshotDoc(s);
@@ -92,6 +104,7 @@ export interface EditorState {
   clips: Clip[];
 
   aspect: AspectRatioId;
+  background: string;
   muted: boolean;
   exportSettings: ExportSettings;
 
@@ -154,6 +167,7 @@ export interface EditorState {
   setVolume: (v: number) => void;
 
   setAspect: (a: AspectRatioId) => void;
+  setBackground: (color: string) => void;
   setMuted: (m: boolean) => void;
   toggleMute: () => void;
   setExportSettings: (s: Partial<ExportSettings>) => void;
@@ -202,6 +216,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   tracks: [],
   clips: [],
   aspect: 'original',
+  background: DEFAULT_BACKGROUND,
   muted: false,
   exportSettings: DEFAULT_EXPORT,
   activeClipId: null,
@@ -229,6 +244,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         tracks: [],
         clips: [],
         aspect: 'original',
+        background: DEFAULT_BACKGROUND,
         muted: false,
         activeClipId: null,
         selectedIds: [],
@@ -261,6 +277,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         past: [],
         future: [],
         committed: emptyDoc(),
+        background: DEFAULT_BACKGROUND,
         panelOpen: false,
         playback: { currentTime: 0, playing: false, volume: s.playback.volume },
       };
@@ -296,6 +313,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         opacity: 1,
         muted: false,
         hidden: false,
+        flipH: false,
+        flipV: false,
+        rotation: 0,
       };
       return { tracks, clips: [...state.clips, clip], ...selectOne(clip.id) };
     }),
@@ -315,6 +335,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         opacity: 1,
         muted: true,
         hidden: false,
+        flipH: false,
+        flipV: false,
+        rotation: 0,
         text: { ...DEFAULT_TEXT_STYLE },
       };
       return {
@@ -508,6 +531,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setVolume: (v) => set((s) => ({ playback: { ...s.playback, volume: clamp(v, 0, 1) } })),
 
   setAspect: (a) => set({ aspect: a }),
+  setBackground: (color) => set({ background: color }),
   setMuted: (m) => set({ muted: m }),
   toggleMute: () => set((s) => ({ muted: !s.muted })),
   setExportSettings: (s) => set((st) => ({ exportSettings: { ...st.exportSettings, ...s } })),
