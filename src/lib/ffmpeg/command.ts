@@ -1,25 +1,29 @@
-import type {
-  AspectMode,
-  CropRect,
-  ExportFormat,
-  ExportQuality,
-  Segment,
-} from '@/types/editor';
-import { sortSegments } from '@/lib/segments';
+import type { ExportFormat, ExportQuality } from '@/types/editor';
 
-export interface ExportParams {
-  segments: Segment[];
+export interface ExportClip {
+  kind: 'video' | 'image';
+  /** timeline position (s) */
+  start: number;
+  in: number;
+  out: number;
   speed: number;
-  muted: boolean;
+  /** placement on the output canvas, fractions 0..1 */
+  rect: { x: number; y: number; w: number; h: number };
+  opacity: number;
   hasAudio: boolean;
-  crop: CropRect | null;
-  /** target width/height, or null to keep current frame ratio. */
-  aspectRatio: number | null;
-  aspectMode: AspectMode;
-  sourceWidth: number;
-  sourceHeight: number;
+  muted: boolean;
+}
+
+export interface MultiExportParams {
+  canvasW: number;
+  canvasH: number;
+  fps: number;
+  duration: number;
+  /** bottom -> top compositing order; input index == array index */
+  clips: ExportClip[];
   format: ExportFormat;
   quality: ExportQuality;
+  globalMuted: boolean;
 }
 
 export interface BuiltCommand {
@@ -42,7 +46,6 @@ function makeEven(n: number): number {
   return Math.max(2, Math.round(n / 2) * 2);
 }
 
-/** atempo only accepts 0.5..2.0; chain filters to reach an arbitrary factor. */
 function atempoChain(speed: number): string {
   const parts: string[] = [];
   let remaining = speed;
@@ -64,117 +67,98 @@ export function extFromMime(mime: string): string {
   if (mime.includes('matroska')) return 'mkv';
   if (mime.includes('x-msvideo') || mime.includes('avi')) return 'avi';
   if (mime.includes('ogg')) return 'ogv';
+  if (mime.includes('png')) return 'png';
+  if (mime.includes('webp')) return 'webp';
+  if (mime.includes('gif')) return 'gif';
+  if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
   return 'mp4';
 }
 
 function videoCrf(quality: ExportQuality, format: ExportFormat): string {
-  if (format === 'webm') {
-    return quality === 'high' ? '30' : quality === 'medium' ? '34' : '40';
-  }
+  if (format === 'webm') return quality === 'high' ? '30' : quality === 'medium' ? '34' : '40';
   return quality === 'high' ? '20' : quality === 'medium' ? '24' : '30';
 }
 
-/** Build the ffmpeg argument list from the current editor state. */
-export function buildExportCommand(inputName: string, p: ExportParams): BuiltCommand {
-  const segs = sortSegments(p.segments).filter((s) => s.end - s.start > 0.02);
-  const safeSegs = segs.length > 0 ? segs : [{ id: 'all', start: 0, end: 0 }];
-  const useAudio = !p.muted && p.hasAudio && p.format !== 'gif';
+function timelineLen(c: ExportClip): number {
+  return Math.max(0, (c.out - c.in) / Math.max(0.0001, c.speed));
+}
 
-  const graph: string[] = [];
+/**
+ * Build a compositing ffmpeg command: each clip is one input, scaled to its rect
+ * and overlaid (bottom -> top) onto a canvas, enabled only during its time span.
+ * Audio from each unmuted clip is delayed to its start and mixed.
+ */
+export function buildExportCommand(inputNames: string[], p: MultiExportParams): BuiltCommand {
+  const { canvasW: W, canvasH: H, fps, duration } = p;
+  const clips = p.clips;
 
-  // 1. Per-segment trims.
-  safeSegs.forEach((s, i) => {
-    graph.push(`[0:v]trim=start=${fmt(s.start)}:end=${fmt(s.end)},setpts=PTS-STARTPTS[v${i}]`);
-    if (useAudio) {
-      graph.push(`[0:a]atrim=start=${fmt(s.start)}:end=${fmt(s.end)},asetpts=PTS-STARTPTS[a${i}]`);
+  const inputArgs: string[] = [];
+  clips.forEach((c, k) => {
+    if (c.kind === 'image') {
+      inputArgs.push('-loop', '1', '-framerate', String(fps), '-t', fmt(timelineLen(c)), '-i', inputNames[k]);
+    } else {
+      inputArgs.push('-i', inputNames[k]);
     }
   });
 
-  // 2. Concat segments (or pass a single one through).
-  let vcat = '[v0]';
-  let acat = '[a0]';
-  if (safeSegs.length > 1) {
-    const inputs = safeSegs.map((_, i) => (useAudio ? `[v${i}][a${i}]` : `[v${i}]`)).join('');
-    graph.push(
-      `${inputs}concat=n=${safeSegs.length}:v=1:a=${useAudio ? 1 : 0}[vcat]${useAudio ? '[acat]' : ''}`,
-    );
-    vcat = '[vcat]';
-    acat = '[acat]';
-  }
+  const graph: string[] = [];
+  graph.push(`color=c=black:s=${W}x${H}:r=${fps}:d=${fmt(duration)},format=yuv420p[bg]`);
 
-  // 3. Video post-processing chain.
-  const vf: string[] = [];
-  let baseW = p.sourceWidth;
-  let baseH = p.sourceHeight;
-
-  if (p.crop) {
-    const cw = makeEven(p.crop.width * p.sourceWidth);
-    const ch = makeEven(p.crop.height * p.sourceHeight);
-    const cx = Math.round(p.crop.x * p.sourceWidth);
-    const cy = Math.round(p.crop.y * p.sourceHeight);
-    vf.push(`crop=${cw}:${ch}:${cx}:${cy}`);
-    baseW = cw;
-    baseH = ch;
-  }
-
-  if (Math.abs(p.speed - 1) > 1e-3) {
-    vf.push(`setpts=PTS/${p.speed}`);
-  }
-
-  if (p.aspectRatio) {
-    const r = p.aspectRatio;
-    if (p.aspectMode === 'fill') {
-      vf.push(`crop='min(iw,ih*${r.toFixed(6)})':'min(ih,iw/${r.toFixed(6)})'`);
+  let acc = 'bg';
+  clips.forEach((c, k) => {
+    const rw = makeEven(c.rect.w * W);
+    const rh = makeEven(c.rect.h * H);
+    const x = Math.round(c.rect.x * W);
+    const y = Math.round(c.rect.y * H);
+    const cover = `scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1`;
+    const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
+    if (c.kind === 'image') {
+      graph.push(`[${k}:v]${cover}${op}[c${k}]`);
     } else {
-      const cur = baseW / baseH;
-      let cW: number;
-      let cH: number;
-      if (cur > r) {
-        cH = baseH;
-        cW = Math.round(baseH * r);
-      } else {
-        cW = baseW;
-        cH = Math.round(baseW / r);
-      }
-      cW = makeEven(cW);
-      cH = makeEven(cH);
-      vf.push(
-        `scale=${cW}:${cH}:force_original_aspect_ratio=decrease,pad=${cW}:${cH}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`,
+      const sp = Math.abs(c.speed - 1) > 1e-3 ? `,setpts=PTS/${c.speed}` : '';
+      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=PTS-STARTPTS${sp},${cover}${op}[c${k}]`);
+    }
+    const end = c.start + timelineLen(c);
+    graph.push(
+      `[${acc}][c${k}]overlay=${x}:${y}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=pass[ov${k}]`,
+    );
+    acc = `ov${k}`;
+  });
+  graph.push(`[${acc}]${p.format === 'mp4' ? 'format=yuv420p' : 'null'}[vout]`);
+
+  const useAudio = !p.globalMuted && p.format !== 'gif';
+  const audioLabels: string[] = [];
+  if (useAudio) {
+    clips.forEach((c, k) => {
+      if (c.kind !== 'video' || !c.hasAudio || c.muted) return;
+      const ms = Math.round(c.start * 1000);
+      const sp = Math.abs(c.speed - 1) > 1e-3 ? `,${atempoChain(c.speed)}` : '';
+      graph.push(
+        `[${k}:a]atrim=${fmt(c.in)}:${fmt(c.out)},asetpts=PTS-STARTPTS${sp},adelay=${ms}|${ms}[a${k}]`,
+      );
+      audioLabels.push(`[a${k}]`);
+    });
+    if (audioLabels.length > 0) {
+      graph.push(
+        `${audioLabels.join('')}amix=inputs=${audioLabels.length}:normalize=0:dropout_transition=0[aout]`,
       );
     }
   }
+  const withAudio = audioLabels.length > 0;
 
-  if (p.format === 'gif') {
-    vf.push('fps=14,scale=480:-2:flags=lanczos');
-  } else if (p.format === 'mp4') {
-    // H.264 requires even dimensions; normalize after any crop.
-    vf.push('scale=trunc(iw/2)*2:trunc(ih/2)*2');
-  }
-
-  if (vf.length === 0) vf.push('null');
-  graph.push(`${vcat}${vf.join(',')}[vout]`);
-
-  // 4. Audio post-processing chain.
-  if (useAudio) {
-    const af: string[] = [];
-    if (Math.abs(p.speed - 1) > 1e-3) af.push(atempoChain(p.speed));
-    if (af.length === 0) af.push('anull');
-    graph.push(`${acat}${af.join(',')}[aout]`);
-  }
-
-  // 5. Assemble arguments.
-  const args: string[] = ['-i', inputName, '-filter_complex', graph.join(';'), '-map', '[vout]'];
-  if (useAudio) args.push('-map', '[aout]');
+  const args: string[] = [...inputArgs, '-filter_complex', graph.join(';'), '-map', '[vout]'];
+  if (withAudio) args.push('-map', '[aout]');
+  args.push('-t', fmt(duration));
 
   const crf = videoCrf(p.quality, p.format);
   if (p.format === 'mp4') {
     args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', crf, '-pix_fmt', 'yuv420p');
-    if (useAudio) args.push('-c:a', 'aac', '-b:a', '160k');
+    if (withAudio) args.push('-c:a', 'aac', '-b:a', '160k');
     else args.push('-an');
     args.push('-movflags', '+faststart');
   } else if (p.format === 'webm') {
     args.push('-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', crf, '-row-mt', '1');
-    if (useAudio) args.push('-c:a', 'libopus', '-b:a', '160k');
+    if (withAudio) args.push('-c:a', 'libopus', '-b:a', '160k');
     else args.push('-an');
   } else {
     args.push('-an');

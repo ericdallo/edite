@@ -4,8 +4,15 @@ import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
 
 export function SpeedTool() {
-  const speed = useEditorStore((s) => s.speed);
-  const setSpeed = useEditorStore((s) => s.setSpeed);
+  const activeId = useEditorStore((s) => s.activeClipId);
+  const clips = useEditorStore((s) => s.clips);
+  const setClipSpeed = useEditorStore((s) => s.setClipSpeed);
+  const clip = clips.find((c) => c.id === activeId);
+
+  if (!clip) {
+    return <p className="text-sm text-ink-faint">Select a clip on the timeline to change its speed.</p>;
+  }
+  const speed = clip.speed;
 
   return (
     <div className="space-y-5">
@@ -13,7 +20,7 @@ export function SpeedTool() {
         {SPEED_PRESETS.map((p) => (
           <button
             key={p}
-            onClick={() => setSpeed(p)}
+            onClick={() => setClipSpeed(clip.id, p)}
             className={cn(
               'rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
               Math.abs(speed - p) < 1e-3
@@ -25,18 +32,16 @@ export function SpeedTool() {
           </button>
         ))}
       </div>
-
       <div>
         <div className="mb-2 flex items-center justify-between text-sm">
           <span className="text-ink-muted">Custom speed</span>
           <span className="font-mono text-ink">{speed.toFixed(2)}×</span>
         </div>
-        <Slider min={0.25} max={4} step={0.05} value={speed} onChange={setSpeed} ariaLabel="Playback speed" />
+        <Slider min={0.25} max={4} step={0.05} value={speed} onChange={(v) => setClipSpeed(clip.id, v)} ariaLabel="Clip speed" />
       </div>
-
       <p className="text-xs leading-relaxed text-ink-faint">
-        Audio is time-stretched to match. Higher speed makes a shorter clip; lower speed makes it
-        longer.
+        Speed applies to the selected clip. Higher speed shortens it on the timeline; audio is
+        time-stretched to match.
       </p>
     </div>
   );

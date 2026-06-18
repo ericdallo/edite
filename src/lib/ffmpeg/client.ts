@@ -1,5 +1,6 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
+import { logger } from '@/lib/log';
 
 export type LogHandler = (message: string) => void;
 
@@ -26,17 +27,26 @@ export async function getFFmpeg(): Promise<FFmpeg> {
   if (loadPromise) return loadPromise;
 
   loadPromise = (async () => {
-    const ffmpeg = new FFmpeg();
-    ffmpeg.on('log', ({ message }) => {
-      for (const handler of logHandlers) handler(message);
-    });
-    const [coreURL, wasmURL] = await Promise.all([
-      toBlobURL(`${BASE}ffmpeg/ffmpeg-core.js`, 'text/javascript'),
-      toBlobURL(`${BASE}ffmpeg/ffmpeg-core.wasm`, 'application/wasm'),
-    ]);
-    await ffmpeg.load({ coreURL, wasmURL });
-    instance = ffmpeg;
-    return ffmpeg;
+    try {
+      const ffmpeg = new FFmpeg();
+      ffmpeg.on('log', ({ message }) => {
+        logger.ffmpeg(message);
+        for (const handler of logHandlers) handler(message);
+      });
+      logger.info('loading ffmpeg core…');
+      const [coreURL, wasmURL] = await Promise.all([
+        toBlobURL(`${BASE}ffmpeg/ffmpeg-core.js`, 'text/javascript'),
+        toBlobURL(`${BASE}ffmpeg/ffmpeg-core.wasm`, 'application/wasm'),
+      ]);
+      await ffmpeg.load({ coreURL, wasmURL });
+      logger.info('ffmpeg core loaded');
+      instance = ffmpeg;
+      return ffmpeg;
+    } catch (e) {
+      logger.error('failed to load ffmpeg core', e);
+      loadPromise = null; // allow a later retry instead of caching the failure
+      throw e;
+    }
   })();
 
   return loadPromise;

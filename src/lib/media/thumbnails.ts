@@ -14,17 +14,21 @@ function seek(video: HTMLVideoElement, time: number): Promise<void> {
   });
 }
 
-/**
- * Sample `count` evenly-spaced frames from a video and return them as small
- * JPEG data URLs for the timeline strip. Works on same-origin blob URLs.
- */
-export async function generateThumbnails(
-  src: string,
-  duration: number,
-  count: number,
-  opts?: { width?: number; signal?: AbortSignal },
-): Promise<Thumbnail[]> {
-  const targetWidth = opts?.width ?? 160;
+export interface ThumbOptions {
+  from?: number;
+  to: number;
+  count: number;
+  width?: number;
+  signal?: AbortSignal;
+}
+
+/** Sample evenly-spaced JPEG frames from a video range (same-origin blob URLs). */
+export async function generateThumbnails(src: string, opts: ThumbOptions): Promise<Thumbnail[]> {
+  const from = opts.from ?? 0;
+  const span = Math.max(0.0001, opts.to - from);
+  const count = Math.max(1, opts.count);
+  const targetWidth = opts.width ?? 160;
+
   const video = document.createElement('video');
   video.src = src;
   video.muted = true;
@@ -39,24 +43,23 @@ export async function generateThumbnails(
   const vw = video.videoWidth || 16;
   const vh = video.videoHeight || 9;
   const height = Math.max(1, Math.round((targetWidth * vh) / vw));
-
   const canvas = document.createElement('canvas');
   canvas.width = targetWidth;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
 
   const thumbs: Thumbnail[] = [];
-  if (!ctx || duration <= 0) return thumbs;
+  if (!ctx) return thumbs;
 
   for (let i = 0; i < count; i++) {
-    if (opts?.signal?.aborted) break;
-    const t = ((i + 0.5) / count) * duration;
+    if (opts.signal?.aborted) break;
+    const t = from + ((i + 0.5) / count) * span;
     try {
-      await seek(video, Math.min(t, Math.max(0, duration - 0.05)));
+      await seek(video, Math.max(0, t));
       ctx.drawImage(video, 0, 0, targetWidth, height);
-      thumbs.push({ time: t, url: canvas.toDataURL('image/jpeg', 0.6) });
+      thumbs.push({ time: t, url: canvas.toDataURL('image/jpeg', 0.55) });
     } catch {
-      // Skip frames that fail to decode.
+      // skip frames that fail to decode
     }
   }
 

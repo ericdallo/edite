@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import type { MediaItem, MediaMeta } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import {
   getLastProjectId,
@@ -8,10 +9,9 @@ import {
   setLastProjectId,
 } from '@/lib/storage/projects';
 
-// Guard against React StrictMode double-invocation re-restoring the project.
 let restored = false;
 
-/** Restores the last project from IndexedDB on load and auto-saves edits. */
+/** Restores the last project (media metadata + blobs) and auto-saves edits. */
 export function usePersistence() {
   useEffect(() => {
     if (restored) return;
@@ -20,26 +20,32 @@ export function usePersistence() {
     void (async () => {
       try {
         const id = getLastProjectId();
-        if (!id || useEditorStore.getState().source) return;
-        const [snap, blob] = await Promise.all([getSnapshot(id), getMedia(id)]);
-        if (!snap || !blob) return;
+        if (!id || useEditorStore.getState().media.length > 0) return;
+        const snap = await getSnapshot(id);
+        if (!snap) return;
 
-        const url = URL.createObjectURL(blob);
-        const store = useEditorStore.getState();
-        store.loadSource({ meta: snap.source, url, blob, name: snap.name, id: snap.id });
-        store.hydrate({
+        const items: MediaItem[] = [];
+        for (const meta of snap.media) {
+          const blob = await getMedia(meta.id);
+          if (blob) items.push({ ...meta, blob, url: URL.createObjectURL(blob) });
+        }
+        if (items.length === 0) return;
+
+        useEditorStore.getState().hydrate({
+          projectId: snap.id,
           projectName: snap.name,
-          segments: snap.segments.length ? snap.segments : useEditorStore.getState().segments,
-          activeSegmentId: snap.segments[0]?.id ?? useEditorStore.getState().activeSegmentId,
-          speed: snap.speed,
-          muted: snap.muted,
-          crop: snap.crop,
+          media: items,
+          tracks: snap.tracks,
+          clips: snap.clips,
           aspect: snap.aspect,
           aspectMode: snap.aspectMode,
+          muted: snap.muted,
           exportSettings: snap.exportSettings,
+          activeClipId: snap.clips[0]?.id ?? null,
+          playback: { currentTime: 0, playing: false, volume: useEditorStore.getState().playback.volume },
         });
       } catch {
-        // A failed restore should never block starting fresh.
+        // a failed restore should never block starting fresh
       }
     })();
   }, []);
@@ -47,23 +53,34 @@ export function usePersistence() {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const unsub = useEditorStore.subscribe((state) => {
-      if (!state.source || !state.projectId) return;
+      if (!state.projectId || state.media.length === 0) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         const s = useEditorStore.getState();
-        if (!s.source) return;
+        if (!s.projectId || s.media.length === 0) return;
         void saveSnapshot({
           id: s.projectId,
           name: s.projectName,
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          source: s.source,
-          segments: s.segments,
-          speed: s.speed,
-          muted: s.muted,
-          crop: s.crop,
+          media: s.media.map(
+            (m): MediaMeta => ({
+              id: m.id,
+              kind: m.kind,
+              fileName: m.fileName,
+              mimeType: m.mimeType,
+              size: m.size,
+              duration: m.duration,
+              width: m.width,
+              height: m.height,
+              hasAudio: m.hasAudio,
+            }),
+          ),
+          tracks: s.tracks,
+          clips: s.clips,
           aspect: s.aspect,
           aspectMode: s.aspectMode,
+          muted: s.muted,
           exportSettings: s.exportSettings,
         });
         setLastProjectId(s.projectId);

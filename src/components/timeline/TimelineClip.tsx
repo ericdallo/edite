@@ -1,89 +1,107 @@
-import { type PointerEvent as ReactPointerEvent } from 'react';
-import { Trash2 } from 'lucide-react';
-import type { Segment } from '@/types/editor';
+import {
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useState,
+} from 'react';
+import { EyeOff, VolumeX } from 'lucide-react';
+import type { Clip, MediaItem } from '@/types/editor';
+import { clipTimelineDuration } from '@/lib/timeline';
+import { generateThumbnails, type Thumbnail } from '@/lib/media/thumbnails';
 import { clamp, cn } from '@/lib/utils';
 
 export interface TimelineClipProps {
-  segment: Segment;
+  clip: Clip;
+  media: MediaItem | undefined;
   pxPerSec: number;
-  minStart: number;
-  maxEnd: number;
   active: boolean;
-  canDelete: boolean;
-  onSelect: () => void;
-  onTrim: (start: number, end: number) => void;
-  onDelete: () => void;
+  onBodyDown: (e: ReactPointerEvent) => void;
+  onHandleDown: (e: ReactPointerEvent, edge: 'in' | 'out') => void;
+  onContext: (e: ReactMouseEvent) => void;
 }
 
-export function TimelineClip({
-  segment,
-  pxPerSec,
-  minStart,
-  maxEnd,
-  active,
-  canDelete,
-  onSelect,
-  onTrim,
-  onDelete,
-}: TimelineClipProps) {
-  const left = segment.start * pxPerSec;
-  const width = Math.max(2, (segment.end - segment.start) * pxPerSec);
+export function TimelineClip({ clip, media, pxPerSec, active, onBodyDown, onHandleDown, onContext }: TimelineClipProps) {
+  const width = Math.max(2, clipTimelineDuration(clip) * pxPerSec);
+  const left = clip.start * pxPerSec;
+  const isVideo = media?.kind === 'video';
 
-  const dragEdge = (edge: 'start' | 'end') => (e: ReactPointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onSelect();
-    const sx = e.clientX;
-    const o = { start: segment.start, end: segment.end };
-    const move = (ev: PointerEvent) => {
-      const d = (ev.clientX - sx) / pxPerSec;
-      if (edge === 'start') onTrim(clamp(o.start + d, minStart, o.end - 0.1), o.end);
-      else onTrim(o.start, clamp(o.end + d, o.start + 0.1, maxEnd));
+  const [thumbs, setThumbs] = useState<Thumbnail[]>([]);
+  const count = clamp(Math.round(width / 70), 1, 12);
+  useEffect(() => {
+    if (!media || media.kind !== 'video') {
+      setThumbs([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      generateThumbnails(media.url, { from: clip.in, to: clip.out, count, width: 120, signal: controller.signal })
+        .then((t) => {
+          if (!controller.signal.aborted) setThumbs(t);
+        })
+        .catch(() => undefined);
+    }, 150);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
     };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
+  }, [media, clip.in, clip.out, count]);
 
   const handleCls = cn(
-    'absolute top-0 bottom-0 z-10 flex w-3 cursor-ew-resize items-center justify-center bg-brand transition-opacity',
+    'absolute top-0 bottom-0 z-10 flex w-2.5 cursor-ew-resize items-center justify-center bg-brand transition-opacity',
     active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
   );
 
   return (
     <div
       className={cn(
-        'group absolute top-0 bottom-0 overflow-hidden rounded-md',
-        active ? 'ring-2 ring-brand' : 'ring-1 ring-white/15 hover:ring-white/30',
+        'group absolute top-1 bottom-1 cursor-grab overflow-hidden rounded-md active:cursor-grabbing',
+        active ? 'z-10 ring-2 ring-brand' : 'ring-1 ring-white/15 hover:ring-white/30',
+        clip.hidden && 'opacity-50',
       )}
       style={{ left, width }}
-      onPointerDown={() => onSelect()}
+      onPointerDown={onBodyDown}
+      onContextMenu={onContext}
     >
-      <div
-        className={cn('pointer-events-none absolute inset-0', active ? 'bg-brand/10' : 'bg-transparent')}
-      />
-      <div onPointerDown={dragEdge('start')} className={cn(handleCls, 'left-0 rounded-l-md')}>
-        <div className="h-6 w-0.5 rounded bg-white" />
+      <div className="absolute inset-0 flex overflow-hidden bg-surface-3">
+        {isVideo ? (
+          thumbs.map((t, i) => (
+            <img key={i} src={t.url} alt="" draggable={false} className="h-full min-w-0 flex-1 object-cover" />
+          ))
+        ) : media ? (
+          <img src={media.url} alt="" draggable={false} className="h-full w-full object-cover" />
+        ) : null}
       </div>
-      <div onPointerDown={dragEdge('end')} className={cn(handleCls, 'right-0 rounded-r-md')}>
-        <div className="h-6 w-0.5 rounded bg-white" />
-      </div>
-      {canDelete && (
-        <button
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="absolute right-1.5 top-1.5 z-20 hidden rounded-md bg-black/60 p-1 text-white/90 transition-colors hover:bg-danger group-hover:block"
-          aria-label="Remove this part"
-        >
-          <Trash2 size={13} />
-        </button>
+
+      {clip.hidden && (
+        <div className="pointer-events-none absolute inset-0 bg-canvas/40 bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,rgba(255,255,255,0.05)_6px,rgba(255,255,255,0.05)_12px)]" />
       )}
+      <div className={cn('pointer-events-none absolute inset-0', active ? 'bg-brand/10' : '')} />
+
+      <div className="pointer-events-none absolute left-1.5 top-1.5 flex gap-1">
+        {clip.muted && (
+          <span className="grid h-5 w-5 place-items-center rounded bg-black/60 text-danger">
+            <VolumeX size={12} />
+          </span>
+        )}
+        {clip.hidden && (
+          <span className="grid h-5 w-5 place-items-center rounded bg-black/60 text-ink-muted">
+            <EyeOff size={12} />
+          </span>
+        )}
+      </div>
+
+      {media && (
+        <div className="pointer-events-none absolute bottom-1 left-1.5 max-w-[calc(100%-12px)] truncate rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white/90">
+          {media.fileName}
+        </div>
+      )}
+
+      <div onPointerDown={(e) => onHandleDown(e, 'in')} className={cn(handleCls, 'left-0 rounded-l-md')}>
+        <div className="h-5 w-0.5 rounded bg-white" />
+      </div>
+      <div onPointerDown={(e) => onHandleDown(e, 'out')} className={cn(handleCls, 'right-0 rounded-r-md')}>
+        <div className="h-5 w-0.5 rounded bg-white" />
+      </div>
     </div>
   );
 }

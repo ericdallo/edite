@@ -1,6 +1,7 @@
 import { Download, Plus } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { Button } from '@/components/ui/Button';
+import { KeyboardHelp } from '@/components/KeyboardHelp';
 
 export interface TopbarProps {
   onExport?: () => void;
@@ -8,7 +9,7 @@ export interface TopbarProps {
 }
 
 export function Topbar({ onExport, onNew }: TopbarProps) {
-  const source = useEditorStore((s) => s.source);
+  const hasMedia = useEditorStore((s) => s.media.length > 0);
   const projectName = useEditorStore((s) => s.projectName);
   const setProjectName = useEditorStore((s) => s.setProjectName);
 
@@ -30,7 +31,7 @@ export function Topbar({ onExport, onNew }: TopbarProps) {
 
       <div className="mx-2 hidden h-6 w-px bg-line md:block" />
 
-      {source && (
+      {hasMedia && (
         <input
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
@@ -41,12 +42,13 @@ export function Topbar({ onExport, onNew }: TopbarProps) {
       )}
 
       <div className="ml-auto flex items-center gap-2">
-        {source && (
+        {hasMedia && <KeyboardHelp />}
+        {hasMedia && (
           <Button variant="subtle" size="sm" onClick={onNew}>
             <Plus size={16} /> New
           </Button>
         )}
-        <Button variant="primary" size="md" disabled={!source} onClick={onExport}>
+        <Button variant="primary" size="md" disabled={!hasMedia} onClick={onExport}>
           <Download size={16} /> Export
         </Button>
       </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { usePersistence } from '@/hooks/usePersistence';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Topbar } from '@/components/layout/Topbar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { EditorLayout } from '@/components/layout/EditorLayout';
@@ -12,7 +13,8 @@ import { ExportDialog } from '@/components/export/ExportDialog';
 
 export default function App() {
   usePersistence();
-  const source = useEditorStore((s) => s.source);
+  useKeyboardShortcuts();
+  const hasMedia = useEditorStore((s) => s.media.length > 0);
   const closeProject = useEditorStore((s) => s.closeProject);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -21,13 +23,13 @@ export default function App() {
       <Topbar onNew={closeProject} onExport={() => setExportOpen(true)} />
       <EditorLayout
         rail={<Sidebar />}
-        panel={source ? <ToolPanel /> : null}
-        stage={source ? <VideoPreview /> : <Dropzone />}
+        panel={hasMedia ? <ToolPanel /> : null}
+        stage={hasMedia ? <VideoPreview /> : <Dropzone />}
         timeline={
-          source ? (
+          hasMedia ? (
             <Timeline />
           ) : (
-            <div className="h-[212px] shrink-0 border-t border-line bg-surface/40">
+            <div className="h-[120px] shrink-0 border-t border-line bg-surface/40">
               <Dropzone compact />
             </div>
           )

@@ -1,42 +1,112 @@
+import { type FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
-import { getFFmpeg } from './client';
-import { buildExportCommand, extFromMime } from './command';
+import { getFFmpeg, onFFmpegLog } from './client';
+import { buildExportCommand, extFromMime, type MultiExportParams } from './command';
+import { logger } from '@/lib/log';
 
-export type { ExportParams, BuiltCommand } from './command';
+export type { MultiExportParams, ExportClip, BuiltCommand } from './command';
 export { buildExportCommand } from './command';
 
-export interface ExportRequest {
+export interface ExportMedia {
+  id: string;
   blob: Blob;
-  params: import('./command').ExportParams;
+}
+
+export interface ExportRequest {
+  params: MultiExportParams;
+  /** unique media used by the clips */
+  media: ExportMedia[];
+  /** media id for each clip, in the same order as params.clips */
+  clipMediaIds: string[];
   onProgress?: (ratio: number) => void;
 }
 
-/** Run a full export in ffmpeg.wasm and return the resulting media blob. */
+/**
+ * Detect whether a written file has an audio stream. Uses a tiny one-frame pass
+ * to the null muxer so ffmpeg exits 0 (keeping the wasm instance reusable) while
+ * still logging the input stream info we parse.
+ */
+async function hasAudioStream(ffmpeg: FFmpeg, name: string): Promise<boolean> {
+  let log = '';
+  const off = onFFmpegLog((m) => {
+    log += `${m}\n`;
+  });
+  try {
+    await ffmpeg.exec(['-hide_banner', '-i', name, '-frames:v', '1', '-f', 'null', 'probe.null']);
+  } catch (e) {
+    logger.warn('audio probe errored for', name, e);
+  }
+  off();
+  await ffmpeg.deleteFile('probe.null').catch(() => undefined);
+  const has = /Stream #\d+:\d+.*Audio:/i.test(log);
+  logger.info(`audio for ${name}:`, has ? 'present' : 'none');
+  return has;
+}
+
+/** Composite + render the multi-track project in ffmpeg.wasm. */
 export async function runExport(req: ExportRequest): Promise<Blob> {
+  logger.info('export starting', {
+    clips: req.params.clips.length,
+    media: req.media.length,
+    format: req.params.format,
+    quality: req.params.quality,
+    canvas: `${req.params.canvasW}x${req.params.canvasH}`,
+    duration: Number(req.params.duration.toFixed(2)),
+    globalMuted: req.params.globalMuted,
+  });
+
   const ffmpeg = await getFFmpeg();
-  const inputName = `input.${extFromMime(req.blob.type)}`;
-  const built = buildExportCommand(inputName, req.params);
 
-  await ffmpeg.writeFile(inputName, await fetchFile(req.blob));
+  const nameById = new Map<string, string>();
+  for (const m of req.media) {
+    const name = `in_${m.id}.${extFromMime(m.blob.type)}`;
+    nameById.set(m.id, name);
+    await ffmpeg.writeFile(name, await fetchFile(m.blob));
+    logger.info(`wrote ${name} (${(m.blob.size / 1024 / 1024).toFixed(1)} MB, ${m.blob.type || 'unknown'})`);
+  }
 
+  const audioByMedia = new Map<string, boolean>();
+  for (const m of req.media) {
+    audioByMedia.set(m.id, await hasAudioStream(ffmpeg, nameById.get(m.id)!));
+  }
+
+  const clips = req.params.clips.map((c, k) => ({
+    ...c,
+    hasAudio: c.hasAudio && (audioByMedia.get(req.clipMediaIds[k]) ?? false),
+  }));
+  const inputNames = req.clipMediaIds.map((id) => nameById.get(id) ?? '');
+  const built = buildExportCommand(inputNames, { ...req.params, clips });
+  logger.info('ffmpeg command:\n' + ['ffmpeg', ...built.args].join(' '));
+
+  const logLines: string[] = [];
+  const offLog = onFFmpegLog((m) => {
+    logLines.push(m);
+    if (logLines.length > 200) logLines.shift();
+  });
   const handler = ({ progress }: { progress: number }) => {
     req.onProgress?.(Math.max(0, Math.min(1, progress)));
   };
   ffmpeg.on('progress', handler);
+
   try {
     await ffmpeg.exec(built.args);
+    const data = await ffmpeg.readFile(built.outputName);
+    const bytes = data as Uint8Array;
+    const out = new Uint8Array(bytes.byteLength);
+    out.set(bytes);
+    logger.info(`export done: ${(out.byteLength / 1024 / 1024).toFixed(2)} MB`);
+    return new Blob([out], { type: built.mime });
+  } catch (err) {
+    logger.error('export failed:', err);
+    logger.error('full ffmpeg log:\n' + logLines.join('\n'));
+    const cause = logLines.find((l) =>
+      /no streams|invalid|error|unable|failed|not found|conversion failed|out of memory/i.test(l),
+    );
+    throw new Error(cause ? cause.trim() : err instanceof Error ? err.message : 'Export failed.');
   } finally {
+    offLog();
     ffmpeg.off('progress', handler);
+    for (const name of nameById.values()) await ffmpeg.deleteFile(name).catch(() => undefined);
+    await ffmpeg.deleteFile(built.outputName).catch(() => undefined);
   }
-
-  const data = await ffmpeg.readFile(built.outputName);
-  await ffmpeg.deleteFile(inputName).catch(() => undefined);
-  await ffmpeg.deleteFile(built.outputName).catch(() => undefined);
-
-  const bytes = data as Uint8Array;
-  // Copy into a standalone ArrayBuffer-backed view: ffmpeg may return an array
-  // backed by a SharedArrayBuffer, which the Blob constructor's types reject.
-  const out = new Uint8Array(bytes.byteLength);
-  out.set(bytes);
-  return new Blob([out], { type: built.mime });
 }

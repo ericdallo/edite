@@ -1,33 +1,26 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
-import { Play } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { aspectById } from '@/types/editor';
-import { useVideoEngine } from '@/hooks/useVideoEngine';
-import { CropOverlay } from './CropOverlay';
+import { clipSourceAt, isClipActiveAt, projectDuration } from '@/lib/timeline';
+import { TransformOverlay } from './TransformOverlay';
 
 export function VideoPreview() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const videoEls = useRef<Map<string, HTMLVideoElement>>(new Map());
 
-  const sourceUrl = useEditorStore((s) => s.sourceUrl);
-  const source = useEditorStore((s) => s.source);
+  const media = useEditorStore((s) => s.media);
+  const tracks = useEditorStore((s) => s.tracks);
+  const clips = useEditorStore((s) => s.clips);
   const aspect = useEditorStore((s) => s.aspect);
-  const aspectMode = useEditorStore((s) => s.aspectMode);
-  const speed = useEditorStore((s) => s.speed);
   const muted = useEditorStore((s) => s.muted);
   const volume = useEditorStore((s) => s.playback.volume);
   const playing = useEditorStore((s) => s.playback.playing);
+  const currentTime = useEditorStore((s) => s.playback.currentTime);
   const setPlaying = useEditorStore((s) => s.setPlaying);
+  const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const selectedTool = useEditorStore((s) => s.selectedTool);
 
-  useVideoEngine(videoRef);
-
-  const displayRatio = useMemo(() => {
-    const ratio = aspectById(aspect).ratio;
-    if (ratio) return ratio;
-    if (source?.width && source?.height) return source.width / source.height;
-    return 16 / 9;
-  }, [aspect, source]);
+  const ratio = aspectById(aspect).ratio;
 
   const [box, setBox] = useState({ w: 0, h: 0 });
   useEffect(() => {
@@ -39,10 +32,10 @@ export function VideoPreview() {
       const ch = el.clientHeight - pad * 2;
       if (cw <= 0 || ch <= 0) return;
       let w = cw;
-      let h = cw / displayRatio;
+      let h = cw / ratio;
       if (h > ch) {
         h = ch;
-        w = ch * displayRatio;
+        w = ch * ratio;
       }
       setBox({ w, h });
     };
@@ -50,12 +43,63 @@ export function VideoPreview() {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [displayRatio]);
+  }, [ratio]);
 
-  const objectFit: CSSProperties['objectFit'] =
-    aspect === 'original' ? 'contain' : aspectMode === 'fill' ? 'cover' : 'contain';
+  // Composite order: bottom track first (later DOM = higher layer).
+  const layers = useMemo(
+    () =>
+      tracks.flatMap((track) =>
+        clips.filter((c) => c.trackId === track.id).map((clip) => ({ clip, track })),
+      ),
+    [tracks, clips],
+  );
 
-  const showPlayButton = !playing && selectedTool !== 'crop';
+  // Master clock: advance the timeline in real time while playing.
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = () => {
+      const now = performance.now();
+      const dt = (now - last) / 1000;
+      last = now;
+      const s = useEditorStore.getState();
+      const total = projectDuration(s.clips);
+      const next = s.playback.currentTime + dt;
+      if (next >= total) {
+        setCurrentTime(total);
+        setPlaying(false);
+        return;
+      }
+      setCurrentTime(next);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, setCurrentTime, setPlaying]);
+
+  // Keep each <video> in sync with the master clock.
+  useEffect(() => {
+    for (const { clip, track } of layers) {
+      const m = media.find((x) => x.id === clip.mediaId);
+      if (!m || m.kind !== 'video') continue;
+      const el = videoEls.current.get(clip.id);
+      if (!el) continue;
+      const active = isClipActiveAt(clip, currentTime) && !track.hidden;
+      el.muted = muted || clip.muted || track.muted;
+      el.volume = volume;
+      el.playbackRate = clip.speed;
+      if (active) {
+        const want = clipSourceAt(clip, currentTime);
+        const tol = playing ? 0.34 : 0.05;
+        if (Math.abs(el.currentTime - want) > tol) el.currentTime = want;
+        if (playing && el.paused) el.play().catch(() => undefined);
+        if (!playing && !el.paused) el.pause();
+      } else if (!el.paused) {
+        el.pause();
+      }
+    }
+  }, [layers, media, currentTime, playing, muted, volume]);
 
   return (
     <div
@@ -65,37 +109,42 @@ export function VideoPreview() {
       <div
         className="relative overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-line"
         style={{ width: box.w || '60%', height: box.h || '60%' }}
+        onClick={() => selectedTool !== 'transform' && setPlaying(!playing)}
       >
-        {sourceUrl && (
-          <video
-            ref={videoRef}
-            src={sourceUrl}
-            className="h-full w-full bg-black"
-            style={{ objectFit }}
-            playsInline
-            onClick={() => selectedTool !== 'crop' && setPlaying(!playing)}
-            onLoadedMetadata={(e) => {
-              const v = e.currentTarget;
-              v.playbackRate = speed;
-              v.muted = muted;
-              v.volume = volume;
-            }}
-          />
-        )}
+        {layers.map(({ clip, track }) => {
+          const m = media.find((x) => x.id === clip.mediaId);
+          if (!m) return null;
+          const active = isClipActiveAt(clip, currentTime) && !track.hidden;
+          const style = {
+            left: `${clip.rect.x * 100}%`,
+            top: `${clip.rect.y * 100}%`,
+            width: `${clip.rect.w * 100}%`,
+            height: `${clip.rect.h * 100}%`,
+            opacity: active ? clip.opacity : 0,
+            display: active ? 'block' : 'none',
+          } as const;
+          return (
+            <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
+              {m.kind === 'video' ? (
+                <video
+                  ref={(el) => {
+                    if (el) videoEls.current.set(clip.id, el);
+                    else videoEls.current.delete(clip.id);
+                  }}
+                  src={m.url}
+                  className="h-full w-full object-cover"
+                  playsInline
+                  muted
+                  preload="auto"
+                />
+              ) : (
+                <img src={m.url} alt="" className="h-full w-full object-cover" />
+              )}
+            </div>
+          );
+        })}
 
-        {selectedTool === 'crop' && box.w > 0 && <CropOverlay width={box.w} height={box.h} />}
-
-        {showPlayButton && (
-          <button
-            onClick={() => setPlaying(true)}
-            className="absolute inset-0 grid place-items-center transition-colors hover:bg-black/10"
-            aria-label="Play"
-          >
-            <span className="grid h-16 w-16 place-items-center rounded-full bg-black/50 text-white ring-1 ring-white/20 backdrop-blur-sm">
-              <Play size={28} className="ml-1" />
-            </span>
-          </button>
-        )}
+        {selectedTool === 'transform' && box.w > 0 && <TransformOverlay width={box.w} height={box.h} />}
       </div>
     </div>
   );

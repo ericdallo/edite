@@ -1,11 +1,17 @@
 import { type ReactNode, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, Loader2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
-import { aspectById, type ExportFormat, type ExportQuality } from '@/types/editor';
-import { outputDuration } from '@/lib/segments';
-import { runExport, type ExportParams } from '@/lib/ffmpeg/operations';
+import {
+  aspectById,
+  canvasSize,
+  type ExportFormat,
+  type ExportQuality,
+} from '@/types/editor';
+import { projectDuration } from '@/lib/timeline';
+import { runExport, type ExportClip, type MultiExportParams } from '@/lib/ffmpeg/operations';
 import { savePrefs } from '@/lib/storage/projects';
 import { useFfmpeg } from '@/hooks/useFfmpeg';
+import { logger } from '@/lib/log';
 import { cn, formatBytes, formatTime } from '@/lib/utils';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
@@ -17,22 +23,13 @@ const FORMATS: { id: ExportFormat; label: string; note: string }[] = [
   { id: 'webm', label: 'WebM', note: 'Smaller, open' },
   { id: 'gif', label: 'GIF', note: 'Silent loop' },
 ];
-
 const QUALITIES: { id: ExportQuality; label: string }[] = [
   { id: 'high', label: 'High' },
   { id: 'medium', label: 'Medium' },
   { id: 'low', label: 'Low' },
 ];
 
-function Status({
-  icon,
-  text,
-  tone = 'muted',
-}: {
-  icon: ReactNode;
-  text: string;
-  tone?: 'muted' | 'success' | 'danger';
-}) {
+function Status({ icon, text, tone = 'muted' }: { icon: ReactNode; text: string; tone?: 'muted' | 'success' | 'danger' }) {
   return (
     <div
       className={cn(
@@ -50,21 +47,13 @@ function Status({
   );
 }
 
-export interface ExportDialogProps {
-  open: boolean;
-  onClose: () => void;
-}
-
-export function ExportDialog({ open, onClose }: ExportDialogProps) {
-  const source = useEditorStore((s) => s.source);
-  const sourceBlob = useEditorStore((s) => s.sourceBlob);
-  const projectName = useEditorStore((s) => s.projectName);
-  const segments = useEditorStore((s) => s.segments);
-  const speed = useEditorStore((s) => s.speed);
-  const muted = useEditorStore((s) => s.muted);
-  const crop = useEditorStore((s) => s.crop);
+export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const media = useEditorStore((s) => s.media);
+  const tracks = useEditorStore((s) => s.tracks);
+  const clips = useEditorStore((s) => s.clips);
   const aspect = useEditorStore((s) => s.aspect);
-  const aspectMode = useEditorStore((s) => s.aspectMode);
+  const muted = useEditorStore((s) => s.muted);
+  const projectName = useEditorStore((s) => s.projectName);
   const exportSettings = useEditorStore((s) => s.exportSettings);
   const setExportSettings = useEditorStore((s) => s.setExportSettings);
 
@@ -74,11 +63,16 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ url: string; size: number } | null>(null);
 
-  if (!source) return null;
+  if (media.length === 0) return null;
 
-  const outDur = outputDuration(segments) / speed;
+  const { width: canvasW, height: canvasH } = canvasSize(aspectById(aspect).ratio);
+  const duration = projectDuration(clips);
   const fileName = `${(projectName || 'edite').replace(/[^\w.-]+/g, '_')}.${exportSettings.format}`;
   const busy = stage === 'loading' || stage === 'processing';
+  const visibleClips = clips.filter(
+    (c) => !c.hidden && !tracks.find((t) => t.id === c.trackId)?.hidden,
+  );
+  const canExport = visibleClips.length > 0 && duration > 0;
 
   const doDownload = (url: string) => {
     const a = document.createElement('a');
@@ -90,7 +84,6 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   };
 
   const start = async () => {
-    if (!sourceBlob) return;
     setError(null);
     setProgress(0);
     if (result) {
@@ -101,27 +94,58 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
       setStage('loading');
       await ensureLoaded();
       setStage('processing');
-      const params: ExportParams = {
-        segments,
-        speed,
-        muted,
-        hasAudio: source.hasAudio,
-        crop,
-        aspectRatio: aspectById(aspect).ratio,
-        aspectMode,
-        sourceWidth: source.width,
-        sourceHeight: source.height,
+
+      // Composite order: bottom track -> top track, clips by start time.
+      const ordered = tracks
+        .filter((t) => !t.hidden)
+        .flatMap((t) =>
+          clips
+            .filter((c) => c.trackId === t.id && !c.hidden)
+            .sort((a, b) => a.start - b.start)
+            .map((c) => ({ clip: c, track: t })),
+        );
+
+      const exportClips: ExportClip[] = ordered.map(({ clip, track }) => {
+        const m = media.find((x) => x.id === clip.mediaId)!;
+        return {
+          kind: m.kind,
+          start: clip.start,
+          in: clip.in,
+          out: clip.out,
+          speed: clip.speed,
+          rect: clip.rect,
+          opacity: clip.opacity,
+          hasAudio: m.hasAudio,
+          muted: clip.muted || track.muted,
+        };
+      });
+      const clipMediaIds = ordered.map(({ clip }) => clip.mediaId);
+      const usedIds = [...new Set(clipMediaIds)];
+      const exportMedia = usedIds.map((id) => {
+        const m = media.find((x) => x.id === id)!;
+        return { id, blob: m.blob };
+      });
+
+      const params: MultiExportParams = {
+        canvasW,
+        canvasH,
+        fps: 30,
+        duration,
+        clips: exportClips,
         format: exportSettings.format,
         quality: exportSettings.quality,
+        globalMuted: muted,
       };
-      const out = await runExport({ blob: sourceBlob, params, onProgress: setProgress });
+
+      const out = await runExport({ params, media: exportMedia, clipMediaIds, onProgress: setProgress });
       const url = URL.createObjectURL(out);
       setResult({ url, size: out.size });
       setStage('done');
       doDownload(url);
       savePrefs({ lastFormat: exportSettings.format });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Export failed. Try a lower quality or a shorter clip.');
+      logger.error('export failed in dialog:', e);
+      setError(e instanceof Error ? e.message : 'Export failed — see the browser console for details.');
       setStage('error');
     }
   };
@@ -155,9 +179,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 onClick={() => setExportSettings({ format: f.id })}
                 className={cn(
                   'rounded-xl border px-3 py-2.5 text-left transition-colors',
-                  exportSettings.format === f.id
-                    ? 'border-brand bg-brand/10'
-                    : 'border-line bg-surface-2 hover:bg-surface-3',
+                  exportSettings.format === f.id ? 'border-brand bg-brand/10' : 'border-line bg-surface-2 hover:bg-surface-3',
                   busy && 'opacity-60',
                 )}
               >
@@ -178,9 +200,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 onClick={() => setExportSettings({ quality: q.id })}
                 className={cn(
                   'rounded-xl border px-3 py-2 text-sm font-medium transition-colors',
-                  exportSettings.quality === q.id
-                    ? 'border-brand bg-brand/10 text-ink'
-                    : 'border-line bg-surface-2 text-ink-muted hover:text-ink',
+                  exportSettings.quality === q.id ? 'border-brand bg-brand/10 text-ink' : 'border-line bg-surface-2 text-ink-muted hover:text-ink',
                   busy && 'opacity-60',
                 )}
               >
@@ -193,21 +213,16 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
         <div className="flex items-center justify-between rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm">
           <div className="text-ink-muted">Output</div>
           <div className="flex items-center gap-2.5 font-mono text-xs text-ink">
-            <span>{formatTime(outDur)}</span>
+            <span>{formatTime(duration)}</span>
             <span className="text-ink-faint">·</span>
-            <span>
-              {aspect === 'original' ? `${source.width}×${source.height}` : aspectById(aspect).label}
-            </span>
+            <span>{canvasW}×{canvasH}</span>
             <span className="text-ink-faint">·</span>
             <span>{exportSettings.format === 'gif' || muted ? 'no audio' : 'audio'}</span>
           </div>
         </div>
 
         {stage === 'loading' && (
-          <Status
-            icon={<Loader2 className="animate-spin" size={16} />}
-            text="Loading the video engine (one-time, ~32 MB)…"
-          />
+          <Status icon={<Loader2 className="animate-spin" size={16} />} text="Loading the video engine (one-time, ~32 MB)…" />
         )}
         {stage === 'processing' && (
           <div>
@@ -224,15 +239,9 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           </div>
         )}
         {stage === 'done' && result && (
-          <Status
-            tone="success"
-            icon={<CheckCircle2 size={16} />}
-            text={`Done — ${formatBytes(result.size)}. Your download should have started.`}
-          />
+          <Status tone="success" icon={<CheckCircle2 size={16} />} text={`Done — ${formatBytes(result.size)}. Your download should have started.`} />
         )}
-        {stage === 'error' && (
-          <Status tone="danger" icon={<AlertTriangle size={16} />} text={error ?? 'Export failed.'} />
-        )}
+        {stage === 'error' && <Status tone="danger" icon={<AlertTriangle size={16} />} text={error ?? 'Export failed.'} />}
 
         <div className="flex items-center justify-end gap-2 pt-1">
           {stage === 'done' && result ? (
@@ -249,7 +258,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               <Button variant="ghost" onClick={close} disabled={busy}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={start} disabled={busy}>
+              <Button variant="primary" onClick={start} disabled={busy || !canExport}>
                 {busy ? (
                   <>
                     <Loader2 className="animate-spin" size={16} /> Working…

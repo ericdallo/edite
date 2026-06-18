@@ -6,7 +6,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const srcDir = resolve(root, 'node_modules/@ffmpeg/core/dist/umd');
+// ESM build: @ffmpeg/ffmpeg runs a module worker, which can't importScripts the
+// UMD core and falls back to dynamic import(), so we must ship the ESM core.
+const srcDir = resolve(root, 'node_modules/@ffmpeg/core/dist/esm');
 const outDir = resolve(root, 'public/ffmpeg');
 const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm'];
 
