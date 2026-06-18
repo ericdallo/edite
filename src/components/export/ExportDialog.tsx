@@ -2,8 +2,8 @@ import { type ReactNode, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, Loader2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
-  aspectById,
   canvasSize,
+  resolveAspectRatio,
   type ExportFormat,
   type ExportQuality,
   FPS_PRESETS,
@@ -68,7 +68,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   if (media.length === 0) return null;
 
-  const { width: canvasW, height: canvasH } = canvasSize(aspectById(aspect).ratio, exportSettings.resolution);
+  const { width: canvasW, height: canvasH } = canvasSize(resolveAspectRatio(aspect, media), exportSettings.resolution);
   const duration = projectDuration(clips);
   const fileName = `${(projectName || 'edite').replace(/[^\w.-]+/g, '_')}.${exportSettings.format}`;
   const busy = stage === 'loading' || stage === 'processing';

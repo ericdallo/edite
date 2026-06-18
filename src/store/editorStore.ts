@@ -60,7 +60,7 @@ function sameDoc(a: DocSnapshot, b: DocSnapshot): boolean {
 }
 
 function emptyDoc(projectName = 'Untitled project'): DocSnapshot {
-  return { media: [], tracks: [], clips: [], aspect: '16:9', muted: false, projectName };
+  return { media: [], tracks: [], clips: [], aspect: 'original', muted: false, projectName };
 }
 
 export const selectDoc = (s: DocSnapshot): DocSnapshot => snapshotDoc(s);
@@ -191,7 +191,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   media: [],
   tracks: [],
   clips: [],
-  aspect: '16:9',
+  aspect: 'original',
   muted: false,
   exportSettings: DEFAULT_EXPORT,
   activeClipId: null,
@@ -217,7 +217,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         media: [],
         tracks: [],
         clips: [],
-        aspect: '16:9',
+        aspect: 'original',
         muted: false,
         activeClipId: null,
         selectedIds: [],

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { aspectById } from '@/types/editor';
+import { resolveAspectRatio } from '@/types/editor';
 import { clipSourceAt, isClipActiveAt, projectDuration } from '@/lib/timeline';
 import { TransformOverlay } from './TransformOverlay';
 
@@ -20,7 +20,7 @@ export function VideoPreview() {
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const selectedTool = useEditorStore((s) => s.selectedTool);
 
-  const ratio = aspectById(aspect).ratio;
+  const ratio = resolveAspectRatio(aspect, media);
 
   const [box, setBox] = useState({ w: 0, h: 0 });
   useEffect(() => {

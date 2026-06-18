@@ -1,4 +1,4 @@
-export type AspectRatioId = '16:9' | '9:16' | '1:1' | '4:5' | '4:3' | '21:9';
+export type AspectRatioId = 'original' | '16:9' | '9:16' | '1:1' | '4:5' | '4:3' | '21:9';
 
 export interface AspectRatioOption {
   id: AspectRatioId;
@@ -126,6 +126,22 @@ export const FPS_PRESETS: ExportFps[] = [24, 30, 60];
 
 export function aspectById(id: AspectRatioId): AspectRatioOption {
   return ASPECT_RATIOS.find((a) => a.id === id) ?? ASPECT_RATIOS[0];
+}
+
+/**
+ * Numeric canvas ratio for an aspect. Fixed aspects use their preset; 'original'
+ * matches the first source video (so nothing is cropped), falling back to the
+ * first sized media, then 16:9.
+ */
+export function resolveAspectRatio(
+  aspect: AspectRatioId,
+  media: Pick<MediaItem, 'kind' | 'width' | 'height'>[],
+): number {
+  if (aspect !== 'original') return aspectById(aspect).ratio;
+  const src =
+    media.find((m) => m.kind === 'video' && m.width > 0 && m.height > 0) ??
+    media.find((m) => m.width > 0 && m.height > 0);
+  return src ? src.width / src.height : 16 / 9;
 }
 
 /** Output canvas pixel size for an aspect ratio at a target short-side resolution (even). */
