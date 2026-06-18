@@ -2,12 +2,11 @@ import { cn } from '@/lib/utils';
 
 export interface BrandLogoProps {
   className?: string;
-  showBadge?: boolean;
   /** Where the logo links to. Defaults to the site root. */
   href?: string;
 }
 
-export function BrandLogo({ className, showBadge = true, href = '/' }: BrandLogoProps) {
+export function BrandLogo({ className, href = '/' }: BrandLogoProps) {
   return (
     <a
       href={href}
@@ -63,17 +62,9 @@ export function BrandLogo({ className, showBadge = true, href = '/' }: BrandLogo
           fill="white"
         />
       </svg>
-      <div className="hidden items-baseline gap-2.5 sm:flex">
-        <span className="text-[1.35rem] font-extrabold lowercase leading-none tracking-[-0.065em] text-ink antialiased">
-          edite
-        </span>
-        {showBadge && (
-          <span className="hidden items-center gap-1.5 text-[12px] font-medium text-ink-faint sm:inline-flex">
-            <span className="h-1 w-1 rounded-full bg-accent" aria-hidden="true" />
-            free
-          </span>
-        )}
-      </div>
+      <span className="hidden text-[1.35rem] font-extrabold lowercase leading-none tracking-[-0.065em] text-ink antialiased sm:block">
+        edite
+      </span>
     </a>
   );
 }

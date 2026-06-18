@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, Github, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Settings, Undo2 } from 'lucide-react';
+import { Download, Github, Redo2, Settings, Undo2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useProjects } from '@/hooks/useProjects';
 import { REPO_URL } from '@/lib/constants';
@@ -20,8 +20,6 @@ export function Topbar({ onExport }: TopbarProps) {
   const redo = useEditorStore((s) => s.redo);
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
-  const sidebarCollapsed = useEditorStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useEditorStore((s) => s.toggleSidebar);
   const showHistory = hasContent || canUndo || canRedo;
   const projects = useProjects();
   const showProjects = hasContent || projects.items.length > 0;
@@ -30,15 +28,6 @@ export function Topbar({ onExport }: TopbarProps) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface/60 px-2 backdrop-blur-md lg:gap-3 lg:px-3">
       <BrandLogo className="pl-1" />
-
-      <button
-        onClick={toggleSidebar}
-        title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-        aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-        className="hidden h-9 w-9 place-items-center rounded-xl text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink lg:grid"
-      >
-        {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-      </button>
 
       <div className="mx-1 hidden h-6 w-px bg-line md:block" />
 
@@ -85,18 +74,6 @@ export function Topbar({ onExport }: TopbarProps) {
         >
           <Settings size={18} />
         </button>
-        {hasContent && (
-          <Button
-            variant="subtle"
-            size="icon"
-            title="New project"
-            aria-label="New project"
-            className="hidden lg:inline-flex"
-            onClick={() => void projects.create()}
-          >
-            <Plus size={17} />
-          </Button>
-        )}
         <Button variant="primary" size="md" disabled={!hasContent} onClick={onExport} title="Export video">
           <Download size={16} /> Export
         </Button>

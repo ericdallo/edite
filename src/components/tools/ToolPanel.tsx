@@ -41,12 +41,12 @@ export function ToolPanel() {
         className={cn(
           'order-3 flex flex-col bg-surface shadow-2xl',
           // mobile: bottom sheet
-          'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] rounded-t-2xl border border-line transition-transform duration-200',
+          'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] rounded-t-2xl border border-line transition-[transform,width,opacity] duration-200 ease-out',
           panelOpen ? 'translate-y-0' : 'translate-y-full',
           // desktop: static left column
-          'lg:static lg:bottom-auto lg:z-auto lg:order-2 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
-          // desktop: hidden alongside the rail when collapsed (mobile sheet unaffected)
-          collapsed && 'lg:hidden',
+          'lg:static lg:bottom-auto lg:z-auto lg:order-2 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:overflow-hidden lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
+          // desktop: collapse alongside the rail when hidden (mobile sheet unaffected)
+          collapsed && 'lg:w-0 lg:min-w-0 lg:border-r-0 lg:opacity-0 lg:pointer-events-none',
         )}
       >
         <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line lg:hidden" />
