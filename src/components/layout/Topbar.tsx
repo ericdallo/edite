@@ -1,5 +1,6 @@
 import { Download, Plus } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { BrandLogo } from '@/components/BrandLogo';
 import { Button } from '@/components/ui/Button';
 import { KeyboardHelp } from '@/components/KeyboardHelp';
 
@@ -15,19 +16,7 @@ export function Topbar({ onExport, onNew }: TopbarProps) {
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface/60 px-3 backdrop-blur-md">
-      <div className="flex items-center gap-2.5 pl-1">
-        <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-brand-bright to-accent shadow-lg shadow-brand/30">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path d="M8 6l10 6-10 6V6z" fill="white" />
-          </svg>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tracking-tight">edite</span>
-          <span className="hidden rounded-full bg-surface-3 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted sm:inline">
-            free
-          </span>
-        </div>
-      </div>
+      <BrandLogo className="pl-1" />
 
       <div className="mx-2 hidden h-6 w-px bg-line md:block" />
 

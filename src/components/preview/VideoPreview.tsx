@@ -95,8 +95,13 @@ export function VideoPreview() {
         if (Math.abs(el.currentTime - want) > tol) el.currentTime = want;
         if (playing && el.paused) el.play().catch(() => undefined);
         if (!playing && !el.paused) el.pause();
-      } else if (!el.paused) {
-        el.pause();
+      } else {
+        if (!el.paused) el.pause();
+        // Park inactive clips on the frame nearest the playhead (their in-point
+        // for upcoming clips) so a cut never flashes the media's first frame,
+        // which is often black.
+        const parked = clipSourceAt(clip, currentTime);
+        if (Math.abs(el.currentTime - parked) > 0.05) el.currentTime = parked;
       }
     }
   }, [layers, media, currentTime, playing, muted, volume]);
@@ -115,13 +120,16 @@ export function VideoPreview() {
           const m = media.find((x) => x.id === clip.mediaId);
           if (!m) return null;
           const active = isClipActiveAt(clip, currentTime) && !track.hidden;
+          // Keep clips mounted and painted (opacity 0 when inactive) instead of
+          // display:none so their parked frame stays decoded and shows instantly
+          // at a cut — no black flash while the browser seeks/decodes.
           const style = {
             left: `${clip.rect.x * 100}%`,
             top: `${clip.rect.y * 100}%`,
             width: `${clip.rect.w * 100}%`,
             height: `${clip.rect.h * 100}%`,
             opacity: active ? clip.opacity : 0,
-            display: active ? 'block' : 'none',
+            zIndex: active ? 1 : 0,
           } as const;
           return (
             <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>

@@ -112,15 +112,23 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const y = Math.round(c.rect.y * H);
     const cover = `scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1`;
     const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
+    // Shift each clip's PTS to its timeline start so overlay frames line up with
+    // the enable window; without this the input reaches EOF early and the slot
+    // renders black (e.g. the tail clip of a split).
+    const delay = c.start > 1e-6 ? `+${fmt(c.start)}/TB` : '';
     if (c.kind === 'image') {
-      graph.push(`[${k}:v]${cover}${op}[c${k}]`);
+      const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
+      graph.push(`[${k}:v]${pts}${cover}${op}[c${k}]`);
     } else {
-      const sp = Math.abs(c.speed - 1) > 1e-3 ? `,setpts=PTS/${c.speed}` : '';
-      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=PTS-STARTPTS${sp},${cover}${op}[c${k}]`);
+      const base = Math.abs(c.speed - 1) > 1e-3 ? `(PTS-STARTPTS)/${c.speed}` : 'PTS-STARTPTS';
+      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${cover}${op}[c${k}]`);
     }
     const end = c.start + timelineLen(c);
+    // eof_action=repeat (not pass): once a clip's frames run out it holds its
+    // last frame instead of exposing black for a frame at the junction; `enable`
+    // still gates it off outside its window, so intentional gaps stay black.
     graph.push(
-      `[${acc}][c${k}]overlay=${x}:${y}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=pass[ov${k}]`,
+      `[${acc}][c${k}]overlay=${x}:${y}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=repeat[ov${k}]`,
     );
     acc = `ov${k}`;
   });
