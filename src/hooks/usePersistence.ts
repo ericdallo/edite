@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { DEFAULT_EXPORT_SETTINGS, type MediaItem, type MediaMeta } from '@/types/editor';
-import { useEditorStore } from '@/store/editorStore';
+import { DEFAULT_EXPORT_SETTINGS, type ExportSettings, type MediaItem, type MediaMeta } from '@/types/editor';
+import { docsEqual, selectDoc, useEditorStore } from '@/store/editorStore';
 import {
   getLastProjectId,
   getMedia,
@@ -38,7 +38,6 @@ export function usePersistence() {
           tracks: snap.tracks,
           clips: snap.clips,
           aspect: snap.aspect,
-          aspectMode: snap.aspectMode,
           muted: snap.muted,
           exportSettings: { ...DEFAULT_EXPORT_SETTINGS, ...snap.exportSettings },
           activeClipId: snap.clips[0]?.id ?? null,
@@ -52,8 +51,17 @@ export function usePersistence() {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastDoc = selectDoc(useEditorStore.getState());
+    let lastExport: ExportSettings = useEditorStore.getState().exportSettings;
+
     const unsub = useEditorStore.subscribe((state) => {
       if (!state.projectId || state.media.length === 0) return;
+      // Ignore playback-only ticks (currentTime advances ~60×/s while playing):
+      // only re-arm the debounce when the persisted document actually changes.
+      const doc = selectDoc(state);
+      if (docsEqual(doc, lastDoc) && state.exportSettings === lastExport) return;
+      lastDoc = doc;
+      lastExport = state.exportSettings;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         const s = useEditorStore.getState();
@@ -79,7 +87,6 @@ export function usePersistence() {
           tracks: s.tracks,
           clips: s.clips,
           aspect: s.aspect,
-          aspectMode: s.aspectMode,
           muted: s.muted,
           exportSettings: s.exportSettings,
         });

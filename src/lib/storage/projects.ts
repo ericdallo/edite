@@ -1,5 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
-import type { ExportFormat, ProjectSnapshot } from '@/types/editor';
+import type { ProjectSnapshot } from '@/types/editor';
 
 const DB_NAME = 'edite-db';
 const VERSION = 1;
@@ -56,27 +56,7 @@ export async function deleteProject(id: string): Promise<void> {
   await db.delete(MEDIA_STORE, id);
 }
 
-export interface Prefs {
-  volume: number;
-  lastFormat: ExportFormat;
-}
-
-const PREFS_KEY = 'edite:prefs';
 const LAST_KEY = 'edite:lastProjectId';
-const DEFAULT_PREFS: Prefs = { volume: 1, lastFormat: 'mp4' };
-
-export function loadPrefs(): Prefs {
-  try {
-    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') };
-  } catch {
-    return DEFAULT_PREFS;
-  }
-}
-
-export function savePrefs(partial: Partial<Prefs>): void {
-  const next = { ...loadPrefs(), ...partial };
-  localStorage.setItem(PREFS_KEY, JSON.stringify(next));
-}
 
 export function setLastProjectId(id: string): void {
   localStorage.setItem(LAST_KEY, id);

@@ -3,10 +3,7 @@ import type { MediaItem } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { probeMedia } from '@/lib/media/probe';
 import { saveMedia } from '@/lib/storage/projects';
-
-function uid(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
+import { uid } from '@/lib/ids';
 
 export interface UseImportMedia {
   importFiles: (files: FileList | File[], opts?: { addToTimeline?: boolean }) => Promise<void>;

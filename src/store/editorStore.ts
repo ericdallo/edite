@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import {
-  type AspectMode,
   type AspectRatioId,
   type Clip,
   DEFAULT_EXPORT_SETTINGS,
@@ -11,20 +10,21 @@ import {
   type Track,
 } from '@/types/editor';
 import { clipEnd, clipSourceAt, projectDuration } from '@/lib/timeline';
+import { clamp } from '@/lib/utils';
+import { uid } from '@/lib/ids';
+import {
+  CLIP_SPEED_MAX,
+  CLIP_SPEED_MIN,
+  HISTORY_LIMIT,
+  IMAGE_DEFAULT_DUR,
+  MIN_CLIP,
+  ZOOM_MAX,
+  ZOOM_MIN,
+} from '@/lib/constants';
 
 export type ToolId = 'media' | 'transform' | 'speed' | 'aspect' | 'audio';
 
-function uid(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v));
-}
-
-const MIN_CLIP = 0.06;
-const IMAGE_DEFAULT_DUR = 3;
 const DEFAULT_EXPORT: ExportSettings = DEFAULT_EXPORT_SETTINGS;
-const HISTORY_LIMIT = 100;
 
 /** The subset of state that undo/redo tracks (the "document"). */
 interface DocSnapshot {
@@ -32,7 +32,6 @@ interface DocSnapshot {
   tracks: Track[];
   clips: Clip[];
   aspect: AspectRatioId;
-  aspectMode: AspectMode;
   muted: boolean;
   projectName: string;
 }
@@ -43,7 +42,6 @@ function snapshotDoc(s: DocSnapshot): DocSnapshot {
     tracks: s.tracks,
     clips: s.clips,
     aspect: s.aspect,
-    aspectMode: s.aspectMode,
     muted: s.muted,
     projectName: s.projectName,
   };
@@ -56,14 +54,13 @@ function sameDoc(a: DocSnapshot, b: DocSnapshot): boolean {
     a.tracks === b.tracks &&
     a.clips === b.clips &&
     a.aspect === b.aspect &&
-    a.aspectMode === b.aspectMode &&
     a.muted === b.muted &&
     a.projectName === b.projectName
   );
 }
 
 function emptyDoc(projectName = 'Untitled project'): DocSnapshot {
-  return { media: [], tracks: [], clips: [], aspect: '16:9', aspectMode: 'fill', muted: false, projectName };
+  return { media: [], tracks: [], clips: [], aspect: '16:9', muted: false, projectName };
 }
 
 export const selectDoc = (s: DocSnapshot): DocSnapshot => snapshotDoc(s);
@@ -84,7 +81,6 @@ export interface EditorState {
   clips: Clip[];
 
   aspect: AspectRatioId;
-  aspectMode: AspectMode;
   muted: boolean;
   exportSettings: ExportSettings;
 
@@ -136,7 +132,6 @@ export interface EditorState {
   setVolume: (v: number) => void;
 
   setAspect: (a: AspectRatioId) => void;
-  setAspectMode: (m: AspectMode) => void;
   setMuted: (m: boolean) => void;
   toggleMute: () => void;
   setExportSettings: (s: Partial<ExportSettings>) => void;
@@ -168,7 +163,7 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
     start: Math.max(0, c.start),
     in: nin,
     out: nout,
-    speed: clamp(c.speed, 0.1, 16),
+    speed: clamp(c.speed, CLIP_SPEED_MIN, CLIP_SPEED_MAX),
     opacity: clamp(c.opacity, 0, 1),
   };
 }
@@ -180,7 +175,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   tracks: [],
   clips: [],
   aspect: '16:9',
-  aspectMode: 'fill',
   muted: false,
   exportSettings: DEFAULT_EXPORT,
   activeClipId: null,
@@ -206,7 +200,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         tracks: [],
         clips: [],
         aspect: '16:9',
-        aspectMode: 'fill',
         muted: false,
         activeClipId: null,
         clipboard: null,
@@ -383,12 +376,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setVolume: (v) => set((s) => ({ playback: { ...s.playback, volume: clamp(v, 0, 1) } })),
 
   setAspect: (a) => set({ aspect: a }),
-  setAspectMode: (m) => set({ aspectMode: m }),
   setMuted: (m) => set({ muted: m }),
   toggleMute: () => set((s) => ({ muted: !s.muted })),
   setExportSettings: (s) => set((st) => ({ exportSettings: { ...st.exportSettings, ...s } })),
 
-  setZoom: (z) => set({ zoom: clamp(z, 0.25, 12) }),
+  setZoom: (z) => set({ zoom: clamp(z, ZOOM_MIN, ZOOM_MAX) }),
   toggleSnap: () => set((s) => ({ snap: !s.snap })),
   setExporting: (v) => set({ isExporting: v }),
   setExportProgress: (p, stage) =>

@@ -10,8 +10,8 @@ import {
   RESOLUTIONS,
 } from '@/types/editor';
 import { projectDuration } from '@/lib/timeline';
-import { ExportCancelledError, runExport, type ExportClip, type MultiExportParams } from '@/lib/ffmpeg/operations';
-import { savePrefs } from '@/lib/storage/projects';
+import { ExportCancelledError, runExport, type MultiExportParams } from '@/lib/ffmpeg/operations';
+import { buildExportPlan } from '@/lib/ffmpeg/plan';
 import { useFfmpeg } from '@/hooks/useFfmpeg';
 import { logger } from '@/lib/log';
 import { cn, formatBytes, formatTime } from '@/lib/utils';
@@ -101,43 +101,13 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
       if (controller.signal.aborted) throw new ExportCancelledError();
       setStage('processing');
 
-      // Composite order: bottom track -> top track, clips by start time.
-      const ordered = tracks
-        .filter((t) => !t.hidden)
-        .flatMap((t) =>
-          clips
-            .filter((c) => c.trackId === t.id && !c.hidden)
-            .sort((a, b) => a.start - b.start)
-            .map((c) => ({ clip: c, track: t })),
-        );
-
-      const exportClips: ExportClip[] = ordered.map(({ clip, track }) => {
-        const m = media.find((x) => x.id === clip.mediaId)!;
-        return {
-          kind: m.kind,
-          start: clip.start,
-          in: clip.in,
-          out: clip.out,
-          speed: clip.speed,
-          rect: clip.rect,
-          opacity: clip.opacity,
-          hasAudio: m.hasAudio,
-          muted: clip.muted || track.muted,
-        };
-      });
-      const clipMediaIds = ordered.map(({ clip }) => clip.mediaId);
-      const usedIds = [...new Set(clipMediaIds)];
-      const exportMedia = usedIds.map((id) => {
-        const m = media.find((x) => x.id === id)!;
-        return { id, blob: m.blob };
-      });
-
+      const plan = buildExportPlan(tracks, clips, media);
       const params: MultiExportParams = {
         canvasW,
         canvasH,
         fps: exportSettings.fps,
         duration,
-        clips: exportClips,
+        clips: plan.clips,
         format: exportSettings.format,
         quality: exportSettings.quality,
         globalMuted: muted,
@@ -145,8 +115,8 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
 
       const out = await runExport({
         params,
-        media: exportMedia,
-        clipMediaIds,
+        media: plan.media,
+        clipMediaIds: plan.clipMediaIds,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -154,7 +124,6 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
       setResult({ url, size: out.size });
       setStage('done');
       doDownload(url);
-      savePrefs({ lastFormat: exportSettings.format });
     } catch (e) {
       if (e instanceof ExportCancelledError) {
         setStage('idle');

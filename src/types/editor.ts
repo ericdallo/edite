@@ -1,7 +1,5 @@
 export type AspectRatioId = '16:9' | '9:16' | '1:1' | '4:5' | '4:3' | '21:9';
 
-export type AspectMode = 'fill' | 'fit';
-
 export interface AspectRatioOption {
   id: AspectRatioId;
   label: string;
@@ -95,7 +93,6 @@ export interface ProjectSnapshot {
   tracks: Track[];
   clips: Clip[];
   aspect: AspectRatioId;
-  aspectMode: AspectMode;
   muted: boolean;
   exportSettings: ExportSettings;
 }

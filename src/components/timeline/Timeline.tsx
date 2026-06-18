@@ -18,9 +18,9 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import type { Clip } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
-import { clipTimelineDuration, projectDuration } from '@/lib/timeline';
+import { clipSnapTargets, clipTimelineDuration, projectDuration, snapStart } from '@/lib/timeline';
+import { ZOOM_MAX, ZOOM_MIN } from '@/lib/constants';
 import { clamp, cn, formatClock } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { ContextMenu, type ContextMenuState, type MenuItem } from '@/components/ui/ContextMenu';
@@ -36,36 +36,6 @@ function niceStep(pxPerSec: number): number {
   const target = 80 / pxPerSec;
   const steps = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
   return steps.find((s) => s >= target) ?? 600;
-}
-
-function snapTargets(clips: Clip[], excludeId: string, playhead: number): number[] {
-  const t = new Set<number>([0, playhead]);
-  for (const c of clips) {
-    if (c.id === excludeId) continue;
-    t.add(c.start);
-    t.add(c.start + clipTimelineDuration(c));
-  }
-  return [...t];
-}
-
-/** Snap a dragged clip's start so either edge lands on a nearby target. */
-function applySnap(start: number, dur: number, targets: number[], pxPerSec: number): number {
-  const threshold = 8 / pxPerSec;
-  let best = start;
-  let bestDist = threshold;
-  for (const tgt of targets) {
-    const dStart = Math.abs(start - tgt);
-    if (dStart < bestDist) {
-      bestDist = dStart;
-      best = tgt;
-    }
-    const dEnd = Math.abs(start + dur - tgt);
-    if (dEnd < bestDist) {
-      bestDist = dEnd;
-      best = Math.max(0, tgt - dur);
-    }
-  }
-  return best;
 }
 
 export function Timeline() {
@@ -139,7 +109,7 @@ export function Timeline() {
         const rect = el.getBoundingClientRect();
         const contentX = e.clientX - rect.left + el.scrollLeft;
         pendingFocus.current = { time: contentX / pxPerSec, offset: e.clientX - rect.left };
-        setZoom(clamp(zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 0.25, 12));
+        setZoom(clamp(zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), ZOOM_MIN, ZOOM_MAX));
       } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault();
         el.scrollLeft += e.deltaX;
@@ -195,7 +165,7 @@ export function Timeline() {
     const startY = e.clientY;
     const origStart = clip.start;
     const dur = clipTimelineDuration(clip);
-    const targets = snap ? snapTargets(clips, clipId, currentTime) : [];
+    const targets = snap ? clipSnapTargets(clips, clipId, currentTime) : [];
     let moved = false;
     let curStart = origStart;
     let toNewTrack = false;
@@ -206,7 +176,7 @@ export function Timeline() {
       }
       if (!moved) return;
       let newStart = Math.max(0, origStart + (ev.clientX - startX) / pxPerSec);
-      if (snap) newStart = applySnap(newStart, dur, targets, pxPerSec);
+      if (snap) newStart = snapStart(newStart, dur, targets, 8 / pxPerSec);
       curStart = newStart;
       // dropping below the last row creates a new track
       const rows = rowsRef.current?.getBoundingClientRect();
