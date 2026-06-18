@@ -53,7 +53,7 @@ export function BrandLogo({ className, showBadge = true }: BrandLogoProps) {
           fill="white"
         />
       </svg>
-      <div className="flex items-baseline gap-2.5">
+      <div className="hidden items-baseline gap-2.5 sm:flex">
         <span className="text-[1.35rem] font-extrabold lowercase leading-none tracking-[-0.065em] text-ink antialiased">
           edite
         </span>

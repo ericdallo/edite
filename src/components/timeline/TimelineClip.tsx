@@ -51,14 +51,14 @@ export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDo
   }, [media, clip.in, clip.out, count]);
 
   const handleCls = cn(
-    'absolute top-0 bottom-0 z-10 flex w-2.5 cursor-ew-resize items-center justify-center bg-brand transition-opacity',
+    'absolute top-0 bottom-0 z-10 flex w-3.5 touch-none cursor-ew-resize items-center justify-center bg-brand transition-opacity lg:w-2.5',
     active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
   );
 
   return (
     <div
       className={cn(
-        'group absolute top-1 bottom-1 cursor-grab overflow-hidden rounded-md active:cursor-grabbing',
+        'group absolute top-1 bottom-1 cursor-grab touch-none overflow-hidden rounded-md active:cursor-grabbing',
         active
           ? 'z-10 ring-2 ring-brand'
           : selected

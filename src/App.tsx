@@ -24,7 +24,7 @@ export default function App() {
   const showPanel = hasContent || selectedTool === 'text';
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-dvh flex-col overflow-hidden">
       <Topbar onExport={() => setExportOpen(true)} />
       <EditorLayout
         rail={<Sidebar />}

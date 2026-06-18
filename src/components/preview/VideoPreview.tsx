@@ -33,7 +33,7 @@ export function VideoPreview() {
     const el = stageRef.current;
     if (!el) return;
     const update = () => {
-      const pad = 28;
+      const pad = el.clientWidth < 640 ? 12 : 28;
       const cw = el.clientWidth - pad * 2;
       const ch = el.clientHeight - pad * 2;
       if (cw <= 0 || ch <= 0) return;
@@ -115,7 +115,7 @@ export function VideoPreview() {
   return (
     <div
       ref={stageRef}
-      className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_-10%,rgba(139,92,246,0.10),transparent_55%)] p-7"
+      className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_-10%,rgba(139,92,246,0.10),transparent_55%)] p-3 sm:p-5 lg:p-7"
     >
       <div
         className="relative overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-line"

@@ -70,14 +70,14 @@ export function Dropzone({ compact = false }: DropzoneProps) {
         onDragLeave={onDragLeave}
         onClick={pick}
         className={cn(
-          'group relative flex w-full max-w-2xl cursor-pointer flex-col items-center rounded-3xl border-2 border-dashed px-8 py-16 text-center transition-all',
+          'group relative flex w-full max-w-2xl cursor-pointer flex-col items-center rounded-3xl border-2 border-dashed px-6 py-10 text-center transition-all sm:px-8 sm:py-16',
           dragging ? 'scale-[1.01] border-brand bg-brand/5' : 'border-line bg-surface/40 hover:border-surface-3 hover:bg-surface/70',
         )}
       >
-        <div className="mb-6 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-brand to-accent shadow-xl shadow-brand/30 transition-transform group-hover:scale-105">
+        <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand to-accent shadow-xl shadow-brand/30 transition-transform group-hover:scale-105 sm:mb-6 sm:h-20 sm:w-20">
           {busy ? <Loader2 className="animate-spin text-white" size={32} /> : <UploadCloud className="text-white" size={32} />}
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight text-ink">
+        <h2 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
           {busy ? 'Reading your files…' : 'Drop videos or images to start'}
         </h2>
         <p className="mt-2 max-w-md text-ink-muted">

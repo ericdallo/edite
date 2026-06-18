@@ -185,7 +185,7 @@ export function ProjectMenu({ projects }: ProjectMenuProps) {
                             disabled={busy}
                             title="Delete project"
                             aria-label={`Delete ${p.name || 'project'}`}
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-faint opacity-0 transition-colors hover:bg-danger/15 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-faint opacity-100 transition-colors hover:bg-danger/15 hover:text-danger focus-visible:opacity-100 disabled:opacity-50 lg:opacity-0 lg:group-hover:opacity-100"
                           >
                             <Trash2 size={15} />
                           </button>

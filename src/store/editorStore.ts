@@ -107,6 +107,8 @@ export interface EditorState {
 
   playback: PlaybackState;
   selectedTool: ToolId;
+  /** mobile only: whether the tool panel sheet is open. */
+  panelOpen: boolean;
   zoom: number;
   snap: boolean;
   isExporting: boolean;
@@ -117,6 +119,7 @@ export interface EditorState {
   closeProject: () => void;
   setProjectName: (name: string) => void;
   setSelectedTool: (tool: ToolId) => void;
+  setPanelOpen: (open: boolean) => void;
 
   addMedia: (item: MediaItem) => void;
   addClipFromMedia: (mediaId: string, opts?: { trackId?: string; start?: number }) => void;
@@ -209,6 +212,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   committed: emptyDoc(),
   playback: { currentTime: 0, playing: false, volume: 1 },
   selectedTool: 'media',
+  panelOpen: false,
   zoom: 1,
   snap: true,
   isExporting: false,
@@ -234,6 +238,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         committed: emptyDoc(name ?? 'Untitled project'),
         playback: { currentTime: 0, playing: false, volume: s.playback.volume },
         selectedTool: 'media',
+        panelOpen: false,
         zoom: 1,
         isExporting: false,
         exportProgress: 0,
@@ -256,12 +261,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         past: [],
         future: [],
         committed: emptyDoc(),
+        panelOpen: false,
         playback: { currentTime: 0, playing: false, volume: s.playback.volume },
       };
     }),
 
   setProjectName: (name) => set({ projectName: name }),
   setSelectedTool: (tool) => set({ selectedTool: tool }),
+  setPanelOpen: (open) => set({ panelOpen: open }),
 
   addMedia: (item) => set((s) => ({ media: [...s.media, item] })),
 

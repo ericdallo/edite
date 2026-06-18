@@ -16,7 +16,7 @@ export function ZoomControls() {
         <ZoomOut size={16} />
       </button>
       <Slider
-        className="w-24"
+        className="hidden w-24 sm:block"
         min={0.5}
         max={6}
         step={0.1}

@@ -9,13 +9,13 @@ export interface EditorLayoutProps {
 
 export function EditorLayout({ rail, panel, stage, timeline }: EditorLayoutProps) {
   return (
-    <div className="flex min-h-0 flex-1">
-      {rail}
-      {panel}
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className="order-1 flex min-w-0 flex-1 flex-col lg:order-3">
         <div className="relative min-h-0 flex-1">{stage}</div>
         {timeline}
       </div>
+      {rail}
+      {panel}
     </div>
   );
 }

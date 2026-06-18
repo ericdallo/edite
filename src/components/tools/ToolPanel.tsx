@@ -1,5 +1,6 @@
-import { Film, Gauge, type LucideIcon, Move, Ratio, Type, Volume2 } from 'lucide-react';
+import { Film, Gauge, type LucideIcon, Move, Ratio, Type, Volume2, X } from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
+import { cn } from '@/lib/utils';
 import { MediaLibrary } from '@/components/media/MediaLibrary';
 import { TextTool } from './TextTool';
 import { TransformTool } from './TransformTool';
@@ -18,36 +19,68 @@ const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = 
 
 export function ToolPanel() {
   const tool = useEditorStore((s) => s.selectedTool);
+  const panelOpen = useEditorStore((s) => s.panelOpen);
+  const setPanelOpen = useEditorStore((s) => s.setPanelOpen);
   const meta = META[tool];
   const Icon = meta.icon;
 
   return (
-    <aside className="flex w-[300px] shrink-0 flex-col border-r border-line bg-surface/30">
-      <div className="flex items-center gap-3 border-b border-line px-4 py-4">
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-surface-3 text-brand-bright">
-          <Icon size={18} />
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-ink">{meta.title}</h2>
-          <p className="text-xs text-ink-faint">{meta.desc}</p>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4">
-        {tool === 'media' ? (
-          <MediaLibrary />
-        ) : tool === 'text' ? (
-          <TextTool />
-        ) : tool === 'transform' ? (
-          <TransformTool />
-        ) : tool === 'speed' ? (
-          <SpeedTool />
-        ) : tool === 'aspect' ? (
-          <AspectRatioTool />
-        ) : (
-          <MuteTool />
+    <>
+      {/* Mobile backdrop for the bottom sheet. */}
+      <div
+        onClick={() => setPanelOpen(false)}
+        aria-hidden
+        className={cn(
+          'fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity lg:hidden',
+          panelOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
-      </div>
-    </aside>
+      />
+
+      <aside
+        className={cn(
+          'order-3 flex flex-col bg-surface shadow-2xl',
+          // mobile: bottom sheet
+          'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] rounded-t-2xl border border-line transition-transform duration-200',
+          panelOpen ? 'translate-y-0' : 'translate-y-full',
+          // desktop: static left column
+          'lg:static lg:bottom-auto lg:z-auto lg:order-2 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
+        )}
+      >
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line lg:hidden" />
+
+        <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-brand-bright">
+            <Icon size={18} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-ink">{meta.title}</h2>
+            <p className="truncate text-xs text-ink-faint">{meta.desc}</p>
+          </div>
+          <button
+            onClick={() => setPanelOpen(false)}
+            aria-label="Close panel"
+            className="-mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink lg:hidden"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {tool === 'media' ? (
+            <MediaLibrary />
+          ) : tool === 'text' ? (
+            <TextTool />
+          ) : tool === 'transform' ? (
+            <TransformTool />
+          ) : tool === 'speed' ? (
+            <SpeedTool />
+          ) : tool === 'aspect' ? (
+            <AspectRatioTool />
+          ) : (
+            <MuteTool />
+          )}
+        </div>
+      </aside>
+    </>
   );
 }

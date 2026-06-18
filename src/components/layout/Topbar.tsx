@@ -23,7 +23,7 @@ export function Topbar({ onExport }: TopbarProps) {
   const showProjects = hasContent || projects.items.length > 0;
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface/60 px-3 backdrop-blur-md">
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface/60 px-2 backdrop-blur-md lg:gap-3 lg:px-3">
       <BrandLogo className="pl-1" />
 
       <div className="mx-2 hidden h-6 w-px bg-line md:block" />
@@ -35,7 +35,7 @@ export function Topbar({ onExport }: TopbarProps) {
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
           spellCheck={false}
-          className="min-w-0 max-w-[44ch] flex-1 truncate rounded-lg bg-transparent px-2 py-1 text-sm text-ink-muted outline-none transition-colors hover:bg-surface-2 focus:bg-surface-2 focus:text-ink"
+          className="hidden min-w-0 max-w-[44ch] flex-1 truncate rounded-lg bg-transparent px-2 py-1 text-sm text-ink-muted outline-none transition-colors hover:bg-surface-2 focus:bg-surface-2 focus:text-ink sm:block"
           aria-label="Project name"
         />
       )}
@@ -63,9 +63,13 @@ export function Topbar({ onExport }: TopbarProps) {
             </button>
           </div>
         )}
-        {hasContent && <KeyboardHelp />}
         {hasContent && (
-          <Button variant="subtle" size="sm" onClick={() => void projects.create()}>
+          <span className="hidden lg:block">
+            <KeyboardHelp />
+          </span>
+        )}
+        {hasContent && (
+          <Button variant="subtle" size="sm" className="hidden lg:inline-flex" onClick={() => void projects.create()}>
             <Plus size={16} /> New
           </Button>
         )}
