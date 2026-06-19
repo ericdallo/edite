@@ -149,7 +149,8 @@ export function useKeyboardShortcuts() {
         case 'Backspace':
           if (s.selectedIds.length) {
             e.preventDefault();
-            s.deleteClips(s.selectedIds);
+            if (e.shiftKey) s.rippleDeleteClips(s.selectedIds);
+            else s.deleteClips(s.selectedIds);
           }
           break;
         case 'Escape':

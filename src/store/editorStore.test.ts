@@ -383,6 +383,87 @@ describe('deleteClips', () => {
   });
 });
 
+describe('rippleDeleteClips', () => {
+  // helper: a 2s clip on track t1 (in 0..2 at 1x).
+  const clip2s = (id: string, start: number, trackId = 't1') =>
+    makeClip({ id, mediaId: 'm1', trackId, start, in: 0, out: 2 });
+
+  it('closes the gap left by a deleted contiguous clip', () => {
+    store.setState({
+      media: [makeMedia({ id: 'm1' })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [clip2s('a', 0), clip2s('b', 2), clip2s('c', 4)],
+      activeClipId: 'b',
+      selectedIds: ['b'],
+    });
+    get().rippleDeleteClips(['b']);
+    const s = get();
+    expect(s.clips.map((c) => c.id)).toEqual(['a', 'c']);
+    expect(s.clips.find((c) => c.id === 'a')!.start).toBe(0);
+    expect(s.clips.find((c) => c.id === 'c')!.start).toBe(2);
+  });
+
+  it('sums multiple deletions on the same track', () => {
+    store.setState({
+      media: [makeMedia({ id: 'm1' })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [clip2s('a', 0), clip2s('b', 2), clip2s('c', 4), clip2s('d', 6)],
+    });
+    get().rippleDeleteClips(['b', 'c']);
+    const s = get();
+    expect(s.clips.map((c) => c.id)).toEqual(['a', 'd']);
+    expect(s.clips.find((c) => c.id === 'd')!.start).toBe(2);
+  });
+
+  it('shifts later clips by the deleted duration, preserving other gaps', () => {
+    store.setState({
+      media: [makeMedia({ id: 'm1' })],
+      tracks: [makeTrack({ id: 't1' })],
+      // gap of 1s between a and b
+      clips: [clip2s('a', 0), clip2s('b', 3)],
+    });
+    get().rippleDeleteClips(['a']);
+    // b moves left by a's 2s duration: 3 -> 1 (the 1s gap is preserved)
+    expect(get().clips.find((c) => c.id === 'b')!.start).toBe(1);
+  });
+
+  it('only shifts clips on the deleted clip track', () => {
+    store.setState({
+      media: [makeMedia({ id: 'm1' })],
+      tracks: [makeTrack({ id: 't1' }), makeTrack({ id: 't2' })],
+      clips: [clip2s('a', 0), clip2s('b', 2), clip2s('x', 4, 't2')],
+    });
+    get().rippleDeleteClips(['a']);
+    const s = get();
+    expect(s.clips.find((c) => c.id === 'b')!.start).toBe(0);
+    expect(s.clips.find((c) => c.id === 'x')!.start).toBe(4);
+  });
+
+  it('does not move clips that start before the deleted one', () => {
+    store.setState({
+      media: [makeMedia({ id: 'm1' })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [clip2s('a', 0), clip2s('b', 5)],
+    });
+    get().rippleDeleteClips(['b']);
+    expect(get().clips.find((c) => c.id === 'a')!.start).toBe(0);
+  });
+
+  it('reselects the nearest survivor', () => {
+    store.setState({
+      media: [makeMedia({ id: 'm1' })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [clip2s('a', 0), clip2s('b', 2)],
+      activeClipId: 'a',
+      selectedIds: ['a'],
+    });
+    get().rippleDeleteClips(['a']);
+    const s = get();
+    expect(s.activeClipId).toBe('b');
+    expect(s.selectedIds).toEqual(['b']);
+  });
+});
+
 describe('selection', () => {
   beforeEach(() => {
     store.setState({

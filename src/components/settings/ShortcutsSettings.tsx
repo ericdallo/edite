@@ -8,6 +8,7 @@ const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: 'T', action: 'Add a text overlay' },
   { keys: 'Esc', action: 'Deselect' },
   { keys: 'Del / ⌫', action: 'Delete selection' },
+  { keys: '⇧ + Del', action: 'Ripple delete (close gap)' },
   { keys: '← / →', action: 'Nudge playhead one frame' },
   { keys: 'Shift + ← / →', action: 'Move playhead by 1s' },
   { keys: '⌘/Ctrl + ← / →', action: 'Jump to clip edges' },

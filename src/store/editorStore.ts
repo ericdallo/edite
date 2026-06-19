@@ -195,6 +195,8 @@ export interface EditorState {
   copyClips: (ids: string[]) => void;
   pasteClips: (timelineTime?: number) => void;
   deleteClips: (ids: string[]) => void;
+  /** Delete clips and pull later clips on the same track left to close the gap. */
+  rippleDeleteClips: (ids: string[]) => void;
   setClipRect: (id: string, rect: Rect) => void;
   /** Add (or replace) a transform keyframe at the playhead, seeded from the current rect. */
   addKeyframeAtPlayhead: (id: string) => void;
@@ -770,6 +772,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const idset = new Set(ids);
       const firstIdx = state.clips.findIndex((c) => idset.has(c.id));
       const clips = state.clips.filter((c) => !idset.has(c.id));
+      const next = clips[Math.min(firstIdx, clips.length - 1)]?.id ?? null;
+      return { clips, ...selectOne(next) };
+    }),
+
+  rippleDeleteClips: (ids) =>
+    set((state) => {
+      if (ids.length === 0) return {};
+      const idset = new Set(ids);
+      const deleted = state.clips.filter((c) => idset.has(c.id));
+      if (deleted.length === 0) return {};
+      const firstIdx = state.clips.findIndex((c) => idset.has(c.id));
+      // Each survivor moves left by the total timeline length of deleted clips
+      // that started at/before it on the same track, closing the gap they leave.
+      const clips = state.clips
+        .filter((c) => !idset.has(c.id))
+        .map((c) => {
+          let shift = 0;
+          for (const d of deleted) {
+            if (d.trackId === c.trackId && d.start <= c.start + 1e-6) shift += clipTimelineDuration(d);
+          }
+          return shift > 0 ? { ...c, start: Math.max(0, c.start - shift) } : c;
+        });
       const next = clips[Math.min(firstIdx, clips.length - 1)]?.id ?? null;
       return { clips, ...selectOne(next) };
     }),

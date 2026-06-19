@@ -7,6 +7,7 @@ import {
 } from 'react';
 import {
   AudioLines,
+  ChevronsLeft,
   Clipboard,
   Copy,
   CopyPlus,
@@ -74,6 +75,7 @@ export function Timeline() {
   const copyClips = useEditorStore((s) => s.copyClips);
   const pasteClips = useEditorStore((s) => s.pasteClips);
   const deleteClips = useEditorStore((s) => s.deleteClips);
+  const rippleDeleteClips = useEditorStore((s) => s.rippleDeleteClips);
   const addTrack = useEditorStore((s) => s.addTrack);
   const removeTrack = useEditorStore((s) => s.removeTrack);
   const setTrackMuted = useEditorStore((s) => s.setTrackMuted);
@@ -359,7 +361,8 @@ export function Timeline() {
           ]
         : []) as MenuItem[]),
       { id: 'hide', label: allHidden ? `Show${suffix}` : `Hide${suffix}`, icon: allHidden ? <Eye size={14} /> : <EyeOff size={14} />, separatorBefore: audioIds.length === 0 && !canExtract, onClick: () => updateClips(ids, { hidden: !allHidden }) },
-      { id: 'del', label: `Delete${suffix}`, icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, separatorBefore: true, onClick: () => deleteClips(ids) },
+      { id: 'ripple', label: `Ripple delete${suffix}`, icon: <ChevronsLeft size={14} />, shortcut: '⇧Del', separatorBefore: true, onClick: () => rippleDeleteClips(ids) },
+      { id: 'del', label: `Delete${suffix}`, icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, onClick: () => deleteClips(ids) },
     ];
     setMenu({ x: e.clientX, y: e.clientY, items });
   };
