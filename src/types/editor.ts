@@ -112,6 +112,8 @@ export interface Clip {
   speedCurve?: SpeedCurve;
   /** Color / filter adjustment (brightness, contrast, saturation, hue). */
   color?: ColorAdjust;
+  /** Chroma key (green-screen removal); when set the key color becomes transparent. */
+  chromaKey?: ChromaKey;
 }
 
 export function isTextClip(clip: Clip): clip is Clip & { text: TextStyle } {
@@ -214,6 +216,22 @@ export const COLOR_PRESETS: ColorPreset[] = [
   { id: 'cool', label: 'Cool', color: { brightness: 1, contrast: 1.05, saturation: 1.1, hue: 12 } },
   { id: 'vintage', label: 'Vintage', color: { brightness: 1.08, contrast: 0.9, saturation: 0.72, hue: -6 } },
 ];
+
+/**
+ * Chroma key (green-screen) settings. `color` is the keyed-out color (#rrggbb);
+ * `similarity` widens the matched color range; `blend` softens the alpha edge.
+ * Maps to ffmpeg `chromakey` on export and a UV-distance shader in the preview.
+ */
+export interface ChromaKey {
+  color: string;
+  similarity: number;
+  blend: number;
+}
+
+export const DEFAULT_CHROMA: ChromaKey = { color: '#00ff00', similarity: 0.3, blend: 0.1 };
+
+/** Common green/blue screen colors offered in the tool. */
+export const CHROMA_SWATCHES = ['#00ff00', '#00d426', '#0047ff', '#1f6fff'];
 
 export type ExportFormat = 'mp4' | 'webm' | 'gif';
 export type ExportQuality = 'high' | 'medium' | 'low';

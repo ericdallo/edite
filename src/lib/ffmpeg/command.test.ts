@@ -114,6 +114,12 @@ describe('buildExportCommand video graph', () => {
     expect(g).toContain('hue=h=12.00');
     expect(graphOf(build([makeExportClip()]))).not.toContain('eq=');
   });
+
+  it('injects a chromakey filter for a keyed clip and nothing for an un-keyed one', () => {
+    const g = graphOf(build([makeExportClip({ chromaKey: { color: '#00ff00', similarity: 0.3, blend: 0.1 } })]));
+    expect(g).toContain('chromakey=0x00ff00:0.300:0.100');
+    expect(graphOf(build([makeExportClip()]))).not.toContain('chromakey');
+  });
 });
 
 describe('buildExportCommand audio', () => {

@@ -85,6 +85,7 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           fadeIn: i === 0 ? clip.fadeIn ?? 0 : 0,
           fadeOut: i === last ? clip.fadeOut ?? 0 : 0,
           color: clip.color,
+          chromaKey: clip.chromaKey,
         },
         mediaId: clip.mediaId,
       }));
@@ -112,6 +113,7 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           fadeOut: clip.fadeOut ?? 0,
           freeze: clip.freeze,
           color: clip.color,
+          chromaKey: clip.chromaKey,
         },
         mediaId: clip.mediaId,
       },

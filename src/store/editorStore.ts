@@ -222,6 +222,13 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
         hue: clamp(c.color.hue, -180, 180),
       }
     : undefined;
+  const chromaKey = c.chromaKey
+    ? {
+        color: c.chromaKey.color,
+        similarity: clamp(c.chromaKey.similarity, 0.01, 1),
+        blend: clamp(c.chromaKey.blend, 0, 1),
+      }
+    : undefined;
   return {
     ...c,
     start: Math.max(0, c.start),
@@ -233,6 +240,7 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
     fadeIn: clamp(c.fadeIn ?? 0, 0, fadeCap),
     fadeOut: clamp(c.fadeOut ?? 0, 0, fadeCap),
     color,
+    chromaKey,
   };
 }
 

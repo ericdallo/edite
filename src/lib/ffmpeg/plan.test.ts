@@ -89,6 +89,14 @@ describe('buildExportPlan', () => {
     expect(plan.clips.every((c) => c.color === color || JSON.stringify(c.color) === JSON.stringify(color))).toBe(true);
   });
 
+  it('carries a chroma key onto its export clip', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1' });
+    const chromaKey = { color: '#00ff00', similarity: 0.3, blend: 0.1 };
+    const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1', chromaKey })], [media]);
+    expect(plan.clips[0].chromaKey).toEqual(chromaKey);
+  });
+
   it('expands a speed-curved clip into tiled constant-speed segments', () => {
     const track = makeTrack({ id: 't1' });
     const media = makeMedia({ id: 'm1', kind: 'video', duration: 12 });

@@ -1,5 +1,12 @@
 import { Sparkles } from 'lucide-react';
-import { COLOR_PRESETS, type ColorAdjust, NEUTRAL_COLOR } from '@/types/editor';
+import {
+  CHROMA_SWATCHES,
+  COLOR_PRESETS,
+  type ChromaKey,
+  type ColorAdjust,
+  DEFAULT_CHROMA,
+  NEUTRAL_COLOR,
+} from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { colorEquals, isNeutralColor } from '@/lib/color';
 import { cn } from '@/lib/utils';
@@ -37,6 +44,7 @@ export function EffectsTool() {
   const activeId = useEditorStore((s) => s.activeClipId);
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const clips = useEditorStore((s) => s.clips);
+  const media = useEditorStore((s) => s.media);
   const updateClips = useEditorStore((s) => s.updateClips);
   const clip = clips.find((c) => c.id === activeId);
 
@@ -62,6 +70,12 @@ export function EffectsTool() {
   const count = selectedIds.length;
   const neutral = isNeutralColor(clip.color);
   const set = (patch: Partial<ColorAdjust>) => updateClips(selectedIds, { color: { ...color, ...patch } });
+
+  const isVideo = media.find((m) => m.id === clip.mediaId)?.kind === 'video';
+  const chroma: ChromaKey = clip.chromaKey ?? DEFAULT_CHROMA;
+  const keyOn = clip.chromaKey != null;
+  const setChroma = (patch: Partial<ChromaKey>) =>
+    updateClips(selectedIds, { chromaKey: { ...chroma, ...patch } });
 
   return (
     <div className="space-y-5">
@@ -138,10 +152,92 @@ export function EffectsTool() {
         </button>
       )}
 
+      {isVideo && (
+        <div className="space-y-3 border-t border-line pt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-ink-muted">Remove background</span>
+            <button
+              role="switch"
+              aria-checked={keyOn}
+              aria-label="Toggle chroma key"
+              onClick={() =>
+                updateClips(selectedIds, { chromaKey: keyOn ? undefined : { ...DEFAULT_CHROMA } })
+              }
+              className={cn(
+                'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+                keyOn ? 'bg-brand' : 'bg-surface-3',
+              )}
+            >
+              <span
+                className={cn(
+                  'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all',
+                  keyOn ? 'left-[22px]' : 'left-0.5',
+                )}
+              />
+            </button>
+          </div>
+
+          {keyOn && (
+            <div className="space-y-4">
+              <div>
+                <div className="mb-2 text-xs font-medium text-ink-muted">Key color</div>
+                <div className="flex items-center gap-2">
+                  {CHROMA_SWATCHES.map((sw) => (
+                    <button
+                      key={sw}
+                      onClick={() => setChroma({ color: sw })}
+                      aria-label={`Key color ${sw}`}
+                      style={{ backgroundColor: sw }}
+                      className={cn(
+                        'h-7 w-7 rounded-lg border-2 transition-transform hover:scale-105',
+                        chroma.color.toLowerCase() === sw.toLowerCase() ? 'border-ink' : 'border-line',
+                      )}
+                    />
+                  ))}
+                  <label
+                    title="Custom key color"
+                    className="ml-1 grid h-7 w-7 cursor-pointer place-items-center overflow-hidden rounded-lg border border-line"
+                  >
+                    <input
+                      type="color"
+                      value={chroma.color}
+                      onChange={(e) => setChroma({ color: e.target.value })}
+                      className="h-9 w-9 cursor-pointer border-0 bg-transparent p-0"
+                    />
+                  </label>
+                </div>
+              </div>
+              <Adjust
+                label="Similarity"
+                value={chroma.similarity}
+                min={0.05}
+                max={1}
+                step={0.01}
+                onChange={(v) => setChroma({ similarity: v })}
+                fmt={(v) => `${Math.round(v * 100)}%`}
+              />
+              <Adjust
+                label="Edge blend"
+                value={chroma.blend}
+                min={0}
+                max={1}
+                step={0.01}
+                onChange={(v) => setChroma({ blend: v })}
+                fmt={(v) => `${Math.round(v * 100)}%`}
+              />
+              <p className="text-xs leading-relaxed text-ink-faint">
+                The track below shows through where the color is removed. Keep this clip on a higher
+                track, above your background.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <p className="text-xs leading-relaxed text-ink-faint">
         {count > 1
-          ? `Color applies to all ${count} selected clips.`
-          : 'The preview uses CSS filters; the export renders the same look with ffmpeg.'}
+          ? `Effects apply to all ${count} selected clips.`
+          : 'The preview matches the export: CSS/WebGL here, ffmpeg on render.'}
       </p>
     </div>
   );

@@ -6,6 +6,7 @@ import { cssColorFilter } from '@/lib/color';
 import { clamp, cn } from '@/lib/utils';
 import { TransformOverlay } from './TransformOverlay';
 import { TextLayer } from './TextLayer';
+import { ChromaLayer } from './ChromaLayer';
 
 /**
  * CSS to mirror/flip/rotate a clip's media so it matches the export. For 90/270
@@ -201,14 +202,35 @@ export function VideoPreview() {
           const mediaStyle: CSSProperties | undefined =
             orient || filter ? { ...(orient ?? {}), filter } : undefined;
           const mediaCls = cn('object-cover', orient ? '' : 'h-full w-full');
+          const registerVideo = (el: HTMLVideoElement | null) => {
+            if (el) mediaEls.current.set(clip.id, el);
+            else mediaEls.current.delete(clip.id);
+          };
+          const keyed = m.kind === 'video' && clip.chromaKey != null;
           return (
             <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
-              {m.kind === 'video' ? (
+              {keyed ? (
+                <>
+                  {/* Hidden source video: still decoded, seeked and played by the
+                      master clock; the canvas reads its frames and keys the color out. */}
+                  <video
+                    ref={registerVideo}
+                    src={m.url}
+                    className="pointer-events-none absolute h-px w-px opacity-0"
+                    playsInline
+                    muted
+                    preload="auto"
+                  />
+                  <ChromaLayer
+                    getVideo={() => (mediaEls.current.get(clip.id) as HTMLVideoElement | undefined) ?? null}
+                    chroma={clip.chromaKey!}
+                    className={mediaCls}
+                    style={mediaStyle}
+                  />
+                </>
+              ) : m.kind === 'video' ? (
                 <video
-                  ref={(el) => {
-                    if (el) mediaEls.current.set(clip.id, el);
-                    else mediaEls.current.delete(clip.id);
-                  }}
+                  ref={registerVideo}
                   src={m.url}
                   className={mediaCls}
                   style={mediaStyle}
