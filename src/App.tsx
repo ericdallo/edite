@@ -3,6 +3,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { usePersistence } from '@/hooks/usePersistence';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useHistory } from '@/hooks/useHistory';
+import { useTheme } from '@/hooks/useTheme';
 import { Topbar } from '@/components/layout/Topbar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { EditorLayout } from '@/components/layout/EditorLayout';
@@ -16,6 +17,7 @@ export default function App() {
   usePersistence();
   useHistory();
   useKeyboardShortcuts();
+  useTheme();
   const hasContent = useEditorStore((s) => s.media.length > 0 || s.clips.length > 0);
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const [exportOpen, setExportOpen] = useState(false);

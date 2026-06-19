@@ -19,6 +19,25 @@
   --color-success: #34d399;
 }
 
+/* Light theme: override the neutral tokens (and slightly deepen the accents for
+   contrast on white). The color utilities reference these `--color-*` vars, so
+   flipping them here repaints the whole UI. Dark stays the :root default. */
+html[data-theme='light'] {
+  --color-canvas: #ececf3;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f4f9;
+  --color-surface-3: #e8e8f1;
+  --color-line: #d8d8e6;
+  --color-ink: #1b1b2a;
+  --color-ink-muted: #54546b;
+  --color-ink-faint: #84849c;
+  --color-brand: #7c3aed;
+  --color-brand-bright: #8b5cf6;
+  --color-accent: #0891b2;
+  --color-danger: #e11d48;
+  --color-success: #059669;
+}
+
 @layer base {
   html,
   body,
@@ -51,20 +70,20 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2c2c40 transparent;
+  scrollbar-color: var(--color-line) transparent;
 }
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #2c2c40;
+  background: var(--color-line);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #3a3a52;
+  background: color-mix(in srgb, var(--color-line) 65%, var(--color-ink-faint));
 }
 
 .edite-fade {

@@ -1,8 +1,15 @@
 import { type ReactNode } from 'react';
-import { Github, Globe, Magnet } from 'lucide-react';
+import { Github, Globe, type LucideIcon, Magnet, Monitor, Moon, Sun } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { REPO_URL, SITE_URL } from '@/lib/constants';
+import type { Theme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
+
+const THEME_OPTIONS: { id: Theme; label: string; icon: LucideIcon }[] = [
+  { id: 'dark', label: 'Dark', icon: Moon },
+  { id: 'light', label: 'Light', icon: Sun },
+  { id: 'system', label: 'System', icon: Monitor },
+];
 
 function ToggleRow({
   icon,
@@ -43,9 +50,41 @@ function ToggleRow({
 export function GeneralSettings() {
   const snap = useEditorStore((s) => s.snap);
   const toggleSnap = useEditorStore((s) => s.toggleSnap);
+  const theme = useEditorStore((s) => s.theme);
+  const setTheme = useEditorStore((s) => s.setTheme);
 
   return (
     <div className="space-y-7">
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Appearance</h3>
+        <div role="radiogroup" aria-label="Theme" className="grid grid-cols-3 gap-2">
+          {THEME_OPTIONS.map((o) => {
+            const Icon = o.icon;
+            const active = theme === o.id;
+            return (
+              <button
+                key={o.id}
+                role="radio"
+                aria-checked={active}
+                onClick={() => setTheme(o.id)}
+                className={cn(
+                  'flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-medium transition-colors',
+                  active
+                    ? 'border-brand bg-brand/15 text-ink'
+                    : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+                )}
+              >
+                <Icon size={18} />
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs leading-relaxed text-ink-faint">
+          "System" follows your operating system's appearance.
+        </p>
+      </section>
+
       <section className="space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Editing</h3>
         <ToggleRow
