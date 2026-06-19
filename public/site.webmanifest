@@ -1,0 +1,33 @@
+{
+  "name": "edite — free online video editor",
+  "short_name": "edite",
+  "description": "A free, multi-track video editor that runs entirely in your browser. Trim, split, crop, reframe, add overlays and export MP4/WebM/GIF — no account, no upload.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0b12",
+  "theme_color": "#7c3aed",
+  "categories": ["video", "multimedia", "productivity"],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
