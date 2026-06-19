@@ -1,4 +1,4 @@
-import { Snowflake } from 'lucide-react';
+import { Rewind, Snowflake } from 'lucide-react';
 import { SPEED_CURVES, SPEED_PRESETS, type SpeedCurveId } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { clipEnd } from '@/lib/timeline';
@@ -16,6 +16,7 @@ export function SpeedTool({ sub = 'normal' }: { sub?: string }) {
   const setClipsSpeed = useEditorStore((s) => s.setClipsSpeed);
   const setClipCurve = useEditorStore((s) => s.setClipCurve);
   const freezeFrame = useEditorStore((s) => s.freezeFrame);
+  const updateClips = useEditorStore((s) => s.updateClips);
   const clip = clips.find((c) => c.id === activeId);
 
   if (!clip) {
@@ -36,7 +37,9 @@ export function SpeedTool({ sub = 'normal' }: { sub?: string }) {
     );
   }
 
-  const isVideo = media.find((m) => m.id === clip.mediaId)?.kind === 'video';
+  const mediaKind = media.find((m) => m.id === clip.mediaId)?.kind;
+  const isVideo = mediaKind === 'video';
+  const reversible = isVideo || mediaKind === 'audio';
   const curveId = clip.speedCurve?.preset;
   const speed = clip.speed;
   const count = selectedIds.length;
@@ -137,6 +140,23 @@ export function SpeedTool({ sub = 'normal' }: { sub?: string }) {
         </div>
         <Slider min={0.25} max={4} step={0.05} value={speed} onChange={setSpeed} ariaLabel="Clip speed" />
       </div>
+
+      {reversible && (
+        <button
+          onClick={() => updateClips(selectedIds, { reversed: !clip.reversed })}
+          disabled={!!clip.speedCurve}
+          title={clip.speedCurve ? 'Clear the speed curve to reverse this clip' : 'Play the clip backwards'}
+          className={cn(
+            'flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+            clip.reversed
+              ? 'border-brand bg-brand/10 text-ink'
+              : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+          )}
+        >
+          <Rewind className="h-4 w-4" />
+          {clip.reversed ? 'Reversed' : 'Reverse clip'}
+        </button>
+      )}
 
       <p className="text-xs leading-relaxed text-ink-faint">
         {curveId

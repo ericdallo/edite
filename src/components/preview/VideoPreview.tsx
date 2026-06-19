@@ -182,6 +182,14 @@ export function VideoPreview() {
         if (Math.abs(el.currentTime - clip.freeze) > 0.05) el.currentTime = clip.freeze;
         continue;
       }
+      if (clip.reversed) {
+        // Browsers can't play media backwards, so step the element to the reversed
+        // source time each frame (a scrub). The exported render is smooth.
+        if (!el.paused) el.pause();
+        const want = clipSourceAt(clip, currentTime);
+        if (Math.abs(el.currentTime - want) > 0.04) el.currentTime = want;
+        continue;
+      }
       el.playbackRate = clamp(clipSpeedAt(clip, currentTime), 0.0625, 16);
       if (active) {
         const want = clipSourceAt(clip, currentTime);

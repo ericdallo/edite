@@ -25,6 +25,8 @@ export interface ExportClip {
   flipV: boolean;
   /** clockwise rotation in degrees (0, 90, 180, 270) */
   rotation: number;
+  /** play backwards (video `reverse` + audio `areverse`). */
+  reversed?: boolean;
   /** linear audio gain (1 = original level). */
   volume: number;
   /** audio fade-in length, in timeline seconds. */
@@ -188,8 +190,9 @@ function pushAudioMix(graph: string[], clips: ExportClip[]): boolean {
     const fout = c.fadeOut ?? 0;
     const fadeIn = fin > 1e-3 ? `,afade=t=in:st=0:d=${fmt(fin)}` : '';
     const fadeOut = fout > 1e-3 ? `,afade=t=out:st=${fmt(Math.max(0, len - fout))}:d=${fmt(fout)}` : '';
+    const arev = c.reversed ? 'areverse,' : '';
     graph.push(
-      `[${k}:a]atrim=${fmt(c.in)}:${fmt(c.out)},asetpts=PTS-STARTPTS${sp}${vol}${fadeIn}${fadeOut},adelay=${ms}|${ms}[a${k}]`,
+      `[${k}:a]atrim=${fmt(c.in)}:${fmt(c.out)},${arev}asetpts=PTS-STARTPTS${sp}${vol}${fadeIn}${fadeOut},adelay=${ms}|${ms}[a${k}]`,
     );
     labels.push(`[a${k}]`);
   });
@@ -315,7 +318,8 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
       emit(`${pts}${orient}${cover}`);
     } else {
       const base = Math.abs(c.speed - 1) > 1e-3 ? `(PTS-STARTPTS)/${c.speed}` : 'PTS-STARTPTS';
-      emit(`trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${orient}${cover}`);
+      const rev = c.reversed ? 'reverse,' : '';
+      emit(`trim=${fmt(c.in)}:${fmt(c.out)},${rev}setpts=${base}${delay},${orient}${cover}`);
     }
     // A fade-to-color transition: a solid dip between the previous clip (already
     // in the accumulator) and this one, peaking opaque at the overlap midpoint.

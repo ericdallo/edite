@@ -96,6 +96,13 @@ describe('clipSourceAt', () => {
     expect(clipSourceAt(clip, -10)).toBe(1);
     expect(clipSourceAt(clip, 100)).toBe(5);
   });
+
+  it('runs the source backwards for a reversed clip', () => {
+    const clip = makeClip({ start: 0, in: 1, out: 5, speed: 1, reversed: true });
+    expect(clipSourceAt(clip, 0)).toBe(5); // starts at out
+    expect(clipSourceAt(clip, 1)).toBe(4); // out - elapsed
+    expect(clipSourceAt(clip, 4)).toBe(1); // reaches in at the end
+  });
 });
 
 describe('speed curves', () => {

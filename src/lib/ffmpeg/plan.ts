@@ -118,6 +118,7 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           volume: clip.volume ?? 1,
           fadeIn: fades.fadeIn,
           fadeOut: fades.fadeOut,
+          reversed: clip.reversed,
           freeze: clip.freeze,
           color: clip.color,
           chromaKey: clip.chromaKey,

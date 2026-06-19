@@ -102,6 +102,8 @@ export interface Clip {
   flipV: boolean;
   /** clockwise rotation in degrees (0, 90, 180, 270) */
   rotation: number;
+  /** play the clip backwards (video `reverse` + audio `areverse` on export). */
+  reversed?: boolean;
   /** linear audio gain (1 = original level). */
   volume: number;
   /** audio fade-in length, in timeline seconds. */

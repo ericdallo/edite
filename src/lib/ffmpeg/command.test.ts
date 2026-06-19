@@ -169,6 +169,19 @@ describe('buildExportCommand LUT looks', () => {
   });
 });
 
+describe('buildExportCommand reverse', () => {
+  it('reverses both video and audio for a reversed clip', () => {
+    const g = graphOf(build([makeExportClip({ kind: 'video', reversed: true, hasAudio: true })]));
+    expect(g).toContain('reverse,setpts=');
+    expect(g).toContain('areverse,asetpts=');
+  });
+
+  it('leaves a normal clip with no reverse filters', () => {
+    const g = graphOf(build([makeExportClip({ kind: 'video', hasAudio: true })]));
+    expect(g).not.toContain('reverse');
+  });
+});
+
 describe('buildExportCommand keyframes', () => {
   const kfClip = (over: Partial<ExportClip> = {}) =>
     makeExportClip({

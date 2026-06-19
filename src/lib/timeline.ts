@@ -185,7 +185,9 @@ export function clipSourceAt(clip: Clip, t: number): number {
     }
     return clip.out;
   }
-  const s = clip.in + (t - clip.start) * clip.speed;
+  // Reversed clips run their source range backwards over the same timeline span.
+  const elapsed = (t - clip.start) * clip.speed;
+  const s = clip.reversed ? clip.out - elapsed : clip.in + elapsed;
   return Math.min(clip.out, Math.max(clip.in, s));
 }
 
