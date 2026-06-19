@@ -1,4 +1,4 @@
-import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { Pause, Play, Repeat, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { projectDuration } from '@/lib/timeline';
 import { formatTime } from '@/lib/utils';
@@ -8,9 +8,11 @@ export function PlaybackControls() {
   const playing = useEditorStore((s) => s.playback.playing);
   const currentTime = useEditorStore((s) => s.playback.currentTime);
   const muted = useEditorStore((s) => s.muted);
+  const loop = useEditorStore((s) => s.loop);
   const setPlaying = useEditorStore((s) => s.setPlaying);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const toggleMute = useEditorStore((s) => s.toggleMute);
+  const toggleLoop = useEditorStore((s) => s.toggleLoop);
 
   const total = projectDuration(clips);
 
@@ -54,6 +56,18 @@ export function PlaybackControls() {
         <span className="px-1 text-ink-faint">/</span>
         <span>{formatTime(total)}</span>
       </div>
+
+      <button
+        onClick={toggleLoop}
+        className={`grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-surface-2 ${
+          loop ? 'text-accent' : 'text-ink-muted hover:text-ink'
+        }`}
+        title={loop ? 'Looping on' : 'Loop playback'}
+        aria-label="Toggle loop playback"
+        aria-pressed={loop}
+      >
+        <Repeat size={16} />
+      </button>
 
       <button
         onClick={toggleMute}

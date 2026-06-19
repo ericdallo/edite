@@ -153,6 +153,8 @@ export interface EditorState {
   sidebarCollapsed: boolean;
   zoom: number;
   snap: boolean;
+  /** loop playback back to the start when the playhead reaches the end. */
+  loop: boolean;
   isExporting: boolean;
   exportProgress: number;
   exportStage: string;
@@ -219,6 +221,7 @@ export interface EditorState {
 
   setZoom: (z: number) => void;
   toggleSnap: () => void;
+  toggleLoop: () => void;
   setExporting: (v: boolean) => void;
   setExportProgress: (p: number, stage?: string) => void;
 
@@ -329,6 +332,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   sidebarCollapsed: false,
   zoom: 1,
   snap: true,
+  loop: false,
   isExporting: false,
   exportProgress: 0,
   exportStage: '',
@@ -836,6 +840,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setZoom: (z) => set({ zoom: clamp(z, ZOOM_MIN, ZOOM_MAX) }),
   toggleSnap: () => set((s) => ({ snap: !s.snap })),
+  toggleLoop: () => set((s) => ({ loop: !s.loop })),
   setExporting: (v) => set({ isExporting: v }),
   setExportProgress: (p, stage) =>
     set((s) => ({ exportProgress: clamp(p, 0, 1), exportStage: stage ?? s.exportStage })),

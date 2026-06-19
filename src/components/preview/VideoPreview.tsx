@@ -1,4 +1,5 @@
 import { type CSSProperties, Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Maximize, Minimize } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { type Clip, resolveAspectRatio } from '@/types/editor';
 import {
@@ -67,6 +68,21 @@ export function VideoPreview() {
     selectedTool === 'transform' || selectedTool === 'animation' || selectedTool === 'text';
 
   const [box, setBox] = useState({ w: 0, h: 0 });
+  const [isFs, setIsFs] = useState(false);
+
+  // Track fullscreen of the preview stage so the toggle icon stays in sync.
+  useEffect(() => {
+    const onFs = () => setIsFs(document.fullscreenElement === stageRef.current);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+  const toggleFullscreen = () => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else el.requestFullscreen?.();
+  };
+
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
@@ -119,6 +135,13 @@ export function VideoPreview() {
       const total = projectDuration(s.clips);
       const next = s.playback.currentTime + dt;
       if (next >= total) {
+        // Loop: wrap back to the start and keep rolling; otherwise stop at the end.
+        if (s.loop && total > 0.05) {
+          setCurrentTime(0);
+          last = now;
+          raf = requestAnimationFrame(tick);
+          return;
+        }
         setCurrentTime(total);
         setPlaying(false);
         return;
@@ -307,6 +330,15 @@ export function VideoPreview() {
 
         {showOverlay && box.w > 0 && <TransformOverlay width={box.w} height={box.h} />}
       </div>
+
+      <button
+        onClick={toggleFullscreen}
+        title={isFs ? 'Exit fullscreen' : 'Fullscreen preview'}
+        aria-label={isFs ? 'Exit fullscreen' : 'Fullscreen preview'}
+        className="absolute right-3 top-3 z-30 grid h-8 w-8 place-items-center rounded-lg bg-black/35 text-white/70 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
+      >
+        {isFs ? <Minimize size={16} /> : <Maximize size={16} />}
+      </button>
     </div>
   );
 }
