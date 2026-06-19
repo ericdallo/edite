@@ -327,8 +327,13 @@ export const TRANSITIONS: TransitionOption[] = [
   { id: 'circleOpen', label: 'Iris' },
 ];
 
-export type ExportFormat = 'mp4' | 'webm' | 'gif';
+export type ExportFormat = 'mp4' | 'webm' | 'gif' | 'mp3' | 'wav';
 export type ExportQuality = 'high' | 'medium' | 'low';
+
+/** Audio-only output formats (no video track is rendered). */
+export function isAudioFormat(format: ExportFormat): boolean {
+  return format === 'mp3' || format === 'wav';
+}
 /** Target short-side resolution in pixels (e.g. 1080 renders 1080p). */
 export type ExportResolution = 480 | 720 | 1080 | 1440 | 2160;
 export type ExportFps = 24 | 25 | 30 | 50 | 60;

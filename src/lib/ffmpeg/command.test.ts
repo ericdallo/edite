@@ -355,3 +355,35 @@ describe('buildExportCommand codecs', () => {
     expect(strOf(cmd)).toContain('-an');
   });
 });
+
+describe('buildExportCommand audio-only', () => {
+  it('exports mp3 with libmp3lame, no video, and the chosen bitrate', () => {
+    const cmd = build([makeExportClip({ hasAudio: true })], { format: 'mp3', audioBitrate: 256 });
+    const s = strOf(cmd);
+    expect(s).toContain('-c:a libmp3lame');
+    expect(s).toContain('-b:a 256k');
+    expect(s).toContain('-vn');
+    expect(s).toContain('-map [aout]');
+    expect(s).not.toContain('[vout]');
+    expect(cmd.outputName).toBe('output.mp3');
+    expect(cmd.mime).toBe('audio/mpeg');
+  });
+
+  it('exports wav as uncompressed pcm with no video', () => {
+    const cmd = build([makeExportClip({ hasAudio: true })], { format: 'wav' });
+    const s = strOf(cmd);
+    expect(s).toContain('-c:a pcm_s16le');
+    expect(s).toContain('-vn');
+    expect(cmd.mime).toBe('audio/wav');
+    expect(cmd.outputName).toBe('output.wav');
+  });
+
+  it('mixes multiple audio sources without a video map', () => {
+    const cmd = build(
+      [makeExportClip({ start: 0, hasAudio: true }), makeExportClip({ start: 5, hasAudio: true })],
+      { format: 'mp3' },
+    );
+    expect(graphOf(cmd)).toContain('amix=inputs=2');
+    expect(strOf(cmd)).not.toContain('-map [vout]');
+  });
+});

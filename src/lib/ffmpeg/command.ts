@@ -1,3 +1,4 @@
+import { isAudioFormat } from '@/types/editor';
 import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, TextStyle, Transition, TransitionId } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { ffmpegChromaFilter } from '@/lib/chroma';
@@ -71,6 +72,8 @@ const MIME: Record<ExportFormat, string> = {
   mp4: 'video/mp4',
   webm: 'video/webm',
   gif: 'image/gif',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
 };
 
 function fmt(n: number): string {
@@ -165,11 +168,67 @@ function wipeMask(type: TransitionId, start: number, dur: number): string {
 }
 
 /**
+ * Append each unmuted clip's audio (trim, speed, volume, fades, then delayed to
+ * its timeline start) plus an amix of them all to the graph. Returns whether an
+ * [aout] label was produced (false when nothing carries sound).
+ */
+function pushAudioMix(graph: string[], clips: ExportClip[]): boolean {
+  const labels: string[] = [];
+  clips.forEach((c, k) => {
+    // Both real video clips and audio-only clips carry sound.
+    if ((c.kind !== 'video' && c.kind !== 'audio') || !c.hasAudio || c.muted) return;
+    const ms = Math.round(c.start * 1000);
+    const sp = Math.abs(c.speed - 1) > 1e-3 ? `,${atempoChain(c.speed)}` : '';
+    const gain = c.volume ?? 1;
+    const vol = Math.abs(gain - 1) > 1e-3 ? `,volume=${gain.toFixed(3)}` : '';
+    // Fades are in timeline seconds, applied over the clip's post-speed length.
+    const len = timelineLen(c);
+    const fin = c.fadeIn ?? 0;
+    const fout = c.fadeOut ?? 0;
+    const fadeIn = fin > 1e-3 ? `,afade=t=in:st=0:d=${fmt(fin)}` : '';
+    const fadeOut = fout > 1e-3 ? `,afade=t=out:st=${fmt(Math.max(0, len - fout))}:d=${fmt(fout)}` : '';
+    graph.push(
+      `[${k}:a]atrim=${fmt(c.in)}:${fmt(c.out)},asetpts=PTS-STARTPTS${sp}${vol}${fadeIn}${fadeOut},adelay=${ms}|${ms}[a${k}]`,
+    );
+    labels.push(`[a${k}]`);
+  });
+  if (labels.length > 0) {
+    graph.push(`${labels.join('')}amix=inputs=${labels.length}:normalize=0:dropout_transition=0[aout]`);
+  }
+  return labels.length > 0;
+}
+
+/**
+ * Build an audio-only export (MP3 / WAV): mix every clip's audio and drop video.
+ * One input is added per clip so the `[k:a]` labels stay aligned with the clip
+ * indices, exactly like the video path.
+ */
+function buildAudioOnlyCommand(inputNames: string[], p: MultiExportParams): BuiltCommand {
+  const inputArgs: string[] = [];
+  p.clips.forEach((_, k) => inputArgs.push('-i', inputNames[k]));
+
+  const graph: string[] = [];
+  const withAudio = pushAudioMix(graph, p.clips);
+
+  const args: string[] = [...inputArgs];
+  if (withAudio) args.push('-filter_complex', graph.join(';'), '-map', '[aout]');
+  args.push('-t', fmt(p.duration), '-vn');
+
+  if (p.format === 'mp3') args.push('-c:a', 'libmp3lame', '-b:a', `${Math.max(32, Math.round(p.audioBitrate || 192))}k`);
+  else args.push('-c:a', 'pcm_s16le');
+
+  const outputName = `output.${p.format}`;
+  args.push(outputName);
+  return { args, outputName, mime: MIME[p.format] };
+}
+
+/**
  * Build a compositing ffmpeg command: each clip is one input, scaled to its rect
  * and overlaid (bottom -> top) onto a canvas, enabled only during its time span.
  * Audio from each unmuted clip is delayed to its start and mixed.
  */
 export function buildExportCommand(inputNames: string[], p: MultiExportParams): BuiltCommand {
+  if (isAudioFormat(p.format)) return buildAudioOnlyCommand(inputNames, p);
   const { canvasW: W, canvasH: H, fps, duration } = p;
   const clips = p.clips;
 
@@ -285,33 +344,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
   }
 
   const useAudio = !p.globalMuted && p.format !== 'gif';
-  const audioLabels: string[] = [];
-  if (useAudio) {
-    clips.forEach((c, k) => {
-      // Both real video clips and audio-only clips carry sound.
-      if ((c.kind !== 'video' && c.kind !== 'audio') || !c.hasAudio || c.muted) return;
-      const ms = Math.round(c.start * 1000);
-      const sp = Math.abs(c.speed - 1) > 1e-3 ? `,${atempoChain(c.speed)}` : '';
-      const gain = c.volume ?? 1;
-      const vol = Math.abs(gain - 1) > 1e-3 ? `,volume=${gain.toFixed(3)}` : '';
-      // Fades are in timeline seconds, applied over the clip's post-speed length.
-      const len = timelineLen(c);
-      const fin = c.fadeIn ?? 0;
-      const fout = c.fadeOut ?? 0;
-      const fadeIn = fin > 1e-3 ? `,afade=t=in:st=0:d=${fmt(fin)}` : '';
-      const fadeOut = fout > 1e-3 ? `,afade=t=out:st=${fmt(Math.max(0, len - fout))}:d=${fmt(fout)}` : '';
-      graph.push(
-        `[${k}:a]atrim=${fmt(c.in)}:${fmt(c.out)},asetpts=PTS-STARTPTS${sp}${vol}${fadeIn}${fadeOut},adelay=${ms}|${ms}[a${k}]`,
-      );
-      audioLabels.push(`[a${k}]`);
-    });
-    if (audioLabels.length > 0) {
-      graph.push(
-        `${audioLabels.join('')}amix=inputs=${audioLabels.length}:normalize=0:dropout_transition=0[aout]`,
-      );
-    }
-  }
-  const withAudio = audioLabels.length > 0;
+  const withAudio = useAudio ? pushAudioMix(graph, clips) : false;
 
   const args: string[] = [...inputArgs, '-filter_complex', graph.join(';'), '-map', '[vout]'];
   if (withAudio) args.push('-map', '[aout]');

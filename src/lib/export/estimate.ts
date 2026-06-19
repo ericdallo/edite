@@ -24,7 +24,13 @@ const BPP: Record<ExportQuality, number> = { high: 0.1, medium: 0.06, low: 0.035
 
 /** Approximate output size in bytes for the given export settings. */
 export function estimateExportBytes(i: EstimateInput): number {
-  if (!Number.isFinite(i.duration) || i.duration <= 0 || i.width <= 0 || i.height <= 0) return 0;
+  if (!Number.isFinite(i.duration) || i.duration <= 0) return 0;
+
+  // Audio-only outputs don't depend on frame size.
+  if (i.format === 'mp3') return (i.audioBitrate * 1000 * i.duration) / 8;
+  if (i.format === 'wav') return 44100 * 2 * 2 * i.duration; // 16-bit stereo PCM
+
+  if (i.width <= 0 || i.height <= 0) return 0;
 
   let videoKbps: number;
   if (i.videoBitrate && i.videoBitrate > 0) {
