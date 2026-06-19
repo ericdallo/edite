@@ -18,6 +18,8 @@ export interface TimelineClipProps {
   clip: Clip;
   media: MediaItem | undefined;
   pxPerSec: number;
+  /** current playhead time (timeline seconds), to highlight the keyframe under it. */
+  currentTime: number;
   /** primary selection: gets trim handles. */
   active: boolean;
   /** part of the current (possibly multi) selection: gets a brand outline. */
@@ -25,9 +27,11 @@ export interface TimelineClipProps {
   onBodyDown: (e: ReactPointerEvent) => void;
   onHandleDown: (e: ReactPointerEvent, edge: 'in' | 'out') => void;
   onContext: (e: ReactMouseEvent) => void;
+  /** click a keyframe diamond: select this clip and seek to it (clip-local seconds). */
+  onKeyframeClick: (at: number) => void;
 }
 
-export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDown, onHandleDown, onContext }: TimelineClipProps) {
+export function TimelineClip({ clip, media, pxPerSec, currentTime, active, selected, onBodyDown, onHandleDown, onContext, onKeyframeClick }: TimelineClipProps) {
   const width = Math.max(2, clipTimelineDuration(clip) * pxPerSec);
   const left = clip.start * pxPerSec;
   const isText = clip.text != null;
@@ -120,14 +124,31 @@ export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDo
       )}
 
       {clip.keyframes && clip.keyframes.length > 0 && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-2.5">
-          {clip.keyframes.map((k, i) => (
-            <span
-              key={i}
-              className="absolute top-0.5 h-1.5 w-1.5 -translate-x-1/2 rotate-45 bg-accent shadow-[0_0_0_1px_rgba(0,0,0,0.55)]"
-              style={{ left: clamp(k.at * pxPerSec, 0, width) }}
-            />
-          ))}
+        <div className="absolute inset-x-0 top-0 z-20 h-3.5">
+          {clip.keyframes.map((k, i) => {
+            const here = Math.abs(clip.start + k.at - currentTime) < 0.02;
+            return (
+              <button
+                key={i}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onKeyframeClick(k.at);
+                }}
+                title={`Keyframe at ${k.at.toFixed(2)}s`}
+                aria-label={`Keyframe at ${k.at.toFixed(2)} seconds`}
+                className="group/kf absolute top-0 grid h-3.5 w-4 -translate-x-1/2 cursor-pointer place-items-center"
+                style={{ left: clamp(k.at * pxPerSec, 0, width) }}
+              >
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 rotate-45 shadow-[0_0_0_1px_rgba(0,0,0,0.55)] transition-transform group-hover/kf:scale-150',
+                    here ? 'scale-150 bg-white ring-1 ring-accent' : 'bg-accent',
+                  )}
+                />
+              </button>
+            );
+          })}
         </div>
       )}
 

@@ -60,8 +60,11 @@ export function VideoPreview() {
   const ratio = resolveAspectRatio(aspect, media);
   const activeClip = clips.find((c) => c.id === activeClipId);
   const showOverlay =
-    selectedTool === 'transform' || (selectedTool === 'text' && activeClip?.text != null);
-  const interactive = selectedTool === 'transform' || selectedTool === 'text';
+    selectedTool === 'transform' ||
+    selectedTool === 'animation' ||
+    (selectedTool === 'text' && activeClip?.text != null);
+  const interactive =
+    selectedTool === 'transform' || selectedTool === 'animation' || selectedTool === 'text';
 
   const [box, setBox] = useState({ w: 0, h: 0 });
   useEffect(() => {

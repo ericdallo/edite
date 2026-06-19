@@ -6,6 +6,7 @@ import {
   Move,
   Ratio,
   Sparkles,
+  Spline,
   Type,
   Volume2,
   X,
@@ -16,6 +17,7 @@ import { MediaLibrary } from '@/components/media/MediaLibrary';
 import { TextTool } from './TextTool';
 import { CaptionsTool } from './CaptionsTool';
 import { TransformTool } from './TransformTool';
+import { AnimationTool } from './AnimationTool';
 import { SpeedTool } from './SpeedTool';
 import { EffectsTool } from './EffectsTool';
 import { AspectRatioTool } from './AspectRatioTool';
@@ -26,6 +28,7 @@ const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = 
   text: { title: 'Text', desc: 'Add and style captions', icon: Type },
   captions: { title: 'Auto-captions', desc: 'Transcribe speech on-device', icon: Captions },
   transform: { title: 'Transform', desc: 'Position, size & opacity', icon: Move },
+  animation: { title: 'Animation', desc: 'Keyframe motion over time', icon: Spline },
   speed: { title: 'Speed', desc: 'Speed up or slow down', icon: Gauge },
   effects: { title: 'Effects', desc: 'Color filters & looks', icon: Sparkles },
   aspect: { title: 'Aspect ratio', desc: 'Output canvas', icon: Ratio },
@@ -102,6 +105,8 @@ export function ToolPanel() {
             <CaptionsTool />
           ) : tool === 'transform' ? (
             <TransformTool />
+          ) : tool === 'animation' ? (
+            <AnimationTool />
           ) : tool === 'speed' ? (
             <SpeedTool />
           ) : tool === 'effects' ? (

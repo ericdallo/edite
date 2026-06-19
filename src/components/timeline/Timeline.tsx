@@ -10,6 +10,7 @@ import {
   Clipboard,
   Copy,
   CopyPlus,
+  Diamond,
   Eye,
   EyeOff,
   Magnet,
@@ -66,6 +67,7 @@ export function Timeline() {
   const updateClips = useEditorStore((s) => s.updateClips);
   const splitAt = useEditorStore((s) => s.splitAt);
   const mergeClips = useEditorStore((s) => s.mergeClips);
+  const addKeyframeAtPlayhead = useEditorStore((s) => s.addKeyframeAtPlayhead);
   const freezeFrame = useEditorStore((s) => s.freezeFrame);
   const extractAudio = useEditorStore((s) => s.extractAudio);
   const duplicateClips = useEditorStore((s) => s.duplicateClips);
@@ -80,6 +82,11 @@ export function Timeline() {
   const displayDuration = Math.max(projectDuration(clips), 8);
   const hasSelection = selectedIds.length > 0;
   const canMerge = canMergeClips(clips.filter((c) => selectedIds.includes(c.id)));
+  const activeClip = clips.find((c) => c.id === activeId);
+  const canKeyframe = !!activeClip && !activeClip.text;
+  const kfAtPlayhead =
+    !!activeClip &&
+    (activeClip.keyframes ?? []).some((k) => Math.abs(activeClip.start + k.at - currentTime) < 0.02);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -395,6 +402,18 @@ export function Timeline() {
       <div className="flex min-h-12 flex-wrap items-center gap-1.5 border-b border-line/60 px-2 py-1.5 lg:h-12 lg:flex-nowrap lg:gap-2 lg:px-3 lg:py-0">
         <div className="flex items-center gap-1">
           <button
+            onClick={() => activeId && addKeyframeAtPlayhead(activeId)}
+            disabled={!canKeyframe}
+            title={kfAtPlayhead ? 'Update keyframe at playhead' : 'Add keyframe at playhead'}
+            aria-label="Add keyframe at playhead"
+            className={cn(
+              'grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-surface-2 disabled:pointer-events-none disabled:opacity-40',
+              kfAtPlayhead ? 'text-accent' : 'text-ink-muted hover:text-ink',
+            )}
+          >
+            <Diamond size={16} fill={kfAtPlayhead ? 'currentColor' : 'none'} />
+          </button>
+          <button
             onClick={() => splitAt(currentTime)}
             title="Split at playhead (S)"
             aria-label="Split at playhead"
@@ -519,11 +538,17 @@ export function Timeline() {
                       clip={clip}
                       media={media.find((m) => m.id === clip.mediaId)}
                       pxPerSec={pxPerSec}
+                      currentTime={currentTime}
                       active={clip.id === activeId}
                       selected={selectedIds.includes(clip.id)}
                       onBodyDown={(e) => onClipBodyDown(e, clip.id)}
                       onHandleDown={(e, edge) => onHandleDown(e, clip.id, edge)}
                       onContext={(e) => openClipMenu(e, clip.id)}
+                      onKeyframeClick={(at) => {
+                        setActiveClip(clip.id);
+                        setPlaying(false);
+                        setCurrentTime(clip.start + at);
+                      }}
                     />
                   ))}
               </div>

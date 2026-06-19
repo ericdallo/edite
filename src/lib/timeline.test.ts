@@ -11,6 +11,7 @@ import {
   clipTransformAt,
   evalSpeedAt,
   isClipActiveAt,
+  keyframeDelta,
   maxTransitionDuration,
   prevClipOnTrack,
   projectDuration,
@@ -342,6 +343,29 @@ describe('clipTransformAt', () => {
     });
     // within the second segment (local 4 of [2,6]): halfway from 0.2 -> 0.6
     expect(clipTransformAt(clip, 4).rect.x).toBeCloseTo(0.4, 5);
+  });
+});
+
+describe('keyframeDelta', () => {
+  const r = { x: 0.2, y: 0.2, w: 0.6, h: 0.6 };
+
+  it('flags a pure move (center shifts, size constant)', () => {
+    const d = keyframeDelta(r, { x: 0.3, y: 0.2, w: 0.6, h: 0.6 });
+    expect(d).toEqual({ moved: true, scaled: false });
+  });
+
+  it('flags a centered scale (size changes, center constant)', () => {
+    const d = keyframeDelta(r, { x: 0.25, y: 0.25, w: 0.5, h: 0.5 });
+    expect(d).toEqual({ moved: false, scaled: true });
+  });
+
+  it('flags both a move and a scale', () => {
+    const d = keyframeDelta(r, { x: 0, y: 0, w: 0.4, h: 0.4 });
+    expect(d).toEqual({ moved: true, scaled: true });
+  });
+
+  it('flags nothing for an identical (held) keyframe', () => {
+    expect(keyframeDelta(r, { ...r })).toEqual({ moved: false, scaled: false });
   });
 });
 

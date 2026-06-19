@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Diamond, FlipHorizontal, FlipVertical, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
+import { FlipHorizontal, FlipVertical, RotateCcw, RotateCw } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { FULL_RECT, type Rect } from '@/types/editor';
 import { cn } from '@/lib/utils';
@@ -50,11 +50,7 @@ export function TransformTool() {
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const clips = useEditorStore((s) => s.clips);
   const updateClips = useEditorStore((s) => s.updateClips);
-  const currentTime = useEditorStore((s) => s.playback.currentTime);
-  const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
-  const addKeyframeAtPlayhead = useEditorStore((s) => s.addKeyframeAtPlayhead);
-  const removeKeyframe = useEditorStore((s) => s.removeKeyframe);
-  const clearKeyframes = useEditorStore((s) => s.clearKeyframes);
+  const setSelectedTool = useEditorStore((s) => s.setSelectedTool);
   const clip = clips.find((c) => c.id === activeId);
 
   if (!clip) {
@@ -67,9 +63,6 @@ export function TransformTool() {
 
   const count = selectedIds.length;
   const isMedia = !clip.text;
-  const keyframes = clip.keyframes ?? [];
-  const localPlayhead = currentTime - clip.start;
-  const atPlayhead = keyframes.some((k) => Math.abs(k.at - localPlayhead) < 0.02);
 
   return (
     <div className="space-y-5">
@@ -130,62 +123,16 @@ export function TransformTool() {
       </div>
 
       {isMedia && (
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-ink-muted">Animation</span>
-            {keyframes.length > 0 && (
-              <button
-                onClick={() => clearKeyframes(clip.id)}
-                className="text-xs text-ink-faint transition-colors hover:text-danger"
-              >
-                Clear
-              </button>
-            )}
-          </div>
+        <p className="text-xs leading-relaxed text-ink-faint">
+          Want motion? Open the{' '}
           <button
-            onClick={() => addKeyframeAtPlayhead(clip.id)}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs font-medium text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+            onClick={() => setSelectedTool('animation')}
+            className="font-medium text-accent underline-offset-2 hover:underline"
           >
-            <Diamond size={13} className="text-accent" />
-            {atPlayhead ? 'Update keyframe here' : 'Add keyframe at playhead'}
-          </button>
-          {keyframes.length > 0 ? (
-            <div className="mt-2 space-y-1">
-              {keyframes.map((k, i) => {
-                const here = Math.abs(k.at - localPlayhead) < 0.02;
-                return (
-                  <div
-                    key={i}
-                    className={cn(
-                      'flex items-center justify-between rounded-md border px-2 py-1 text-xs',
-                      here ? 'border-accent/60 bg-accent/10 text-ink' : 'border-line bg-surface-2 text-ink-muted',
-                    )}
-                  >
-                    <button
-                      onClick={() => setCurrentTime(clip.start + k.at)}
-                      className="flex items-center gap-1.5 font-mono transition-colors hover:text-ink"
-                    >
-                      <Diamond size={11} className="text-accent" />
-                      {k.at.toFixed(1)}s
-                    </button>
-                    <button
-                      onClick={() => removeKeyframe(clip.id, i)}
-                      aria-label="Delete keyframe"
-                      className="grid h-5 w-5 place-items-center rounded text-ink-faint transition-colors hover:text-danger"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="mt-2 text-xs leading-relaxed text-ink-faint">
-              Move the playhead and add keyframes to animate position &amp; scale (zoom, pan). Drag the box on the
-              preview to set each one; it keeps its shape so the export matches.
-            </p>
-          )}
-        </div>
+            Animation
+          </button>{' '}
+          tool to keyframe position &amp; size over time.
+        </p>
       )}
 
       <p className="text-xs leading-relaxed text-ink-faint">

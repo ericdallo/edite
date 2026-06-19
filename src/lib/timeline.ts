@@ -56,6 +56,29 @@ export function clipTransformAt(clip: Clip, t: number): ClipTransform {
   return { rect: { ...kfs[kfs.length - 1].rect } };
 }
 
+/** What a keyframe changes relative to the previous one, for UI labelling. */
+export interface KeyframeDelta {
+  moved: boolean;
+  scaled: boolean;
+}
+
+/** Fraction-of-canvas threshold below which a position/size change is ignored. */
+const KF_DELTA_EPS = 0.005;
+
+/**
+ * Describe how the placement `cur` differs from `prev`: `moved` when the box's
+ * center shifts, `scaled` when its size changes. Used by the Animation panel to
+ * tag each keyframe (Move / Scale) so you can see what it animates.
+ */
+export function keyframeDelta(prev: Rect, cur: Rect): KeyframeDelta {
+  const dcx = prev.x + prev.w / 2 - (cur.x + cur.w / 2);
+  const dcy = prev.y + prev.h / 2 - (cur.y + cur.h / 2);
+  return {
+    moved: Math.abs(dcx) > KF_DELTA_EPS || Math.abs(dcy) > KF_DELTA_EPS,
+    scaled: Math.abs(prev.w - cur.w) > KF_DELTA_EPS || Math.abs(prev.h - cur.h) > KF_DELTA_EPS,
+  };
+}
+
 export interface SpeedSlice {
   /** source range held by this slice (seconds, within the media) */
   inStart: number;

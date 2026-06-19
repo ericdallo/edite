@@ -49,6 +49,7 @@ import {
 export type ToolId =
   | 'media'
   | 'transform'
+  | 'animation'
   | 'speed'
   | 'effects'
   | 'aspect'
