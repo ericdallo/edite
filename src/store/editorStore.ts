@@ -74,6 +74,9 @@ export type ToolId =
   | 'text'
   | 'captions';
 
+/** Which top-level screen is shown (the app has no router). */
+export type AppView = 'editor' | 'projects';
+
 /** Remembered starting choices for the auto-captions tool. */
 export interface CaptionDefaults {
   model: CaptionModelId;
@@ -184,6 +187,8 @@ export interface EditorState {
   panelOpen: boolean;
   /** desktop only: hide the tool rail + panel to give the preview and timeline more room. */
   sidebarCollapsed: boolean;
+  /** current top-level screen (editor vs the projects manager); not persisted. */
+  view: AppView;
   zoom: number;
   snap: boolean;
   /** loop playback back to the start when the playhead reaches the end. */
@@ -209,6 +214,7 @@ export interface EditorState {
   setPanelOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
+  setView: (view: AppView) => void;
 
   addMedia: (item: MediaItem) => void;
   addClipFromMedia: (mediaId: string, opts?: { trackId?: string; start?: number }) => void;
@@ -384,6 +390,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedTool: 'media',
   panelOpen: false,
   sidebarCollapsed: false,
+  view: 'editor',
   zoom: 1,
   snap: true,
   loop: false,
@@ -455,6 +462,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPanelOpen: (open) => set({ panelOpen: open }),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  setView: (view) => set({ view }),
 
   addMedia: (item) => set((s) => ({ media: [...s.media, item] })),
 

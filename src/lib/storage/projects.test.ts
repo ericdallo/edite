@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_EXPORT_SETTINGS, type ProjectSnapshot } from '@/types/editor';
-import { resolveCreatedAt, toProjectSummary } from '@/lib/storage/projects';
+import {
+  orphanedMediaIds,
+  resolveCreatedAt,
+  resolveThumbnail,
+  toProjectSummary,
+} from '@/lib/storage/projects';
 import { makeClip, makeMedia, makeTrack } from '@/test/factories';
 
 function makeSnapshot(over: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
@@ -43,6 +48,49 @@ describe('toProjectSummary', () => {
       updatedAt: 200,
       clipCount: 3,
       mediaCount: 2,
+      thumbnail: undefined,
     });
+  });
+
+  it('carries the stored thumbnail through', () => {
+    expect(toProjectSummary(makeSnapshot({ thumbnail: 'data:image/jpeg;base64,abc' })).thumbnail).toBe(
+      'data:image/jpeg;base64,abc',
+    );
+  });
+});
+
+describe('resolveThumbnail', () => {
+  it('prefers a freshly supplied poster', () => {
+    const existing = makeSnapshot({ thumbnail: 'old' });
+    const incoming = makeSnapshot({ thumbnail: 'new' });
+    expect(resolveThumbnail(existing, incoming)).toBe('new');
+  });
+
+  it('keeps the stored poster when the save carries none', () => {
+    const existing = makeSnapshot({ thumbnail: 'old' });
+    const incoming = makeSnapshot({ thumbnail: undefined });
+    expect(resolveThumbnail(existing, incoming)).toBe('old');
+  });
+
+  it('is undefined when neither has one', () => {
+    expect(resolveThumbnail(undefined, makeSnapshot())).toBeUndefined();
+  });
+});
+
+describe('orphanedMediaIds', () => {
+  it('returns deleted media not referenced by any surviving project', () => {
+    const remaining = [makeSnapshot({ id: 'p2', media: [{ id: 'm2' } as never] })];
+    expect(orphanedMediaIds(['m1', 'm2'], remaining)).toEqual(['m1']);
+  });
+
+  it('drops nothing that is still shared with another project', () => {
+    const remaining = [
+      makeSnapshot({ id: 'p2', media: [{ id: 'm1' } as never, { id: 'm2' } as never] }),
+    ];
+    expect(orphanedMediaIds(['m1', 'm2'], remaining)).toEqual([]);
+  });
+
+  it('returns everything when no projects remain', () => {
+    expect(orphanedMediaIds(['m1', 'm2'], [])).toEqual(['m1', 'm2']);
   });
 });

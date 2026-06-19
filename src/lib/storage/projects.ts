@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { ProjectSnapshot } from '@/types/editor';
+import { uid } from '@/lib/ids';
 
 const DB_NAME = 'edite-db';
 const VERSION = 1;
@@ -32,10 +33,30 @@ export function resolveCreatedAt(
   return existing?.createdAt ?? incoming.createdAt;
 }
 
+/** Keep the stored poster when a routine save doesn't carry a fresh one. */
+export function resolveThumbnail(
+  existing: ProjectSnapshot | undefined,
+  incoming: ProjectSnapshot,
+): string | undefined {
+  return incoming.thumbnail ?? existing?.thumbnail;
+}
+
 export async function saveSnapshot(snapshot: ProjectSnapshot): Promise<void> {
   const db = await getDB();
   const existing = (await db.get(SNAP_STORE, snapshot.id)) as ProjectSnapshot | undefined;
-  await db.put(SNAP_STORE, { ...snapshot, createdAt: resolveCreatedAt(existing, snapshot) });
+  await db.put(SNAP_STORE, {
+    ...snapshot,
+    createdAt: resolveCreatedAt(existing, snapshot),
+    thumbnail: resolveThumbnail(existing, snapshot),
+  });
+}
+
+/** Persist just the poster for a project, leaving everything else untouched. */
+export async function setProjectThumbnail(id: string, thumbnail: string): Promise<void> {
+  const db = await getDB();
+  const existing = (await db.get(SNAP_STORE, id)) as ProjectSnapshot | undefined;
+  if (!existing) return;
+  await db.put(SNAP_STORE, { ...existing, thumbnail });
 }
 
 export async function saveMedia(id: string, blob: Blob): Promise<void> {
@@ -67,6 +88,7 @@ export interface ProjectSummary {
   updatedAt: number;
   clipCount: number;
   mediaCount: number;
+  thumbnail?: string;
 }
 
 export function toProjectSummary(snap: ProjectSnapshot): ProjectSummary {
@@ -77,6 +99,7 @@ export function toProjectSummary(snap: ProjectSnapshot): ProjectSummary {
     updatedAt: snap.updatedAt,
     clipCount: snap.clips.length,
     mediaCount: snap.media.length,
+    thumbnail: snap.thumbnail,
   };
 }
 
@@ -85,10 +108,57 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   return (await listSnapshots()).map(toProjectSummary);
 }
 
+/**
+ * Media blobs are shared by id (a duplicated project reuses them), so deleting a
+ * project may only drop the blobs that no surviving project still references.
+ */
+export function orphanedMediaIds(
+  deletedMediaIds: string[],
+  remaining: ProjectSnapshot[],
+): string[] {
+  const stillUsed = new Set<string>();
+  for (const snap of remaining) {
+    for (const m of snap.media) stillUsed.add(m.id);
+  }
+  return deletedMediaIds.filter((mid) => !stillUsed.has(mid));
+}
+
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
+  const snap = (await db.get(SNAP_STORE, id)) as ProjectSnapshot | undefined;
   await db.delete(SNAP_STORE, id);
-  await db.delete(MEDIA_STORE, id);
+  if (!snap) return;
+  const remaining = (await db.getAll(SNAP_STORE)) as ProjectSnapshot[];
+  const orphans = orphanedMediaIds(
+    snap.media.map((m) => m.id),
+    remaining,
+  );
+  await Promise.all(orphans.map((mid) => db.delete(MEDIA_STORE, mid)));
+}
+
+/** Copy a project under a fresh id; media blobs are shared, not duplicated. */
+export async function duplicateProject(id: string, name?: string): Promise<string | null> {
+  const db = await getDB();
+  const snap = (await db.get(SNAP_STORE, id)) as ProjectSnapshot | undefined;
+  if (!snap) return null;
+  const now = Date.now();
+  const copy: ProjectSnapshot = {
+    ...snap,
+    id: uid(),
+    name: name ?? `${snap.name || 'Untitled project'} copy`,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await db.put(SNAP_STORE, copy);
+  return copy.id;
+}
+
+/** Rename a stored project (no effect when it doesn't exist). */
+export async function renameProject(id: string, name: string): Promise<void> {
+  const db = await getDB();
+  const snap = (await db.get(SNAP_STORE, id)) as ProjectSnapshot | undefined;
+  if (!snap) return;
+  await db.put(SNAP_STORE, { ...snap, name, updatedAt: Date.now() });
 }
 
 const LAST_KEY = 'edite:lastProjectId';

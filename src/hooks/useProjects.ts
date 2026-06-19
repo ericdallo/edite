@@ -3,7 +3,9 @@ import { useEditorStore } from '@/store/editorStore';
 import {
   clearLastProjectId,
   deleteProject,
+  duplicateProject,
   listProjects,
+  renameProject,
   type ProjectSummary,
 } from '@/lib/storage/projects';
 import { openProject, saveCurrentProject } from '@/lib/storage/session';
@@ -16,6 +18,8 @@ export interface UseProjects {
   switchTo: (id: string) => Promise<void>;
   create: () => Promise<void>;
   remove: (id: string) => Promise<void>;
+  duplicate: (id: string) => Promise<void>;
+  rename: (id: string, name: string) => Promise<void>;
 }
 
 /** Lists browser-stored projects and switches/creates/deletes the active one. */
@@ -77,5 +81,38 @@ export function useProjects(): UseProjects {
     [refresh],
   );
 
-  return { items, currentId, busy, refresh, switchTo, create, remove };
+  const duplicate = useCallback(
+    async (id: string) => {
+      setBusy(true);
+      try {
+        // Capture the latest edits first so duplicating the active project copies them.
+        if (id === useEditorStore.getState().projectId) await saveCurrentProject();
+        await duplicateProject(id);
+        await refresh();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
+  const rename = useCallback(
+    async (id: string, name: string) => {
+      setBusy(true);
+      try {
+        if (id === useEditorStore.getState().projectId) {
+          useEditorStore.getState().setProjectName(name);
+          await saveCurrentProject();
+        } else {
+          await renameProject(id, name);
+        }
+        await refresh();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
+  return { items, currentId, busy, refresh, switchTo, create, remove, duplicate, rename };
 }

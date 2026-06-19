@@ -927,3 +927,18 @@ describe('appearance & defaults', () => {
     expect(get().aspect).toBe('9:16');
   });
 });
+
+describe('view navigation', () => {
+  it('starts on the editor and switches to the projects screen', () => {
+    get().setView('editor');
+    expect(get().view).toBe('editor');
+    get().setView('projects');
+    expect(get().view).toBe('projects');
+  });
+
+  it('keeps the current view across newProject', () => {
+    get().setView('projects');
+    get().newProject({ id: 'pv', name: 'PV' });
+    expect(get().view).toBe('projects');
+  });
+});

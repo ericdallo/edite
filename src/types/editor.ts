@@ -359,6 +359,8 @@ export interface ProjectSnapshot {
   background: string;
   muted: boolean;
   exportSettings: ExportSettings;
+  /** small JPEG data URL poster for the projects list (optional, best-effort). */
+  thumbnail?: string;
 }
 
 export const ASPECT_RATIOS: AspectRatioOption[] = [

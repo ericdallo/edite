@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, FolderOpen, Plus, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, FolderOpen, LayoutGrid, Plus, Trash2, X } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import type { ProjectSummary } from '@/lib/storage/projects';
 import type { UseProjects } from '@/hooks/useProjects';
@@ -23,6 +23,9 @@ export function ProjectMenu({ projects }: ProjectMenuProps) {
   const projectName = useEditorStore((s) => s.projectName);
   const clipCount = useEditorStore((s) => s.clips.length);
   const mediaCount = useEditorStore((s) => s.media.length);
+  const setView = useEditorStore((s) => s.setView);
+
+  const RECENT_LIMIT = 4;
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
@@ -62,6 +65,7 @@ export function ProjectMenu({ projects }: ProjectMenuProps) {
     const now = Date.now();
     rows.unshift({ id: currentId, name: projectName, createdAt: now, updatedAt: now, clipCount, mediaCount });
   }
+  const recent = rows.slice(0, RECENT_LIMIT);
 
   return (
     <>
@@ -109,7 +113,7 @@ export function ProjectMenu({ projects }: ProjectMenuProps) {
               <p className="px-3 py-4 text-center text-xs text-ink-faint">No saved projects yet.</p>
             ) : (
               <ul className="max-h-[min(60vh,22rem)] overflow-y-auto py-1">
-                {rows.map((p) => {
+                {recent.map((p) => {
                   const active = p.id === currentId;
                   const confirming = confirmId === p.id;
                   return (
@@ -196,6 +200,27 @@ export function ProjectMenu({ projects }: ProjectMenuProps) {
                 })}
               </ul>
             )}
+
+            <div className="h-px bg-line" />
+            <button
+              onClick={() => {
+                setOpen(false);
+                setView('projects');
+              }}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+              role="menuitem"
+            >
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-surface-3 text-ink-muted">
+                <LayoutGrid size={15} />
+              </span>
+              <span className="flex-1">All projects</span>
+              {rows.length > 0 && (
+                <span className="rounded-md bg-surface-3 px-1.5 py-0.5 text-[11px] tabular-nums text-ink-faint">
+                  {rows.length}
+                </span>
+              )}
+              <ChevronRight size={15} className="text-ink-faint" />
+            </button>
           </div>,
           document.body,
         )}

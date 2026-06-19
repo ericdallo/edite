@@ -6,7 +6,14 @@ import {
   type ProjectSnapshot,
 } from '@/types/editor';
 import { type EditorState, useEditorStore } from '@/store/editorStore';
-import { getMedia, getSnapshot, saveSnapshot, setLastProjectId } from '@/lib/storage/projects';
+import {
+  getMedia,
+  getSnapshot,
+  saveSnapshot,
+  setLastProjectId,
+  setProjectThumbnail,
+} from '@/lib/storage/projects';
+import { generatePoster, posterSourceFor } from '@/lib/media/poster';
 
 /** The slice of store state that maps onto a persisted snapshot. */
 type PersistableState = Pick<
@@ -55,12 +62,40 @@ export function snapshotFromState(s: PersistableState): ProjectSnapshot {
   };
 }
 
+// Last poster `mediaId@time` rendered per project, so we only re-decode a frame
+// when the representative clip actually changes.
+const posterKeys = new Map<string, string>();
+const posterInFlight = new Set<string>();
+
+/** Best-effort: refresh the project's list poster without blocking the save. */
+async function refreshPoster(s: PersistableState): Promise<void> {
+  const source = posterSourceFor(s.clips, s.tracks, s.media);
+  if (!source) return;
+  const key = `${source.mediaId}@${source.time.toFixed(3)}`;
+  if (posterKeys.get(s.projectId) === key || posterInFlight.has(s.projectId)) return;
+  const media = s.media.find((m) => m.id === source.mediaId);
+  if (!media) return;
+  posterInFlight.add(s.projectId);
+  try {
+    const poster = await generatePoster(media, source.time);
+    if (poster) {
+      await setProjectThumbnail(s.projectId, poster);
+      posterKeys.set(s.projectId, key);
+    }
+  } catch {
+    // a missing poster is never worth failing a save over
+  } finally {
+    posterInFlight.delete(s.projectId);
+  }
+}
+
 /** Persist the active project (no-op when there's nothing to save). */
 export async function saveCurrentProject(): Promise<void> {
   const s = useEditorStore.getState();
   if (!s.projectId || (s.media.length === 0 && s.clips.length === 0)) return;
   await saveSnapshot(snapshotFromState(s));
   setLastProjectId(s.projectId);
+  void refreshPoster(s);
 }
 
 /** Load a stored project into the store, revoking the previous project's object URLs. */

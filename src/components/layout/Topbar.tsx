@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Download, Github, Redo2, Settings, Undo2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
-import { useProjects } from '@/hooks/useProjects';
+import type { UseProjects } from '@/hooks/useProjects';
 import { REPO_URL } from '@/lib/constants';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ProjectMenu } from '@/components/layout/ProjectMenu';
@@ -9,10 +9,11 @@ import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { Button } from '@/components/ui/Button';
 
 export interface TopbarProps {
+  projects: UseProjects;
   onExport?: () => void;
 }
 
-export function Topbar({ onExport }: TopbarProps) {
+export function Topbar({ projects, onExport }: TopbarProps) {
   const hasContent = useEditorStore((s) => s.media.length > 0 || s.clips.length > 0);
   const projectName = useEditorStore((s) => s.projectName);
   const setProjectName = useEditorStore((s) => s.setProjectName);
@@ -21,7 +22,6 @@ export function Topbar({ onExport }: TopbarProps) {
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
   const showHistory = hasContent || canUndo || canRedo;
-  const projects = useProjects();
   const showProjects = hasContent || projects.items.length > 0;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
