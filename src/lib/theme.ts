@@ -66,3 +66,90 @@ export function watchSystemTheme(cb: () => void): () => void {
   mq.addEventListener('change', handler);
   return () => mq.removeEventListener('change', handler);
 }
+
+/** Brand accent colour. 'violet' is the default (no override). */
+export type Accent = 'violet' | 'cyan' | 'emerald' | 'rose' | 'amber';
+
+export interface AccentOption {
+  id: Accent;
+  label: string;
+  /** Swatch shown in the picker (the brand-bright value of the accent). */
+  swatch: string;
+}
+
+export const ACCENTS: AccentOption[] = [
+  { id: 'violet', label: 'Violet', swatch: '#a78bfa' },
+  { id: 'cyan', label: 'Cyan', swatch: '#22d3ee' },
+  { id: 'emerald', label: 'Emerald', swatch: '#34d399' },
+  { id: 'rose', label: 'Rose', swatch: '#fb7185' },
+  { id: 'amber', label: 'Amber', swatch: '#fbbf24' },
+];
+
+const ACCENT_KEY = 'edite-accent';
+const ACCENT_IDS = ACCENTS.map((a) => a.id);
+
+/** The persisted accent, or 'violet' when unset/invalid/unavailable. */
+export function loadAccent(): Accent {
+  if (typeof localStorage === 'undefined') return 'violet';
+  try {
+    const value = localStorage.getItem(ACCENT_KEY);
+    return ACCENT_IDS.includes(value as Accent) ? (value as Accent) : 'violet';
+  } catch {
+    return 'violet';
+  }
+}
+
+export function saveAccent(accent: Accent): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(ACCENT_KEY, accent);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Apply the accent via a root attribute (default 'violet' clears it). */
+export function applyAccent(accent: Accent): void {
+  if (typeof document === 'undefined') return;
+  if (accent === 'violet') delete document.documentElement.dataset.accent;
+  else document.documentElement.dataset.accent = accent;
+}
+
+const REDUCE_MOTION_KEY = 'edite-reduce-motion';
+
+function systemPrefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
+/** The persisted reduce-motion choice; defaults to the OS preference when unset. */
+export function loadReduceMotion(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    const value = localStorage.getItem(REDUCE_MOTION_KEY);
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return systemPrefersReducedMotion();
+  } catch {
+    return systemPrefersReducedMotion();
+  }
+}
+
+export function saveReduceMotion(on: boolean): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(REDUCE_MOTION_KEY, on ? 'true' : 'false');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Toggle the root attribute that disables the entrance animations. */
+export function applyReduceMotion(on: boolean): void {
+  if (typeof document === 'undefined') return;
+  if (on) document.documentElement.dataset.reduceMotion = 'true';
+  else delete document.documentElement.dataset.reduceMotion;
+}

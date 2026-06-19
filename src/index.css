@@ -38,6 +38,26 @@ html[data-theme='light'] {
   --color-success: #059669;
 }
 
+/* Accent colour: override only the brand pair. Placed after the light block so
+   a chosen accent wins over the theme's default brand in either theme. Default
+   'violet' sets no attribute and keeps the theme's own brand tokens. */
+html[data-accent='cyan'] {
+  --color-brand: #0891b2;
+  --color-brand-bright: #06b6d4;
+}
+html[data-accent='emerald'] {
+  --color-brand: #059669;
+  --color-brand-bright: #10b981;
+}
+html[data-accent='rose'] {
+  --color-brand: #e11d48;
+  --color-brand-bright: #f43f5e;
+}
+html[data-accent='amber'] {
+  --color-brand: #d97706;
+  --color-brand-bright: #f59e0b;
+}
+
 @layer base {
   html,
   body,
@@ -91,6 +111,11 @@ html[data-theme='light'] {
 }
 .edite-pop {
   animation: popIn 0.16s ease-out;
+}
+/* Reduce motion: skip the entrance animations. */
+html[data-reduce-motion='true'] .edite-fade,
+html[data-reduce-motion='true'] .edite-pop {
+  animation: none;
 }
 @keyframes fadeIn {
   from {

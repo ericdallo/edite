@@ -904,3 +904,26 @@ describe('keyframes', () => {
     expect(get().clips.find((c) => c.id === id)!.keyframes).toBeUndefined();
   });
 });
+
+describe('appearance & defaults', () => {
+  it('setAccent and setReduceMotion update state', () => {
+    get().setAccent('emerald');
+    expect(get().accent).toBe('emerald');
+    get().setReduceMotion(true);
+    expect(get().reduceMotion).toBe(true);
+  });
+
+  it('setCaptionDefaults merges without dropping other fields', () => {
+    const before = get().captionDefaults;
+    get().setCaptionDefaults({ language: 'pt' });
+    expect(get().captionDefaults.language).toBe('pt');
+    expect(get().captionDefaults.length).toBe(before.length);
+    expect(get().captionDefaults.model).toBe(before.model);
+  });
+
+  it('new projects adopt the default aspect ratio', () => {
+    get().setDefaultAspect('9:16');
+    get().newProject({ id: 'p916', name: 'P916' });
+    expect(get().aspect).toBe('9:16');
+  });
+});

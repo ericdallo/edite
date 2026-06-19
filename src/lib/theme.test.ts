@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadTheme, resolveTheme } from '@/lib/theme';
+import { loadAccent, loadReduceMotion, loadTheme, resolveTheme } from '@/lib/theme';
 
 describe('resolveTheme', () => {
   it('returns the explicit choice for dark and light', () => {
@@ -16,5 +16,15 @@ describe('resolveTheme', () => {
 describe('loadTheme', () => {
   it('defaults to dark when storage is unavailable', () => {
     expect(loadTheme()).toBe('dark');
+  });
+});
+
+describe('appearance defaults', () => {
+  it('defaults accent to violet when storage is unavailable', () => {
+    expect(loadAccent()).toBe('violet');
+  });
+
+  it('defaults reduce-motion to false when storage and matchMedia are unavailable', () => {
+    expect(loadReduceMotion()).toBe(false);
   });
 });

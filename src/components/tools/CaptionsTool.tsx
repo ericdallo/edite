@@ -64,9 +64,16 @@ export function CaptionsTool() {
   );
 
   const hasGpu = gpuAvailable();
-  const [model, setModel] = useState<CaptionModelId>(() => (hasGpu ? 'small' : 'base'));
-  const [language, setLanguage] = useState('auto');
-  const [length, setLength] = useState<CaptionLength>('line');
+  const captionDefaults = useEditorStore((s) => s.captionDefaults);
+  const setCaptionDefaults = useEditorStore((s) => s.setCaptionDefaults);
+  // Resolve a safe, valid model: fall back when the stored id is unknown, and
+  // never run a GPU-only model on the WASM path.
+  const known =
+    CAPTION_MODELS.find((m) => m.id === captionDefaults.model) ??
+    CAPTION_MODELS.find((m) => m.id === (hasGpu ? 'small' : 'base'))!;
+  const model: CaptionModelId = known.gpuOnly && !hasGpu ? 'base' : known.id;
+  const language = captionDefaults.language;
+  const length = captionDefaults.length;
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
   const [progress, setProgress] = useState(0);
@@ -161,7 +168,7 @@ export function CaptionsTool() {
           <div className="mb-1.5 text-xs font-medium text-ink-muted">Model</div>
           <select
             value={model}
-            onChange={(e) => setModel(e.target.value as CaptionModelId)}
+            onChange={(e) => setCaptionDefaults({ model: e.target.value as CaptionModelId })}
             className={selectClass}
             aria-label="Caption model"
           >
@@ -177,7 +184,7 @@ export function CaptionsTool() {
           <div className="mb-1.5 text-xs font-medium text-ink-muted">Language</div>
           <select
             value={language}
-            onChange={(e) => setLanguage(e.target.value)}
+            onChange={(e) => setCaptionDefaults({ language: e.target.value })}
             className={selectClass}
             aria-label="Spoken language"
           >
@@ -194,7 +201,7 @@ export function CaptionsTool() {
         <div className="mb-1.5 text-xs font-medium text-ink-muted">Caption length</div>
         <select
           value={length}
-          onChange={(e) => setLength(e.target.value as CaptionLength)}
+          onChange={(e) => setCaptionDefaults({ length: e.target.value as CaptionLength })}
           className={selectClass}
           aria-label="Caption length"
         >

@@ -31,8 +31,22 @@ import {
 } from '@/lib/timeline';
 import { clamp } from '@/lib/utils';
 import { uid } from '@/lib/ids';
-import { applyTheme, loadTheme, saveTheme, type Theme } from '@/lib/theme';
-import type { CaptionClip } from '@/lib/captions/segments';
+import {
+  type Accent,
+  applyAccent,
+  applyReduceMotion,
+  applyTheme,
+  loadAccent,
+  loadReduceMotion,
+  loadTheme,
+  saveAccent,
+  saveReduceMotion,
+  saveTheme,
+  type Theme,
+} from '@/lib/theme';
+import { readPref, writePref } from '@/lib/prefs';
+import type { CaptionModelId } from '@/lib/captions/models';
+import type { CaptionClip, CaptionLength } from '@/lib/captions/segments';
 import {
   AUDIO_FADE_MAX,
   CLIP_SPEED_MAX,
@@ -59,6 +73,22 @@ export type ToolId =
   | 'audio'
   | 'text'
   | 'captions';
+
+/** Remembered starting choices for the auto-captions tool. */
+export interface CaptionDefaults {
+  model: CaptionModelId;
+  language: string;
+  length: CaptionLength;
+}
+
+const CAPTION_DEFAULTS_KEY = 'edite-caption-defaults';
+const DEFAULT_ASPECT_KEY = 'edite-default-aspect';
+
+/** Pick a sensible default caption model: accurate on WebGPU, lighter on CPU. */
+function defaultCaptionModel(): CaptionModelId {
+  const gpu = typeof navigator !== 'undefined' && (navigator as Navigator & { gpu?: unknown }).gpu != null;
+  return gpu ? 'small' : 'base';
+}
 
 const DEFAULT_EXPORT: ExportSettings = DEFAULT_EXPORT_SETTINGS;
 
@@ -160,6 +190,14 @@ export interface EditorState {
   loop: boolean;
   /** app color theme (global UI preference, persisted outside the project). */
   theme: Theme;
+  /** brand accent colour (global UI preference). */
+  accent: Accent;
+  /** when true, skip the entrance animations (global UI preference). */
+  reduceMotion: boolean;
+  /** remembered starting choices for the auto-captions tool. */
+  captionDefaults: CaptionDefaults;
+  /** aspect ratio applied to newly created projects. */
+  defaultAspect: AspectRatioId;
   isExporting: boolean;
   exportProgress: number;
   exportStage: string;
@@ -234,6 +272,10 @@ export interface EditorState {
   toggleSnap: () => void;
   toggleLoop: () => void;
   setTheme: (theme: Theme) => void;
+  setAccent: (accent: Accent) => void;
+  setReduceMotion: (on: boolean) => void;
+  setCaptionDefaults: (patch: Partial<CaptionDefaults>) => void;
+  setDefaultAspect: (aspect: AspectRatioId) => void;
   setExporting: (v: boolean) => void;
   setExportProgress: (p: number, stage?: string) => void;
 
@@ -346,6 +388,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   snap: true,
   loop: false,
   theme: loadTheme(),
+  accent: loadAccent(),
+  reduceMotion: loadReduceMotion(),
+  captionDefaults: {
+    model: defaultCaptionModel(),
+    language: 'auto',
+    length: 'line',
+    ...readPref<Partial<CaptionDefaults>>(CAPTION_DEFAULTS_KEY, {}),
+  },
+  defaultAspect: readPref<AspectRatioId>(DEFAULT_ASPECT_KEY, 'original'),
   isExporting: false,
   exportProgress: 0,
   exportStage: '',
@@ -359,7 +410,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         media: [],
         tracks: [],
         clips: [],
-        aspect: 'original',
+        aspect: s.defaultAspect,
         background: DEFAULT_BACKGROUND,
         muted: false,
         activeClipId: null,
@@ -924,6 +975,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     saveTheme(theme);
     applyTheme(theme);
     set({ theme });
+  },
+  setAccent: (accent) => {
+    saveAccent(accent);
+    applyAccent(accent);
+    set({ accent });
+  },
+  setReduceMotion: (on) => {
+    saveReduceMotion(on);
+    applyReduceMotion(on);
+    set({ reduceMotion: on });
+  },
+  setCaptionDefaults: (patch) =>
+    set((s) => {
+      const captionDefaults = { ...s.captionDefaults, ...patch };
+      writePref(CAPTION_DEFAULTS_KEY, captionDefaults);
+      return { captionDefaults };
+    }),
+  setDefaultAspect: (aspect) => {
+    writePref(DEFAULT_ASPECT_KEY, aspect);
+    set({ defaultAspect: aspect });
   },
   setExporting: (v) => set({ isExporting: v }),
   setExportProgress: (p, stage) =>
