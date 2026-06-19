@@ -706,3 +706,61 @@ describe('clip audio: volume, fades & extract', () => {
     expect(get().clips).toHaveLength(1);
   });
 });
+
+describe('keyframes', () => {
+  beforeEach(seed);
+
+  it('addKeyframeAtPlayhead seeds a keyframe at the playhead from the current rect', () => {
+    get().setCurrentTime(3);
+    get().addKeyframeAtPlayhead('c1');
+    const kfs = get().clips[0].keyframes!;
+    expect(kfs).toHaveLength(1);
+    expect(kfs[0].at).toBe(3);
+    expect(kfs[0].rect).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+  });
+
+  it('upsertKeyframe adds points and keeps them sorted by time', () => {
+    get().upsertKeyframe('c1', 6, { x: 0.5, y: 0.25, w: 0.5, h: 0.5 });
+    get().upsertKeyframe('c1', 0, { x: 0, y: 0, w: 1, h: 1 });
+    expect(get().clips[0].keyframes!.map((k) => k.at)).toEqual([0, 6]);
+  });
+
+  it('upsertKeyframe replaces a keyframe at (nearly) the same time', () => {
+    get().upsertKeyframe('c1', 2, { x: 0, y: 0, w: 1, h: 1 });
+    get().upsertKeyframe('c1', 2.005, { x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+    const kfs = get().clips[0].keyframes!;
+    expect(kfs).toHaveLength(1);
+    expect(kfs[0].rect).toMatchObject({ x: 0.1, w: 0.8 });
+  });
+
+  it('clamps at to the clip window and guards a zero-size box', () => {
+    get().upsertKeyframe('c1', -5, { x: 0, y: 0, w: 0, h: 1 });
+    get().upsertKeyframe('c1', 999, { x: 0, y: 0, w: 1, h: 1 });
+    const kfs = get().clips[0].keyframes!;
+    expect(kfs[0].at).toBe(0);
+    expect(kfs[0].rect.w).toBe(0.01); // floored away from zero
+    expect(kfs[1].at).toBe(10); // clamped to the 10s clip length
+  });
+
+  it('removeKeyframe drops one, and clears the field when empty', () => {
+    get().upsertKeyframe('c1', 0, { x: 0, y: 0, w: 1, h: 1 });
+    get().upsertKeyframe('c1', 5, { x: 0.2, y: 0, w: 1, h: 1 });
+    get().removeKeyframe('c1', 0);
+    expect(get().clips[0].keyframes).toHaveLength(1);
+    get().removeKeyframe('c1', 0);
+    expect(get().clips[0].keyframes).toBeUndefined();
+  });
+
+  it('clearKeyframes removes all animation', () => {
+    get().upsertKeyframe('c1', 0, { x: 0, y: 0, w: 1, h: 1 });
+    get().clearKeyframes('c1');
+    expect(get().clips[0].keyframes).toBeUndefined();
+  });
+
+  it('ignores text clips', () => {
+    get().addTextClip();
+    const id = get().clips.at(-1)!.id;
+    get().upsertKeyframe(id, 1, { x: 0, y: 0, w: 1, h: 1 });
+    expect(get().clips.find((c) => c.id === id)!.keyframes).toBeUndefined();
+  });
+});

@@ -97,6 +97,34 @@ describe('buildExportPlan', () => {
     expect(plan.clips[0].chromaKey).toEqual(chromaKey);
   });
 
+  it('passes keyframes through to a media export clip', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1' });
+    const keyframes = [
+      { at: 0, rect: { x: 0, y: 0, w: 1, h: 1 } },
+      { at: 3, rect: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } },
+    ];
+    const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1', keyframes })], [media]);
+    expect(plan.clips[0].keyframes).toEqual(keyframes);
+  });
+
+  it('samples keyframes per slice (stepped) for a speed-curved clip', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1', kind: 'video', duration: 12 });
+    const keyframes = [
+      { at: 0, rect: { x: 0, y: 0, w: 1, h: 1 } },
+      { at: 6, rect: { x: 0.5, y: 0, w: 1, h: 1 } },
+    ];
+    const clip = makeClip({
+      trackId: 't1', mediaId: 'm1', start: 0, in: 0, out: 12, keyframes, speedCurve: makeSpeedCurve('rampUp'),
+    });
+    const plan = buildExportPlan([track], [clip], [media]);
+    // Each tiled segment carries a sampled static rect, not the keyframes themselves.
+    expect(plan.clips.every((c) => c.keyframes === undefined)).toBe(true);
+    const xs = plan.clips.map((c) => c.rect.x);
+    expect(xs.at(-1)!).toBeGreaterThan(xs[0]);
+  });
+
   it('passes a transition through and cross-fades the audio with its predecessor', () => {
     const track = makeTrack({ id: 't1' });
     const media = makeMedia({ id: 'm1' });

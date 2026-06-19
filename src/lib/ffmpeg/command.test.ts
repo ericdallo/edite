@@ -122,6 +122,37 @@ describe('buildExportCommand video graph', () => {
   });
 });
 
+describe('buildExportCommand keyframes', () => {
+  const kfClip = (over: Partial<ExportClip> = {}) =>
+    makeExportClip({
+      kind: 'video',
+      start: 0,
+      in: 0,
+      out: 6,
+      speed: 1,
+      keyframes: [
+        { at: 0, rect: { x: 0, y: 0, w: 1, h: 1 } },
+        { at: 6, rect: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } },
+      ],
+      ...over,
+    });
+
+  it('animates scale and position with per-frame t expressions', () => {
+    const g = graphOf(build([kfClip()]));
+    // a static cover-crop, then a uniform per-frame downscale
+    expect(g).toMatch(/scale=w='if\(lt\(t,/);
+    // overlay position is a t-expression, evaluated per frame, still gated to its window
+    expect(g).toContain("overlay=x='if(lt(t,");
+    expect(g).toContain("eval=frame:enable='between(t,0.000,6.000)'");
+  });
+
+  it('leaves a single-keyframe (or none) clip with a static rect', () => {
+    const oneKf = graphOf(build([kfClip({ keyframes: [{ at: 0, rect: { x: 0, y: 0, w: 1, h: 1 } }] })]));
+    expect(oneKf).not.toContain('eval=frame');
+    expect(graphOf(build([makeExportClip()]))).not.toContain('eval=frame');
+  });
+});
+
 describe('buildExportCommand transitions', () => {
   it('cross-dissolves the incoming clip with an alpha fade over the overlap', () => {
     const g = graphOf(

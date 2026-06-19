@@ -119,6 +119,18 @@ export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDo
         />
       )}
 
+      {clip.keyframes && clip.keyframes.length > 0 && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-2.5">
+          {clip.keyframes.map((k, i) => (
+            <span
+              key={i}
+              className="absolute top-0.5 h-1.5 w-1.5 -translate-x-1/2 rotate-45 bg-accent shadow-[0_0_0_1px_rgba(0,0,0,0.55)]"
+              style={{ left: clamp(k.at * pxPerSec, 0, width) }}
+            />
+          ))}
+        </div>
+      )}
+
       <div className="pointer-events-none absolute left-1.5 top-1.5 flex gap-1">
         {clip.muted && !isText && (
           <span className="grid h-5 w-5 place-items-center rounded bg-black/60 text-danger">

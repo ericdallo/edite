@@ -8,6 +8,7 @@ import {
   clipSourceAt,
   clipSpeedAt,
   clipTimelineDuration,
+  clipTransformAt,
   evalSpeedAt,
   isClipActiveAt,
   maxTransitionDuration,
@@ -285,5 +286,60 @@ describe('transitions', () => {
     expect(transitionFades(clips, diss).fadeIn).toBe(2);
     expect(transitionFades(clips, A).fadeOut).toBe(2);
     expect(transitionFades(clips, A).fadeIn).toBe(0);
+  });
+});
+
+describe('clipTransformAt', () => {
+  const base = { x: 0, y: 0, w: 1, h: 1 };
+
+  it('returns the static rect when there are no keyframes', () => {
+    const clip = makeClip({ rect: { x: 0.1, y: 0.2, w: 0.5, h: 0.5 } });
+    expect(clipTransformAt(clip, 3).rect).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.5 });
+  });
+
+  it('stays static with a single keyframe', () => {
+    const clip = makeClip({ rect: base, keyframes: [{ at: 0, rect: { x: 0.4, y: 0.4, w: 0.2, h: 0.2 } }] });
+    expect(clipTransformAt(clip, 5).rect).toEqual(base);
+  });
+
+  it('interpolates linearly between two keyframes (in clip-local seconds)', () => {
+    const clip = makeClip({
+      start: 2,
+      keyframes: [
+        { at: 0, rect: { x: 0, y: 0, w: 1, h: 1 } },
+        { at: 4, rect: { x: 0.5, y: 0.25, w: 0.5, h: 0.5 } },
+      ],
+    });
+    // at the clip's start (t=2) -> first keyframe
+    expect(clipTransformAt(clip, 2).rect).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+    // midpoint (t=4 -> local 2 of 4)
+    expect(clipTransformAt(clip, 4).rect).toEqual({ x: 0.25, y: 0.125, w: 0.75, h: 0.75 });
+    // last keyframe (t=6 -> local 4)
+    expect(clipTransformAt(clip, 6).rect).toEqual({ x: 0.5, y: 0.25, w: 0.5, h: 0.5 });
+  });
+
+  it('clamps before the first and after the last keyframe', () => {
+    const clip = makeClip({
+      start: 0,
+      keyframes: [
+        { at: 1, rect: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } },
+        { at: 3, rect: { x: 0.2, y: 0.2, w: 0.6, h: 0.6 } },
+      ],
+    });
+    expect(clipTransformAt(clip, 0).rect).toEqual({ x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+    expect(clipTransformAt(clip, 10).rect).toEqual({ x: 0.2, y: 0.2, w: 0.6, h: 0.6 });
+  });
+
+  it('walks multi-keyframe segments', () => {
+    const clip = makeClip({
+      start: 0,
+      keyframes: [
+        { at: 0, rect: { x: 0, y: 0, w: 1, h: 1 } },
+        { at: 2, rect: { x: 0.2, y: 0, w: 1, h: 1 } },
+        { at: 6, rect: { x: 0.6, y: 0, w: 1, h: 1 } },
+      ],
+    });
+    // within the second segment (local 4 of [2,6]): halfway from 0.2 -> 0.6
+    expect(clipTransformAt(clip, 4).rect.x).toBeCloseTo(0.4, 5);
   });
 });

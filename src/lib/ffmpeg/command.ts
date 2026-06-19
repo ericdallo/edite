@@ -1,6 +1,7 @@
-import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, TextStyle, Transition } from '@/types/editor';
+import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, TextStyle, Transition } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { ffmpegChromaFilter } from '@/lib/chroma';
+import { keyframeExport } from './keyframes';
 
 export interface ExportClip {
   /** 'audio' = sound only, no video overlay (standalone audio or detached track). */
@@ -37,6 +38,8 @@ export interface ExportClip {
   chromaKey?: ChromaKey;
   /** transition INTO this clip (cross-dissolve / color dip) over its leading overlap. */
   transition?: Transition;
+  /** position + scale keyframes; when 2+ the clip is animated via `t` expressions. */
+  keyframes?: Keyframe[];
 }
 
 export interface MultiExportParams {
@@ -168,7 +171,15 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const rh = makeEven(c.rect.h * H);
     const x = Math.round(c.rect.x * W);
     const y = Math.round(c.rect.y * H);
-    const cover = `scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1`;
+    // Animated transform: cover-crop once at the largest size (the box keeps its
+    // aspect across keyframes), then a uniform per-frame downscale, so the
+    // export reproduces the preview's object-cover exactly. Position is animated
+    // on the overlay below. Both encode the same piecewise-linear function the
+    // preview reads from clipTransformAt.
+    const kf = c.keyframes && c.keyframes.length >= 2 ? keyframeExport(c.keyframes, W, H, c.start) : null;
+    const cover = kf
+      ? `scale=${kf.refW}:${kf.refH}:force_original_aspect_ratio=increase,crop=${kf.refW}:${kf.refH},setsar=1,scale=w='${kf.w}':h='${kf.h}':eval=frame`
+      : `scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1`;
     const colorF = ffmpegColorFilter(c.color);
     const color = colorF ? `,${colorF}` : '';
     const chromaF = ffmpegChromaFilter(c.chromaKey);
@@ -216,8 +227,9 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // eof_action=repeat (not pass): once a clip's frames run out it holds its
     // last frame instead of exposing black for a frame at the junction; `enable`
     // still gates it off outside its window, so intentional gaps stay black.
+    const pos = kf ? `x='${kf.x}':y='${kf.y}':eval=frame` : `${x}:${y}`;
     graph.push(
-      `[${acc}][c${k}]overlay=${x}:${y}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=repeat[ov${k}]`,
+      `[${acc}][c${k}]overlay=${pos}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=repeat[ov${k}]`,
     );
     acc = `ov${k}`;
   });

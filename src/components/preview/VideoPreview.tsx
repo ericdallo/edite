@@ -5,6 +5,7 @@ import {
   audioFadeGain,
   clipSourceAt,
   clipSpeedAt,
+  clipTransformAt,
   isClipActiveAt,
   projectDuration,
   transitionFades,
@@ -182,14 +183,16 @@ export function VideoPreview() {
           // A transition into this clip ramps its opacity (dissolve) and, for fade
           // types, dips through a color rendered just beneath it.
           const tr = transitionRenderAt(clip, currentTime);
+          // Animated placement from the clip's keyframes (the static rect when none).
+          const rect = clipTransformAt(clip, currentTime).rect;
           // Keep clips mounted and painted (opacity 0 when inactive) instead of
           // display:none so their parked frame stays decoded and shows instantly
           // at a cut — no black flash while the browser seeks/decodes.
           const style = {
-            left: `${clip.rect.x * 100}%`,
-            top: `${clip.rect.y * 100}%`,
-            width: `${clip.rect.w * 100}%`,
-            height: `${clip.rect.h * 100}%`,
+            left: `${rect.x * 100}%`,
+            top: `${rect.y * 100}%`,
+            width: `${rect.w * 100}%`,
+            height: `${rect.h * 100}%`,
             opacity: active ? clip.opacity * tr.clipMul : 0,
             zIndex: active ? 1 : 0,
           } as const;
@@ -197,7 +200,7 @@ export function VideoPreview() {
           if (clip.text) {
             return (
               <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
-                <TextLayer text={clip.text} boxW={clip.rect.w * box.w} boxH={clip.rect.h * box.h} canvasH={box.h} />
+                <TextLayer text={clip.text} boxW={rect.w * box.w} boxH={rect.h * box.h} canvasH={box.h} />
               </div>
             );
           }
@@ -220,7 +223,7 @@ export function VideoPreview() {
               />
             );
           }
-          const orient = orientMediaStyle(clip, clip.rect.w * box.w, clip.rect.h * box.h);
+          const orient = orientMediaStyle(clip, rect.w * box.w, rect.h * box.h);
           const filter = cssColorFilter(clip.color);
           // Compose orientation transform with the color filter on one element.
           const mediaStyle: CSSProperties | undefined =

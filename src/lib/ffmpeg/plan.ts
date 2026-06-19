@@ -1,5 +1,5 @@
 import type { Clip, MediaItem, Track } from '@/types/editor';
-import { speedSlices, transitionFades } from '@/lib/timeline';
+import { clipTransformAt, speedSlices, transitionFades } from '@/lib/timeline';
 import type { ExportClip } from './command';
 
 export interface ExportPlan {
@@ -66,6 +66,7 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
     // A speed-curved video clip becomes a run of tiled constant-speed segments;
     // each reuses the normal setpts/atempo path so preview and export match.
     const slices = !frozen && !audioOnly && m.kind === 'video' ? speedSlices(clip) : null;
+    const animated = (clip.keyframes?.length ?? 0) >= 2;
     if (slices) {
       const last = slices.length - 1;
       return slices.map((sl, i) => ({
@@ -75,7 +76,9 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           in: sl.inStart,
           out: sl.inEnd,
           speed: sl.speed,
-          rect: clip.rect,
+          // A speed curve already tiles the clip into segments, so keyframes are
+          // sampled per slice (stepped) here rather than expressed continuously.
+          rect: animated ? clipTransformAt(clip, clip.start + (sl.tStart + sl.tEnd) / 2).rect : clip.rect,
           opacity: clip.opacity,
           hasAudio: m.hasAudio,
           muted: clip.muted || track.muted,
@@ -119,6 +122,7 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           color: clip.color,
           chromaKey: clip.chromaKey,
           transition: clip.transition,
+          keyframes: clip.keyframes,
         },
         mediaId: clip.mediaId,
       },

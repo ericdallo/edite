@@ -17,6 +17,18 @@ export interface Rect {
 
 export const FULL_RECT: Rect = { x: 0, y: 0, w: 1, h: 1 };
 
+/**
+ * A transform keyframe: the clip's placement `rect` at a moment `at` (timeline
+ * seconds from the clip's start). A clip's keyframes are interpolated
+ * piecewise-linearly to animate position + scale (Ken Burns, moving PiP). The
+ * box keeps its aspect across keyframes, so the animation is a uniform
+ * scale + translate, which keeps the preview and export exactly in sync.
+ */
+export interface Keyframe {
+  at: number;
+  rect: Rect;
+}
+
 export type MediaKind = 'video' | 'image' | 'audio';
 
 export interface MediaItem {
@@ -120,6 +132,12 @@ export interface Clip {
    * the cross-dissolve / fade happens.
    */
   transition?: Transition;
+  /**
+   * Transform animation: position + scale keyframes over the clip's timeline.
+   * When 2+ are present the clip's `rect` is interpolated between them instead
+   * of held static; fewer than 2 leaves `rect` static (no change).
+   */
+  keyframes?: Keyframe[];
 }
 
 export function isTextClip(clip: Clip): clip is Clip & { text: TextStyle } {

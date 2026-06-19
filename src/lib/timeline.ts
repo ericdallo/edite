@@ -1,4 +1,4 @@
-import type { Clip, SpeedCurve } from '@/types/editor';
+import type { Clip, Rect, SpeedCurve } from '@/types/editor';
 import { MIN_CLIP, SPEED_CURVE_SLICES } from '@/lib/constants';
 
 /** Instantaneous speed (×) at source progress `u` in [0,1], piecewise-linear between points. */
@@ -16,6 +16,44 @@ export function evalSpeedAt(curve: SpeedCurve, u: number): number {
     }
   }
   return pts[pts.length - 1].speed;
+}
+
+function lerpRect(a: Rect, b: Rect, f: number): Rect {
+  return {
+    x: a.x + (b.x - a.x) * f,
+    y: a.y + (b.y - a.y) * f,
+    w: a.w + (b.w - a.w) * f,
+    h: a.h + (b.h - a.h) * f,
+  };
+}
+
+export interface ClipTransform {
+  rect: Rect;
+}
+
+/**
+ * The clip's animated placement at timeline time `t`. With fewer than two
+ * keyframes the static `clip.rect` is returned (no animation); otherwise the
+ * keyframes (in timeline seconds from the clip's start, assumed sorted by `at`
+ * like a speed curve's points) are interpolated piecewise-linearly, clamping to
+ * the first/last keyframe outside their range. The single source of truth for
+ * both the live preview and the export, so what you see is what renders.
+ */
+export function clipTransformAt(clip: Clip, t: number): ClipTransform {
+  const kfs = clip.keyframes;
+  if (!kfs || kfs.length < 2) return { rect: clip.rect };
+  const local = t - clip.start;
+  if (local <= kfs[0].at) return { rect: { ...kfs[0].rect } };
+  for (let i = 1; i < kfs.length; i++) {
+    const a = kfs[i - 1];
+    const b = kfs[i];
+    if (local <= b.at) {
+      const span = b.at - a.at;
+      if (span <= 1e-9) return { rect: { ...b.rect } };
+      return { rect: lerpRect(a.rect, b.rect, (local - a.at) / span) };
+    }
+  }
+  return { rect: { ...kfs[kfs.length - 1].rect } };
 }
 
 export interface SpeedSlice {

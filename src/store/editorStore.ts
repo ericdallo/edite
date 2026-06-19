@@ -8,6 +8,7 @@ import {
   DEFAULT_TEXT_STYLE,
   type ExportSettings,
   FULL_RECT,
+  type Keyframe,
   makeSpeedCurve,
   type MediaItem,
   type Rect,
@@ -21,6 +22,7 @@ import {
   clipEnd,
   clipSourceAt,
   clipTimelineDuration,
+  clipTransformAt,
   maxTransitionDuration,
   prevClipOnTrack,
   projectDuration,
@@ -191,6 +193,12 @@ export interface EditorState {
   pasteClips: (timelineTime?: number) => void;
   deleteClips: (ids: string[]) => void;
   setClipRect: (id: string, rect: Rect) => void;
+  /** Add (or replace) a transform keyframe at the playhead, seeded from the current rect. */
+  addKeyframeAtPlayhead: (id: string) => void;
+  /** Add or replace the keyframe at clip-local time `at` with `rect` (used by the canvas box). */
+  upsertKeyframe: (id: string, at: number, rect: Rect) => void;
+  removeKeyframe: (id: string, index: number) => void;
+  clearKeyframes: (id: string) => void;
 
   setActiveClip: (id: string | null) => void;
   toggleSelect: (id: string) => void;
@@ -254,6 +262,17 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
   const transition = c.transition
     ? { type: c.transition.type, duration: clamp(c.transition.duration, 0, dur) }
     : undefined;
+  // Keyframes: keep `at` non-negative and sorted, and guard against a zero-size
+  // box (which would break the export's scale expression).
+  const keyframes =
+    c.keyframes && c.keyframes.length
+      ? c.keyframes
+          .map((k) => ({
+            at: Math.max(0, k.at),
+            rect: { x: k.rect.x, y: k.rect.y, w: Math.max(0.01, k.rect.w), h: Math.max(0.01, k.rect.h) },
+          }))
+          .sort((a, b) => a.at - b.at)
+      : undefined;
   return {
     ...c,
     start: Math.max(0, c.start),
@@ -267,7 +286,19 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
     color,
     chromaKey,
     transition,
+    keyframes,
   };
+}
+
+/** Keyframes nearer than this (clip-local seconds) are treated as the same one. */
+const KF_EPS = 0.02;
+
+/** Insert or replace the keyframe at `at`, returning a new list sorted by time. */
+function upsertKeyframeList(list: Keyframe[] | undefined, at: number, rect: Rect): Keyframe[] {
+  const a = Math.max(0, at);
+  const next = (list ?? []).filter((k) => Math.abs(k.at - a) > KF_EPS);
+  next.push({ at: a, rect: { ...rect } });
+  return next.sort((x, y) => x.at - y.at);
 }
 
 /** Single-clip selection patch keeping activeClipId and selectedIds in sync. */
@@ -739,6 +770,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   setClipRect: (id, rect) => get().updateClip(id, { rect }),
+
+  addKeyframeAtPlayhead: (id) => {
+    const s = get();
+    const clip = s.clips.find((c) => c.id === id);
+    if (!clip || clip.text) return;
+    const at = clamp(s.playback.currentTime - clip.start, 0, clipTimelineDuration(clip));
+    const rect = clipTransformAt(clip, s.playback.currentTime).rect;
+    get().updateClip(id, { keyframes: upsertKeyframeList(clip.keyframes, at, rect) });
+  },
+
+  upsertKeyframe: (id, at, rect) => {
+    const clip = get().clips.find((c) => c.id === id);
+    if (!clip || clip.text) return;
+    const a = clamp(at, 0, clipTimelineDuration(clip));
+    get().updateClip(id, { keyframes: upsertKeyframeList(clip.keyframes, a, rect) });
+  },
+
+  removeKeyframe: (id, index) => {
+    const clip = get().clips.find((c) => c.id === id);
+    if (!clip || !clip.keyframes) return;
+    const next = clip.keyframes.filter((_, i) => i !== index);
+    get().updateClip(id, { keyframes: next.length ? next : undefined });
+  },
+
+  clearKeyframes: (id) => get().updateClip(id, { keyframes: undefined }),
 
   setActiveClip: (id) => set(selectOne(id)),
 
