@@ -5,6 +5,8 @@
  * bytes never leave the browser.
  */
 
+import type { WaveformRequest, WaveformResponse } from './waveform.worker';
+
 /** Resolution of the cached peak array per media item. */
 const WAVE_BUCKETS = 1200;
 
@@ -19,6 +21,62 @@ function audioContextCtor(): AudioCtor | undefined {
   );
 }
 
+/** Reduce samples to normalized peaks on the main thread (worker fallback). */
+function reducePeaksInline(samples: Float32Array, buckets: number): number[] {
+  const block = Math.max(1, Math.floor(samples.length / buckets));
+  const peaks: number[] = [];
+  let max = 0;
+  for (let i = 0; i < buckets; i++) {
+    let peak = 0;
+    const base = i * block;
+    for (let j = 0; j < block; j++) {
+      const v = Math.abs(samples[base + j] || 0);
+      if (v > peak) peak = v;
+    }
+    peaks.push(peak);
+    if (peak > max) max = peak;
+  }
+  // Normalize so the loudest part fills the height regardless of recording level.
+  const norm = max > 1e-4 ? 1 / max : 1;
+  return peaks.map((p) => p * norm);
+}
+
+let worker: Worker | null = null;
+let nextRequestId = 0;
+const pending = new Map<number, { resolve: (peaks: number[]) => void; reject: (e: unknown) => void }>();
+
+function getWorker(): Worker | null {
+  if (typeof Worker === 'undefined') return null;
+  if (!worker) {
+    worker = new Worker(new URL('./waveform.worker.ts', import.meta.url), { type: 'module' });
+    worker.addEventListener('message', (e: MessageEvent<WaveformResponse>) => {
+      const entry = pending.get(e.data.id);
+      if (!entry) return;
+      pending.delete(e.data.id);
+      entry.resolve(e.data.peaks);
+    });
+    worker.addEventListener('error', (e) => {
+      const err = (e as ErrorEvent).error ?? new Error('waveform worker failed');
+      for (const { reject } of pending.values()) reject(err);
+      pending.clear();
+      worker = null; // recreate on the next request
+    });
+  }
+  return worker;
+}
+
+/** Reduce samples to peaks off the main thread, falling back inline if needed. */
+function reducePeaks(samples: Float32Array, buckets: number): Promise<number[]> {
+  const w = getWorker();
+  if (!w) return Promise.resolve(reducePeaksInline(samples, buckets));
+  return new Promise<number[]>((resolve, reject) => {
+    const id = nextRequestId++;
+    pending.set(id, { resolve, reject });
+    const req: WaveformRequest = { id, samples, buckets };
+    w.postMessage(req, [samples.buffer as ArrayBuffer]);
+  });
+}
+
 async function decodePeaks(blob: Blob): Promise<number[]> {
   const Ctor = audioContextCtor();
   if (!Ctor) throw new Error('Web Audio is not available.');
@@ -26,23 +84,9 @@ async function decodePeaks(blob: Blob): Promise<number[]> {
   try {
     const buf = await blob.arrayBuffer();
     const audio = await ctx.decodeAudioData(buf);
-    const channel = audio.getChannelData(0);
-    const block = Math.max(1, Math.floor(channel.length / WAVE_BUCKETS));
-    const peaks: number[] = [];
-    let max = 0;
-    for (let i = 0; i < WAVE_BUCKETS; i++) {
-      let peak = 0;
-      const base = i * block;
-      for (let j = 0; j < block; j++) {
-        const v = Math.abs(channel[base + j] || 0);
-        if (v > peak) peak = v;
-      }
-      peaks.push(peak);
-      if (peak > max) max = peak;
-    }
-    // Normalize so the loudest part fills the height regardless of recording level.
-    const norm = max > 1e-4 ? 1 / max : 1;
-    return peaks.map((p) => p * norm);
+    // Copy channel 0 into its own buffer so it can be transferred to the worker.
+    const samples = audio.getChannelData(0).slice();
+    return await reducePeaks(samples, WAVE_BUCKETS);
   } finally {
     void ctx.close();
   }

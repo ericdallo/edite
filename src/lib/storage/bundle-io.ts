@@ -39,11 +39,21 @@ export async function exportProjectBundle(
   const files: AsyncZippable = {
     [MANIFEST_PATH]: new TextEncoder().encode(JSON.stringify(buildManifest(snap))),
   };
-  for (const meta of snap.media) {
-    const blob = await getMedia(meta.id);
-    if (!blob) continue;
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    files[mediaEntryPath(meta.id)] = [bytes, { level: 0 }];
+  // Read media blobs in parallel; compression itself already runs on fflate's worker.
+  const mediaEntries = await Promise.all(
+    snap.media.map(async (meta) => {
+      const blob = await getMedia(meta.id);
+      if (!blob) return null;
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const entry: [string, [Uint8Array, { level: 0 }]] = [
+        mediaEntryPath(meta.id),
+        [bytes, { level: 0 }],
+      ];
+      return entry;
+    }),
+  );
+  for (const entry of mediaEntries) {
+    if (entry) files[entry[0]] = entry[1];
   }
 
   const zipped = await zipAsync(files);
@@ -82,14 +92,19 @@ export async function importProjectBundle(file: Blob): Promise<ImportResult> {
   if (!parsed.ok) return { ok: false, error: parsed.error };
 
   const { snapshot, mediaIdMap } = remapForImport(parsed.manifest);
+  const toSave: { id: string; bytes: Uint8Array; type: string }[] = [];
   for (const meta of parsed.manifest.project.media) {
     const bytes = entries[mediaEntryPath(meta.id)];
     if (!bytes) return { ok: false, error: 'This project file is missing some media.' };
-    await saveMedia(
-      mediaIdMap[meta.id],
-      new Blob([toBlobBytes(bytes)], { type: meta.mimeType || 'application/octet-stream' }),
-    );
+    toSave.push({
+      id: mediaIdMap[meta.id],
+      bytes,
+      type: meta.mimeType || 'application/octet-stream',
+    });
   }
+  await Promise.all(
+    toSave.map((m) => saveMedia(m.id, new Blob([toBlobBytes(m.bytes)], { type: m.type }))),
+  );
   await saveSnapshot(snapshot);
   return { ok: true, id: snapshot.id, name: snapshot.name };
 }
