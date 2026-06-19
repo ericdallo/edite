@@ -2,19 +2,11 @@ import { ChevronLeft, ChevronRight, Diamond, Trash2 } from 'lucide-react';
 import { DEFAULT_TEXT_ANIM, TEXT_ANIMS, type TextAnim } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { keyframeDelta } from '@/lib/timeline';
-import { cn } from '@/lib/utils';
+import { chipClass, cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
 
 /** Keyframes closer than this (clip-local seconds) read as "at the playhead". */
 const EPS = 0.02;
-
-const chip = (on: boolean) =>
-  cn(
-    'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
-    on
-      ? 'border-brand bg-brand/10 text-ink'
-      : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
-  );
 
 interface Chip {
   label: string;
@@ -54,14 +46,17 @@ export function AnimationTool() {
       <div>
         <div className="mb-2 text-xs font-medium text-ink-muted">{label}</div>
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => setAnim({ [side]: null } as Partial<TextAnim>)} className={chip(anim[side] == null)}>
+          <button
+            onClick={() => setAnim({ [side]: null } as Partial<TextAnim>)}
+            className={chipClass(anim[side] == null)}
+          >
             None
           </button>
           {TEXT_ANIMS.map((a) => (
             <button
               key={a.id}
               onClick={() => setAnim({ [side]: a.id } as Partial<TextAnim>)}
-              className={chip(anim[side] === a.id)}
+              className={chipClass(anim[side] === a.id)}
             >
               {a.label}
             </button>

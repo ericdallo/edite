@@ -13,7 +13,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { colorEquals, isNeutralColor } from '@/lib/color';
 import { LUT_LOOKS } from '@/lib/lut';
 import { canAddTransition, maxTransitionDuration } from '@/lib/timeline';
-import { cn } from '@/lib/utils';
+import { chipClass, cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
 
 /** Percent of a ×-multiplier knob (1 = 100%). */
@@ -423,13 +423,6 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
   }
 
   // Default: 'filters' — designed LUT looks plus quick knob presets.
-  const chip = (on: boolean) =>
-    cn(
-      'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
-      on
-        ? 'border-brand bg-brand/10 text-ink'
-        : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
-    );
   return (
     <div className="space-y-5">
       <div>
@@ -444,7 +437,7 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
           </button>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => setLut(undefined)} className={chip(!clip.color?.lut)}>
+          <button onClick={() => setLut(undefined)} className={chipClass(!clip.color?.lut)}>
             None
           </button>
           {LUT_LOOKS.map((l) => (
@@ -452,7 +445,7 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
               key={l.id}
               onClick={() => setLut(l.id)}
               title={l.category}
-              className={chip(clip.color?.lut === l.id)}
+              className={chipClass(clip.color?.lut === l.id)}
             >
               {l.label}
             </button>
@@ -462,7 +455,7 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
               <button
                 onClick={() => setLut(l.id)}
                 title={l.name}
-                className={cn(chip(clip.color?.lut === l.id), 'w-full truncate pr-5')}
+                className={cn(chipClass(clip.color?.lut === l.id), 'w-full truncate pr-5')}
               >
                 {l.name}
               </button>
@@ -492,7 +485,7 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
                     color: p.id === 'none' ? undefined : { ...p.color, lut: clip.color?.lut },
                   })
                 }
-                className={chip(on)}
+                className={chipClass(on)}
               >
                 {p.label}
               </button>

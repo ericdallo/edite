@@ -5,6 +5,16 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
+/** Classes for a selectable "chip" button, shared across the tool panels. */
+export function chipClass(active: boolean): string {
+  return cn(
+    'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
+    active
+      ? 'border-brand bg-brand/10 text-ink'
+      : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+  );
+}
+
 /** mm:ss.cc */
 export function formatTime(seconds: number): string {
   const s = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
