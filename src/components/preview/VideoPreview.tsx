@@ -9,6 +9,7 @@ import {
   clipTransformAt,
   isClipActiveAt,
   projectDuration,
+  textAnimAt,
   transitionFades,
   transitionRenderAt,
 } from '@/lib/timeline';
@@ -68,7 +69,11 @@ export function VideoPreview() {
   // The on-canvas transform box belongs to Layout ▸ Transform/Animate (clip
   // placement & keyframes) and Text ▸ Text (positioning an overlay).
   const sub = resolveSubtool(selectedTool, selectedSubtool);
-  const layoutBox = selectedTool === 'layout' && (sub === 'transform' || sub === 'animate');
+  // The transform box drives Layout ▸ Transform and the Animate tool's keyframes
+  // (media clips only; text on Animate uses the in/out controls, not the box).
+  const layoutBox =
+    (selectedTool === 'layout' && sub === 'transform') ||
+    (selectedTool === 'animate' && activeClip != null && !activeClip.text);
   const textBox = selectedTool === 'text' && sub === 'text';
   const showOverlay = layoutBox || (textBox && activeClip?.text != null);
   const interactive = layoutBox || textBox;
@@ -246,8 +251,21 @@ export function VideoPreview() {
           };
 
           if (clip.text) {
+            // Enter/exit animation: scale opacity and translate the box (slides),
+            // matching the export's text overlay fade + offset.
+            const ta = clip.textAnim ? textAnimAt(clip, currentTime) : null;
+            const tstyle: CSSProperties = ta
+              ? {
+                  ...style,
+                  opacity: (typeof style.opacity === 'number' ? style.opacity : 1) * ta.opacity,
+                  transform:
+                    [slide, ta.dx || ta.dy ? `translate(${(ta.dx * 100).toFixed(2)}%, ${(ta.dy * 100).toFixed(2)}%)` : '']
+                      .filter(Boolean)
+                      .join(' ') || undefined,
+                }
+              : style;
             return (
-              <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
+              <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={tstyle}>
                 <TextLayer text={clip.text} boxW={rect.w * box.w} boxH={rect.h * box.h} canvasH={box.h} />
               </div>
             );

@@ -1,5 +1,5 @@
-import { isAudioFormat } from '@/types/editor';
-import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, TextStyle, Transition, TransitionId } from '@/types/editor';
+import { isAudioFormat, TEXT_ANIM_OFFSET, textAnimUnit } from '@/types/editor';
+import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, TextAnim, TextStyle, Transition, TransitionId } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { lutFileName } from '@/lib/lut';
 import { ffmpegChromaFilter } from '@/lib/chroma';
@@ -35,6 +35,8 @@ export interface ExportClip {
   fadeOut: number;
   /** text overlay spec, present when kind === 'text' (rasterized to a PNG input). */
   text?: TextStyle;
+  /** enter/exit animation for a text overlay (alpha + position over the in/out ramps). */
+  textAnim?: TextAnim;
   /** source-time (s) of a held still; when set the clip is rasterized to a frozen PNG input. */
   freeze?: number;
   /** per-clip color / filter adjustment, rendered as an eq + hue chain. */
@@ -299,7 +301,34 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // renders black (e.g. the tail clip of a split).
     const delay = c.start > 1e-6 ? `+${fmt(c.start)}/TB` : '';
     const orient = orientFilters(c);
-    const tail = `${chroma}${op}${trans}`;
+    // Text overlay enter/exit animation: an alpha fade in/out plus a box-offset
+    // for slides, over the in/out ramps. Mirrors timeline.textAnimAt.
+    let taFade = '';
+    let tadx = '';
+    let tady = '';
+    if (c.kind === 'text' && c.textAnim && (c.textAnim.in || c.textAnim.out)) {
+      const d = Math.min(c.textAnim.duration, timelineLen(c) / 2);
+      if (d > 1e-3) {
+        const tend = c.start + timelineLen(c);
+        const fades: string[] = [];
+        if (c.textAnim.in) fades.push(`fade=t=in:st=${fmt(c.start)}:d=${fmt(d)}:alpha=1`);
+        if (c.textAnim.out) fades.push(`fade=t=out:st=${fmt(tend - d)}:d=${fmt(d)}:alpha=1`);
+        taFade = `,format=rgba,${fades.join(',')}`;
+        if (c.textAnim.in) {
+          const u = textAnimUnit(c.textAnim.in);
+          const decay = `(1-clip((t-${fmt(c.start)})/${fmt(d)},0,1))`;
+          if (u.ux) tadx += `+(${fmt(u.ux * TEXT_ANIM_OFFSET * rw)})*${decay}`;
+          if (u.uy) tady += `+(${fmt(u.uy * TEXT_ANIM_OFFSET * rh)})*${decay}`;
+        }
+        if (c.textAnim.out) {
+          const u = textAnimUnit(c.textAnim.out);
+          const grow = `clip((t-${fmt(tend - d)})/${fmt(d)},0,1)`;
+          if (u.ux) tadx += `+(${fmt(-u.ux * TEXT_ANIM_OFFSET * rw)})*${grow}`;
+          if (u.uy) tady += `+(${fmt(-u.uy * TEXT_ANIM_OFFSET * rh)})*${grow}`;
+        }
+      }
+    }
+    const tail = `${chroma}${op}${trans}${taFade}`;
     // Emit the clip's video chain from its pre-color `head`. Without an intensity
     // dial it's one linear statement (unchanged); with one, the grade runs on a
     // split branch and is blended over the original at the chosen strength.
@@ -352,7 +381,9 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const baseX = kf ? kf.x : `${x}`;
     const baseY = kf ? kf.y : `${y}`;
     const pos =
-      kf || sdx || sdy ? `x='${baseX}${sdx}':y='${baseY}${sdy}':eval=frame` : `${x}:${y}`;
+      kf || sdx || sdy || tadx || tady
+        ? `x='${baseX}${sdx}${tadx}':y='${baseY}${sdy}${tady}':eval=frame`
+        : `${x}:${y}`;
     graph.push(
       `[${acc}][c${k}]overlay=${pos}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=repeat[ov${k}]`,
     );

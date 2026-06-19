@@ -5,7 +5,7 @@ import {
   type BuiltCommand,
   type MultiExportParams,
 } from '@/lib/ffmpeg/command';
-import { DEFAULT_TEXT_STYLE } from '@/types/editor';
+import { DEFAULT_TEXT_STYLE, type TextAnim } from '@/types/editor';
 import { makeExportClip } from '@/test/factories';
 import type { ExportClip } from '@/lib/ffmpeg/command';
 
@@ -179,6 +179,27 @@ describe('buildExportCommand reverse', () => {
   it('leaves a normal clip with no reverse filters', () => {
     const g = graphOf(build([makeExportClip({ kind: 'video', hasAudio: true })]));
     expect(g).not.toContain('reverse');
+  });
+});
+
+describe('buildExportCommand text animation', () => {
+  const textClip = (textAnim?: TextAnim) =>
+    makeExportClip({ kind: 'text', start: 0, in: 0, out: 4, hasAudio: false, text: DEFAULT_TEXT_STYLE, textAnim });
+
+  it('fades text in and out over the ramps', () => {
+    const g = graphOf(build([textClip({ in: 'fade', out: 'fade', duration: 0.4 })]));
+    expect(g).toContain('fade=t=in:st=0.000:d=0.400:alpha=1');
+    expect(g).toContain('fade=t=out:st=3.600:d=0.400:alpha=1');
+  });
+
+  it('offsets the overlay position for a slide animation', () => {
+    const g = graphOf(build([textClip({ in: 'slideUp', out: null, duration: 0.5 })]));
+    expect(g).toContain("y='");
+    expect(g).toContain('(1-clip((t-0.000)/0.500,0,1))');
+  });
+
+  it('adds no fade for a text clip without animation', () => {
+    expect(graphOf(build([textClip(undefined)]))).not.toContain('fade=t=in');
   });
 });
 

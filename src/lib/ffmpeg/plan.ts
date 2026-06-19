@@ -51,6 +51,7 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
             fadeIn: 0,
             fadeOut: 0,
             text: clip.text,
+            textAnim: clip.textAnim,
           },
           mediaId: '',
         },

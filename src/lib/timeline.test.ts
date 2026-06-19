@@ -16,6 +16,7 @@ import {
   prevClipOnTrack,
   projectDuration,
   snapStart,
+  textAnimAt,
   transitionFades,
   transitionFamily,
   transitionRenderAt,
@@ -102,6 +103,26 @@ describe('clipSourceAt', () => {
     expect(clipSourceAt(clip, 0)).toBe(5); // starts at out
     expect(clipSourceAt(clip, 1)).toBe(4); // out - elapsed
     expect(clipSourceAt(clip, 4)).toBe(1); // reaches in at the end
+  });
+});
+
+describe('textAnimAt', () => {
+  it('ramps opacity in then out, full in the middle', () => {
+    const clip = makeClip({ start: 0, in: 0, out: 4, speed: 1, textAnim: { in: 'fade', out: 'fade', duration: 0.4 } });
+    expect(textAnimAt(clip, 0).opacity).toBeCloseTo(0);
+    expect(textAnimAt(clip, 0.2).opacity).toBeCloseTo(0.5);
+    expect(textAnimAt(clip, 2).opacity).toBeCloseTo(1);
+    expect(textAnimAt(clip, 4).opacity).toBeCloseTo(0);
+  });
+
+  it('offsets a slide on entry and recenters after the ramp', () => {
+    const clip = makeClip({ start: 0, in: 0, out: 4, speed: 1, textAnim: { in: 'slideUp', out: null, duration: 0.4 } });
+    expect(textAnimAt(clip, 0).dy).toBeCloseTo(0.6);
+    expect(textAnimAt(clip, 0.4).dy).toBeCloseTo(0);
+  });
+
+  it('is the identity without an animation', () => {
+    expect(textAnimAt(makeClip({ start: 0, in: 0, out: 4 }), 1)).toEqual({ opacity: 1, dx: 0, dy: 0 });
   });
 });
 

@@ -66,7 +66,7 @@ import {
   ZOOM_MIN,
 } from '@/lib/constants';
 
-export type ToolId = 'media' | 'text' | 'layout' | 'speed' | 'effects' | 'audio';
+export type ToolId = 'media' | 'text' | 'layout' | 'animate' | 'speed' | 'effects' | 'audio';
 
 /** Which top-level screen is shown (the app has no router). */
 export type AppView = 'editor' | 'projects';

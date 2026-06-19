@@ -1,4 +1,5 @@
 import type { Clip, Rect, SpeedCurve, TransitionId } from '@/types/editor';
+import { TEXT_ANIM_OFFSET, textAnimUnit } from '@/types/editor';
 import { MIN_CLIP, SPEED_CURVE_SLICES } from '@/lib/constants';
 
 /** Instantaneous speed (×) at source progress `u` in [0,1], piecewise-linear between points. */
@@ -193,6 +194,42 @@ export function clipSourceAt(clip: Clip, t: number): number {
 
 export function isClipActiveAt(clip: Clip, t: number, epsilon = 0.001): boolean {
   return !clip.hidden && t >= clip.start - epsilon && t < clipEnd(clip) - epsilon;
+}
+
+/**
+ * Opacity and box-fraction offset for a text overlay's in/out animation at time
+ * `t`. The in ramp runs over the first `duration` seconds, the out ramp over the
+ * last; `dx`/`dy` are fractions of the text box, matched by the export overlay
+ * offset. Returns the identity when the clip has no animation.
+ */
+export function textAnimAt(clip: Clip, t: number): { opacity: number; dx: number; dy: number } {
+  const a = clip.textAnim;
+  if (!a || (!a.in && !a.out)) return { opacity: 1, dx: 0, dy: 0 };
+  const start = clip.start;
+  const end = clipEnd(clip);
+  const d = Math.min(a.duration, (end - start) / 2);
+  let opacity = 1;
+  let dx = 0;
+  let dy = 0;
+  if (d > 1e-4) {
+    if (a.in && t < start + d) {
+      const p = Math.max(0, Math.min(1, (t - start) / d));
+      opacity *= p;
+      const u = textAnimUnit(a.in);
+      const k = TEXT_ANIM_OFFSET * (1 - p);
+      dx += u.ux * k;
+      dy += u.uy * k;
+    }
+    if (a.out && t > end - d) {
+      const q = Math.max(0, Math.min(1, (end - t) / d));
+      opacity *= q;
+      const u = textAnimUnit(a.out);
+      const k = TEXT_ANIM_OFFSET * (1 - q);
+      dx += -u.ux * k;
+      dy += -u.uy * k;
+    }
+  }
+  return { opacity, dx, dy };
 }
 
 /**

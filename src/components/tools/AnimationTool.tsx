@@ -1,10 +1,20 @@
 import { ChevronLeft, ChevronRight, Diamond, Trash2 } from 'lucide-react';
+import { DEFAULT_TEXT_ANIM, TEXT_ANIMS, type TextAnim } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { keyframeDelta } from '@/lib/timeline';
 import { cn } from '@/lib/utils';
+import { Slider } from '@/components/ui/Slider';
 
 /** Keyframes closer than this (clip-local seconds) read as "at the playhead". */
 const EPS = 0.02;
+
+const chip = (on: boolean) =>
+  cn(
+    'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
+    on
+      ? 'border-brand bg-brand/10 text-ink'
+      : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+  );
 
 interface Chip {
   label: string;
@@ -17,7 +27,9 @@ function pct(n: number): number {
 
 export function AnimationTool() {
   const activeId = useEditorStore((s) => s.activeClipId);
+  const selectedIds = useEditorStore((s) => s.selectedIds);
   const clips = useEditorStore((s) => s.clips);
+  const updateClips = useEditorStore((s) => s.updateClips);
   const currentTime = useEditorStore((s) => s.playback.currentTime);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const setPlaying = useEditorStore((s) => s.setPlaying);
@@ -35,10 +47,58 @@ export function AnimationTool() {
     );
   }
   if (clip.text) {
+    const anim: TextAnim = clip.textAnim ?? { in: null, out: null, duration: DEFAULT_TEXT_ANIM.duration };
+    const setAnim = (patch: Partial<TextAnim>) =>
+      updateClips(selectedIds, { textAnim: { ...anim, ...patch } });
+    const row = (side: 'in' | 'out', label: string) => (
+      <div>
+        <div className="mb-2 text-xs font-medium text-ink-muted">{label}</div>
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => setAnim({ [side]: null } as Partial<TextAnim>)} className={chip(anim[side] == null)}>
+            None
+          </button>
+          {TEXT_ANIMS.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setAnim({ [side]: a.id } as Partial<TextAnim>)}
+              className={chip(anim[side] === a.id)}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
     return (
-      <p className="text-sm text-ink-faint">
-        Animation isn&apos;t available for text clips yet. Select a video or image clip to add motion.
-      </p>
+      <div className="space-y-5">
+        <p className="text-xs leading-relaxed text-ink-faint">
+          Animate this text as it enters and leaves. The preview matches the burned-in export.
+        </p>
+        {row('in', 'In')}
+        {row('out', 'Out')}
+        <div>
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span className="text-ink-muted">Duration</span>
+            <span className="font-mono text-ink">{anim.duration.toFixed(2)}s</span>
+          </div>
+          <Slider
+            min={0.1}
+            max={2}
+            step={0.05}
+            value={anim.duration}
+            onChange={(v) => setAnim({ duration: v })}
+            ariaLabel="Animation duration"
+          />
+        </div>
+        {(anim.in || anim.out) && (
+          <button
+            onClick={() => updateClips(selectedIds, { textAnim: undefined })}
+            className="text-xs text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+          >
+            Clear animation
+          </button>
+        )}
+      </div>
     );
   }
 

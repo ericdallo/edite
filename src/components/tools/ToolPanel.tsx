@@ -1,4 +1,4 @@
-import { Film, Gauge, LayoutTemplate, type LucideIcon, Sparkles, Type, Volume2, X } from 'lucide-react';
+import { Diamond, Film, Gauge, LayoutTemplate, type LucideIcon, Sparkles, Type, Volume2, X } from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
 import { activeSubtoolDef, resolveSubtool, subtoolsFor } from './subtools';
@@ -16,7 +16,8 @@ import { AudioTool } from './AudioTool';
 const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = {
   media: { title: 'Media', desc: 'Your clips and uploads', icon: Film },
   text: { title: 'Text', desc: 'Text overlays & captions', icon: Type },
-  layout: { title: 'Layout', desc: 'Frame, placement & motion', icon: LayoutTemplate },
+  layout: { title: 'Layout', desc: 'Frame & placement', icon: LayoutTemplate },
+  animate: { title: 'Animate', desc: 'Keyframe motion & text in/out', icon: Diamond },
   speed: { title: 'Speed', desc: 'Speed up or slow down', icon: Gauge },
   effects: { title: 'Effects', desc: 'Filters, transitions & keying', icon: Sparkles },
   audio: { title: 'Audio', desc: 'Volume, fades & mute', icon: Volume2 },
@@ -29,10 +30,11 @@ function ToolContent({ tool, sub }: { tool: ToolId; sub: string }) {
     case 'text':
       return sub === 'captions' ? <CaptionsTool /> : <TextTool />;
     case 'layout':
-      if (sub === 'animate') return <AnimationTool />;
       if (sub === 'canvas') return <AspectRatioTool sub="canvas" />;
       if (sub === 'background') return <AspectRatioTool sub="background" />;
       return <TransformTool />;
+    case 'animate':
+      return <AnimationTool />;
     case 'speed':
       return <SpeedTool sub={sub} />;
     case 'effects':

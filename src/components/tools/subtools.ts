@@ -1,7 +1,6 @@
 import {
   Blend,
   Captions,
-  Diamond,
   Eraser,
   Gauge,
   type LucideIcon,
@@ -38,7 +37,6 @@ export const SUBTOOLS: Partial<Record<ToolId, SubtoolDef[]>> = {
   ],
   layout: [
     { id: 'transform', label: 'Transform', icon: Move, desc: 'Position, size & opacity' },
-    { id: 'animate', label: 'Animate', icon: Diamond, desc: 'Keyframe motion over time' },
     { id: 'canvas', label: 'Canvas', icon: Ratio, desc: 'Output aspect ratio' },
     { id: 'background', label: 'Background', icon: PaintBucket, desc: 'Canvas fill behind clips' },
   ],

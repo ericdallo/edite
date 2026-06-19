@@ -116,6 +116,8 @@ export interface Clip {
    */
   audioOnly?: boolean;
   text?: TextStyle;
+  /** Enter/exit animation for a text overlay (burned into the export). */
+  textAnim?: TextAnim;
   /**
    * Source-time (seconds) held as a still. When set, the clip shows that single
    * frame for its whole timeline length; `in`/`out` act as the hold window and
@@ -168,6 +170,56 @@ export function isTextClip(clip: Clip): clip is Clip & { text: TextStyle } {
 /** A caption clip is a text clip created by the auto-captions tool. */
 export function isCaptionClip(clip: Clip): clip is Clip & { text: TextStyle; caption: CaptionMeta } {
   return clip.caption != null && clip.text != null;
+}
+
+/** Text overlay enter/exit animation kinds (`fade` only changes opacity). */
+export type TextAnimId = 'fade' | 'slideUp' | 'slideDown' | 'slideLeft' | 'slideRight';
+
+export interface TextAnim {
+  /** entrance animation, or null for none. */
+  in: TextAnimId | null;
+  /** exit animation, or null for none. */
+  out: TextAnimId | null;
+  /** length of each of the in/out ramps, in timeline seconds. */
+  duration: number;
+}
+
+export interface TextAnimOption {
+  id: TextAnimId;
+  label: string;
+}
+
+export const TEXT_ANIMS: TextAnimOption[] = [
+  { id: 'fade', label: 'Fade' },
+  { id: 'slideUp', label: 'Slide up' },
+  { id: 'slideDown', label: 'Slide down' },
+  { id: 'slideLeft', label: 'Slide left' },
+  { id: 'slideRight', label: 'Slide right' },
+];
+
+export const DEFAULT_TEXT_ANIM: TextAnim = { in: 'fade', out: 'fade', duration: 0.4 };
+
+/** How far (fraction of the text box) a slide animation travels. */
+export const TEXT_ANIM_OFFSET = 0.6;
+
+/**
+ * Enter-direction offset unit for a slide animation: the box starts shifted by
+ * this (× {@link TEXT_ANIM_OFFSET} of its size) and eases to centre, then exits
+ * the opposite way. `fade` and a missing id contribute no movement.
+ */
+export function textAnimUnit(id: TextAnimId | null | undefined): { ux: number; uy: number } {
+  switch (id) {
+    case 'slideUp':
+      return { ux: 0, uy: 1 };
+    case 'slideDown':
+      return { ux: 0, uy: -1 };
+    case 'slideLeft':
+      return { ux: 1, uy: 0 };
+    case 'slideRight':
+      return { ux: -1, uy: 0 };
+    default:
+      return { ux: 0, uy: 0 };
+  }
 }
 
 export type SpeedCurveId = 'rampUp' | 'rampDown' | 'bulletTime';
