@@ -1,7 +1,15 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { type Clip, resolveAspectRatio } from '@/types/editor';
-import { audioFadeGain, clipSourceAt, clipSpeedAt, isClipActiveAt, projectDuration } from '@/lib/timeline';
+import {
+  audioFadeGain,
+  clipSourceAt,
+  clipSpeedAt,
+  isClipActiveAt,
+  projectDuration,
+  transitionFades,
+  transitionRenderAt,
+} from '@/lib/timeline';
 import { cssColorFilter } from '@/lib/color';
 import { clamp, cn } from '@/lib/utils';
 import { TransformOverlay } from './TransformOverlay';
@@ -86,6 +94,14 @@ export function VideoPreview() {
     [tracks, clips],
   );
 
+  // Effective audio fades (folding transitions) so cross-faded clips ramp in the
+  // preview the same way the export's afade does.
+  const fadeMap = useMemo(() => {
+    const m = new Map<string, { fadeIn: number; fadeOut: number }>();
+    for (const c of clips) m.set(c.id, transitionFades(clips, c));
+    return m;
+  }, [clips]);
+
   // Master clock: advance the timeline in real time while playing.
   useEffect(() => {
     if (!playing) return;
@@ -121,7 +137,12 @@ export function VideoPreview() {
       const active = isClipActiveAt(clip, currentTime) && !track.hidden;
       el.muted = muted || clip.muted || track.muted;
       // Per-clip gain × fade ramp, capped at 1.0 (HTMLMediaElement can't boost above 100%).
-      el.volume = clamp(volume * (clip.volume ?? 1) * audioFadeGain(clip, currentTime), 0, 1);
+      const ef = fadeMap.get(clip.id);
+      const fadeGain = audioFadeGain(
+        ef ? { ...clip, fadeIn: ef.fadeIn, fadeOut: ef.fadeOut } : clip,
+        currentTime,
+      );
+      el.volume = clamp(volume * (clip.volume ?? 1) * fadeGain, 0, 1);
       if (clip.freeze != null) {
         // Held still: pin the element to the frozen frame and never advance it.
         if (!el.paused) el.pause();
@@ -144,7 +165,7 @@ export function VideoPreview() {
         if (Math.abs(el.currentTime - parked) > 0.05) el.currentTime = parked;
       }
     }
-  }, [layers, media, currentTime, playing, muted, volume]);
+  }, [layers, media, currentTime, playing, muted, volume, fadeMap]);
 
   return (
     <div
@@ -158,6 +179,9 @@ export function VideoPreview() {
       >
         {layers.map(({ clip, track }) => {
           const active = isClipActiveAt(clip, currentTime) && !track.hidden;
+          // A transition into this clip ramps its opacity (dissolve) and, for fade
+          // types, dips through a color rendered just beneath it.
+          const tr = transitionRenderAt(clip, currentTime);
           // Keep clips mounted and painted (opacity 0 when inactive) instead of
           // display:none so their parked frame stays decoded and shows instantly
           // at a cut — no black flash while the browser seeks/decodes.
@@ -166,7 +190,7 @@ export function VideoPreview() {
             top: `${clip.rect.y * 100}%`,
             width: `${clip.rect.w * 100}%`,
             height: `${clip.rect.h * 100}%`,
-            opacity: active ? clip.opacity : 0,
+            opacity: active ? clip.opacity * tr.clipMul : 0,
             zIndex: active ? 1 : 0,
           } as const;
 
@@ -207,8 +231,8 @@ export function VideoPreview() {
             else mediaEls.current.delete(clip.id);
           };
           const keyed = m.kind === 'video' && clip.chromaKey != null;
-          return (
-            <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
+          const wrapper = (
+            <div className="pointer-events-none absolute overflow-hidden" style={style}>
               {keyed ? (
                 <>
                   {/* Hidden source video: still decoded, seeked and played by the
@@ -243,6 +267,28 @@ export function VideoPreview() {
               )}
             </div>
           );
+          // Fade transition: a solid color dip just beneath this clip (and above
+          // the previous one), peaking at the overlap midpoint.
+          if (active && tr.dipColor) {
+            return (
+              <Fragment key={clip.id}>
+                <div
+                  className="pointer-events-none absolute"
+                  style={{
+                    left: style.left,
+                    top: style.top,
+                    width: style.width,
+                    height: style.height,
+                    backgroundColor: tr.dipColor,
+                    opacity: tr.dipOpacity,
+                    zIndex: style.zIndex,
+                  }}
+                />
+                {wrapper}
+              </Fragment>
+            );
+          }
+          return <Fragment key={clip.id}>{wrapper}</Fragment>;
         })}
 
         {showOverlay && box.w > 0 && <TransformOverlay width={box.w} height={box.h} />}

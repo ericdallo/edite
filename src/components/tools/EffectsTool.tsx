@@ -6,9 +6,11 @@ import {
   type ColorAdjust,
   DEFAULT_CHROMA,
   NEUTRAL_COLOR,
+  TRANSITIONS,
 } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { colorEquals, isNeutralColor } from '@/lib/color';
+import { canAddTransition, maxTransitionDuration } from '@/lib/timeline';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
 
@@ -46,6 +48,7 @@ export function EffectsTool() {
   const clips = useEditorStore((s) => s.clips);
   const media = useEditorStore((s) => s.media);
   const updateClips = useEditorStore((s) => s.updateClips);
+  const setClipTransition = useEditorStore((s) => s.setClipTransition);
   const clip = clips.find((c) => c.id === activeId);
 
   if (!clip) {
@@ -76,6 +79,9 @@ export function EffectsTool() {
   const keyOn = clip.chromaKey != null;
   const setChroma = (patch: Partial<ChromaKey>) =>
     updateClips(selectedIds, { chromaKey: { ...chroma, ...patch } });
+
+  const canTransition = canAddTransition(clips, clip);
+  const maxTrans = maxTransitionDuration(clips, clip);
 
   return (
     <div className="space-y-5">
@@ -150,6 +156,57 @@ export function EffectsTool() {
         >
           Reset color
         </button>
+      )}
+
+      {(canTransition || clip.transition) && (
+        <div className="space-y-3 border-t border-line pt-4">
+          <div className="text-sm text-ink-muted">Transition in</div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setClipTransition(clip.id, null)}
+              className={cn(
+                'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
+                !clip.transition
+                  ? 'border-brand bg-brand/10 text-ink'
+                  : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+              )}
+            >
+              None
+            </button>
+            {TRANSITIONS.map((t) => {
+              const on = clip.transition?.type === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setClipTransition(clip.id, t.id)}
+                  className={cn(
+                    'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
+                    on
+                      ? 'border-brand bg-brand/10 text-ink'
+                      : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+                  )}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+          {clip.transition && (
+            <Adjust
+              label="Duration"
+              value={clip.transition.duration}
+              min={0.1}
+              max={Math.max(0.2, maxTrans)}
+              step={0.05}
+              onChange={(v) => setClipTransition(clip.id, clip.transition!.type, v)}
+              fmt={(v) => `${v.toFixed(2)}s`}
+            />
+          )}
+          <p className="text-xs leading-relaxed text-ink-faint">
+            Cross-fades in from the previous clip on this track. The clips overlap by the duration and
+            the rest of the track shifts to fit.
+          </p>
+        </div>
       )}
 
       {isVideo && (

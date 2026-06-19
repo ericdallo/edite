@@ -1,4 +1,4 @@
-import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, TextStyle } from '@/types/editor';
+import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, TextStyle, Transition } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { ffmpegChromaFilter } from '@/lib/chroma';
 
@@ -35,6 +35,8 @@ export interface ExportClip {
   color?: ColorAdjust;
   /** chroma key (green-screen removal), rendered as a chromakey filter. */
   chromaKey?: ChromaKey;
+  /** transition INTO this clip (cross-dissolve / color dip) over its leading overlap. */
+  transition?: Transition;
 }
 
 export interface MultiExportParams {
@@ -172,6 +174,19 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const chromaF = ffmpegChromaFilter(c.chromaKey);
     const chroma = chromaF ? `,${chromaF}` : '';
     const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
+    // Transition INTO this clip: a dissolve ramps its alpha in over the whole
+    // overlap; a fade type reveals it in the second half (the dip layer below
+    // covers the first half). `st` is in timeline seconds (PTS is shifted below).
+    const tr = c.transition;
+    let trans = '';
+    if (tr && tr.duration > 1e-3) {
+      if (tr.type === 'dissolve') {
+        trans = `,format=rgba,fade=t=in:st=${fmt(c.start)}:d=${fmt(tr.duration)}:alpha=1`;
+      } else {
+        const hd = tr.duration / 2;
+        trans = `,format=rgba,fade=t=in:st=${fmt(c.start + hd)}:d=${fmt(hd)}:alpha=1`;
+      }
+    }
     // Shift each clip's PTS to its timeline start so overlay frames line up with
     // the enable window; without this the input reaches EOF early and the slot
     // renders black (e.g. the tail clip of a split).
@@ -179,10 +194,23 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const orient = orientFilters(c);
     if (c.kind === 'image' || c.kind === 'text') {
       const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
-      graph.push(`[${k}:v]${pts}${orient}${cover}${color}${chroma}${op}[c${k}]`);
+      graph.push(`[${k}:v]${pts}${orient}${cover}${color}${chroma}${op}${trans}[c${k}]`);
     } else {
       const base = Math.abs(c.speed - 1) > 1e-3 ? `(PTS-STARTPTS)/${c.speed}` : 'PTS-STARTPTS';
-      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${orient}${cover}${color}${chroma}${op}[c${k}]`);
+      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${orient}${cover}${color}${chroma}${op}${trans}[c${k}]`);
+    }
+    // A fade-to-color transition: a solid dip between the previous clip (already
+    // in the accumulator) and this one, peaking opaque at the overlap midpoint.
+    if (tr && tr.type !== 'dissolve' && tr.duration > 1e-3) {
+      const hd = tr.duration / 2;
+      const ov0 = c.start;
+      const ov1 = c.start + tr.duration;
+      const dipColor = tr.type === 'fadeWhite' ? 'white' : 'black';
+      graph.push(
+        `color=c=${dipColor}:s=${W}x${H}:r=${fps}:d=${fmt(duration)},format=rgba,fade=t=in:st=${fmt(ov0)}:d=${fmt(hd)}:alpha=1,fade=t=out:st=${fmt(ov0 + hd)}:d=${fmt(hd)}:alpha=1[dip${k}]`,
+      );
+      graph.push(`[${acc}][dip${k}]overlay=0:0:enable='between(t,${fmt(ov0)},${fmt(ov1)})'[ovd${k}]`);
+      acc = `ovd${k}`;
     }
     const end = c.start + timelineLen(c);
     // eof_action=repeat (not pass): once a clip's frames run out it holds its

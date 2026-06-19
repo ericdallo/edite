@@ -97,6 +97,22 @@ describe('buildExportPlan', () => {
     expect(plan.clips[0].chromaKey).toEqual(chromaKey);
   });
 
+  it('passes a transition through and cross-fades the audio with its predecessor', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1' });
+    const clips = [
+      makeClip({ id: 'a', trackId: 't1', mediaId: 'm1', start: 0, in: 0, out: 5 }),
+      makeClip({
+        id: 'b', trackId: 't1', mediaId: 'm1', start: 4, in: 0, out: 5,
+        transition: { type: 'dissolve', duration: 1 },
+      }),
+    ];
+    const plan = buildExportPlan([track], clips, [media]);
+    expect(plan.clips[1].transition).toEqual({ type: 'dissolve', duration: 1 });
+    expect(plan.clips[1].fadeIn).toBe(1); // incoming fades in over the overlap
+    expect(plan.clips[0].fadeOut).toBe(1); // predecessor fades out over the overlap
+  });
+
   it('expands a speed-curved clip into tiled constant-speed segments', () => {
     const track = makeTrack({ id: 't1' });
     const media = makeMedia({ id: 'm1', kind: 'video', duration: 12 });

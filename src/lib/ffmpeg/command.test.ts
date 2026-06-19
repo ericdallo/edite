@@ -122,6 +122,38 @@ describe('buildExportCommand video graph', () => {
   });
 });
 
+describe('buildExportCommand transitions', () => {
+  it('cross-dissolves the incoming clip with an alpha fade over the overlap', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({ kind: 'video', start: 0, in: 0, out: 5 }),
+        makeExportClip({ kind: 'video', start: 4, in: 0, out: 5, transition: { type: 'dissolve', duration: 1 } }),
+      ]),
+    );
+    expect(g).toContain('fade=t=in:st=4.000:d=1.000:alpha=1');
+    expect(g).not.toContain('color=c=black'); // dissolve adds no dip layer
+  });
+
+  it('dips through a color for a fade transition', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({ kind: 'video', start: 0, in: 0, out: 5 }),
+        makeExportClip({ kind: 'video', start: 4, in: 0, out: 5, transition: { type: 'fadeBlack', duration: 1 } }),
+      ]),
+    );
+    expect(g).toContain('fade=t=in:st=4.500:d=0.500:alpha=1'); // clip revealed in the 2nd half
+    expect(g).toContain('color=c=black');
+    expect(g).toContain("between(t,4.000,5.000)"); // dip gated to the overlap
+    expect(graphOf(build([makeExportClip({ start: 4, transition: { type: 'fadeWhite', duration: 1 } })]))).toContain(
+      'color=c=white',
+    );
+  });
+
+  it('leaves clips without a transition untouched', () => {
+    expect(graphOf(build([makeExportClip()]))).not.toContain('alpha=1');
+  });
+});
+
 describe('buildExportCommand audio', () => {
   it('delays and mixes audio from each unmuted clip', () => {
     const cmd = build([

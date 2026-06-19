@@ -1,5 +1,5 @@
 import type { Clip, SpeedCurve } from '@/types/editor';
-import { SPEED_CURVE_SLICES } from '@/lib/constants';
+import { MIN_CLIP, SPEED_CURVE_SLICES } from '@/lib/constants';
 
 /** Instantaneous speed (×) at source progress `u` in [0,1], piecewise-linear between points. */
 export function evalSpeedAt(curve: SpeedCurve, u: number): number {
@@ -146,6 +146,80 @@ export function audioFadeGain(clip: Clip, t: number): number {
   if (fin > 0 && into < fin) g = Math.min(g, into / fin);
   if (fout > 0 && into > dur - fout) g = Math.min(g, (dur - into) / fout);
   return Math.max(0, Math.min(1, g));
+}
+
+/** The clip immediately before `clip` on the same track (greatest start that is earlier), or undefined. */
+export function prevClipOnTrack(clips: Clip[], clip: Clip): Clip | undefined {
+  let best: Clip | undefined;
+  for (const c of clips) {
+    if (c.id === clip.id || c.trackId !== clip.trackId) continue;
+    if (c.start < clip.start - 1e-6 && (!best || c.start > best.start)) best = c;
+  }
+  return best;
+}
+
+/** Largest valid transition (overlap) length for `clip`: bounded by both clips' lengths. */
+export function maxTransitionDuration(clips: Clip[], clip: Clip): number {
+  const prev = prevClipOnTrack(clips, clip);
+  if (!prev) return 0;
+  return Math.max(0, Math.min(clipTimelineDuration(prev), clipTimelineDuration(clip)) - MIN_CLIP);
+}
+
+/** Whether a transition can start `clip`: it needs an adjacent (or already overlapping) predecessor. */
+export function canAddTransition(clips: Clip[], clip: Clip): boolean {
+  if (clip.text || clip.audioOnly) return false;
+  const prev = prevClipOnTrack(clips, clip);
+  if (!prev || prev.text || prev.audioOnly) return false;
+  return clipEnd(prev) >= clip.start - MIN_CLIP;
+}
+
+export interface TransitionRender {
+  /** opacity multiplier for the incoming clip (0..1) at this time. */
+  clipMul: number;
+  /** solid dip color for fade transitions, or null. */
+  dipColor: string | null;
+  /** dip layer opacity (0..1). */
+  dipOpacity: number;
+}
+
+const NO_TRANSITION: TransitionRender = { clipMul: 1, dipColor: null, dipOpacity: 0 };
+
+/**
+ * How to render the incoming clip and its dip layer at time `t`. Only the
+ * incoming clip is modulated: dissolve ramps its opacity 0->1 over the overlap;
+ * fade types keep it hidden until mid then reveal it from under a color dip that
+ * peaks at the midpoint. The preview and export both follow this shape.
+ */
+export function transitionRenderAt(clip: Clip, t: number): TransitionRender {
+  const tr = clip.transition;
+  if (!tr || tr.duration <= 0) return NO_TRANSITION;
+  const p = (t - clip.start) / tr.duration;
+  if (p < 0 || p > 1) return NO_TRANSITION;
+  if (tr.type === 'dissolve') return { clipMul: p, dipColor: null, dipOpacity: 0 };
+  return {
+    clipMul: Math.max(0, Math.min(1, (p - 0.5) * 2)),
+    dipColor: tr.type === 'fadeWhite' ? '#ffffff' : '#000000',
+    dipOpacity: 1 - Math.abs(2 * p - 1),
+  };
+}
+
+/**
+ * Effective audio fade lengths for a clip, folding in transitions: an incoming
+ * transition fades this clip's audio in over its overlap, and a transition on
+ * the following clip fades this clip's audio out over that overlap, so the two
+ * clips audibly cross-fade.
+ */
+export function transitionFades(clips: Clip[], clip: Clip): { fadeIn: number; fadeOut: number } {
+  const inDur = clip.transition?.duration ?? 0;
+  let outDur = 0;
+  for (const c of clips) {
+    if (c.trackId !== clip.trackId || !c.transition || c.start <= clip.start) continue;
+    if (prevClipOnTrack(clips, c)?.id === clip.id) outDur = Math.max(outDur, c.transition.duration);
+  }
+  return {
+    fadeIn: Math.max(clip.fadeIn ?? 0, inDur),
+    fadeOut: Math.max(clip.fadeOut ?? 0, outDur),
+  };
 }
 
 /** Candidate snap positions for a dragged clip: origin, playhead and every other clip edge. */

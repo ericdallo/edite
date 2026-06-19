@@ -241,6 +241,57 @@ describe('freezeFrame', () => {
   });
 });
 
+describe('setClipTransition', () => {
+  beforeEach(() => {
+    store.setState({
+      media: [makeMedia({ id: 'm1', kind: 'video', duration: 10 })],
+      tracks: [makeTrack({ id: 't1' })],
+      clips: [
+        makeClip({ id: 'a', mediaId: 'm1', trackId: 't1', start: 0, in: 0, out: 5 }),
+        makeClip({ id: 'b', mediaId: 'm1', trackId: 't1', start: 5, in: 0, out: 5 }),
+        makeClip({ id: 'c', mediaId: 'm1', trackId: 't1', start: 10, in: 0, out: 5 }),
+      ],
+    });
+  });
+
+  const byId = (id: string) => get().clips.find((c) => c.id === id)!;
+
+  it('overlaps the predecessor and ripples the track left', () => {
+    get().setClipTransition('b', 'dissolve', 1);
+    expect(byId('b').transition).toEqual({ type: 'dissolve', duration: 1 });
+    expect(byId('b').start).toBeCloseTo(4, 5);
+    expect(byId('c').start).toBeCloseTo(9, 5);
+    expect(byId('a').start).toBe(0);
+  });
+
+  it('re-overlaps by the delta when the duration changes', () => {
+    get().setClipTransition('b', 'dissolve', 1);
+    get().setClipTransition('b', 'dissolve', 2);
+    expect(byId('b').start).toBeCloseTo(3, 5);
+    expect(byId('c').start).toBeCloseTo(8, 5);
+    expect(byId('b').transition!.duration).toBe(2);
+  });
+
+  it('ripples back and clears when removed', () => {
+    get().setClipTransition('b', 'dissolve', 1);
+    get().setClipTransition('b', null);
+    expect(byId('b').transition).toBeUndefined();
+    expect(byId('b').start).toBeCloseTo(5, 5);
+    expect(byId('c').start).toBeCloseTo(10, 5);
+  });
+
+  it('clamps the duration to the shorter neighbour', () => {
+    get().setClipTransition('b', 'dissolve', 99);
+    expect(byId('b').transition!.duration).toBeCloseTo(4.94, 5);
+  });
+
+  it('is a no-op without an adjacent predecessor', () => {
+    get().setClipTransition('a', 'dissolve', 1);
+    expect(byId('a').transition).toBeUndefined();
+    expect(byId('a').start).toBe(0);
+  });
+});
+
 describe('duplicate / copy / paste', () => {
   beforeEach(seed);
 

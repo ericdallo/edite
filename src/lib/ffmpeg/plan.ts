@@ -1,5 +1,5 @@
 import type { Clip, MediaItem, Track } from '@/types/editor';
-import { speedSlices } from '@/lib/timeline';
+import { speedSlices, transitionFades } from '@/lib/timeline';
 import type { ExportClip } from './command';
 
 export interface ExportPlan {
@@ -60,6 +60,8 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
     const frozen = clip.freeze != null;
     // Audio-only when the media is audio or the clip was detached from its video.
     const audioOnly = m.kind === 'audio' || clip.audioOnly === true;
+    // Fold transitions into the audio fades so adjacent clips audibly cross-fade.
+    const fades = transitionFades(clips, clip);
 
     // A speed-curved video clip becomes a run of tiled constant-speed segments;
     // each reuses the normal setpts/atempo path so preview and export match.
@@ -82,10 +84,12 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           rotation: clip.rotation ?? 0,
           volume: clip.volume ?? 1,
           // Fades belong to the whole clip: ramp in on the first segment, out on the last.
-          fadeIn: i === 0 ? clip.fadeIn ?? 0 : 0,
-          fadeOut: i === last ? clip.fadeOut ?? 0 : 0,
+          fadeIn: i === 0 ? fades.fadeIn : 0,
+          fadeOut: i === last ? fades.fadeOut : 0,
           color: clip.color,
           chromaKey: clip.chromaKey,
+          // The transition (dissolve/dip) attaches to the first segment.
+          transition: i === 0 ? clip.transition : undefined,
         },
         mediaId: clip.mediaId,
       }));
@@ -109,11 +113,12 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           flipV: clip.flipV ?? false,
           rotation: clip.rotation ?? 0,
           volume: clip.volume ?? 1,
-          fadeIn: clip.fadeIn ?? 0,
-          fadeOut: clip.fadeOut ?? 0,
+          fadeIn: fades.fadeIn,
+          fadeOut: fades.fadeOut,
           freeze: clip.freeze,
           color: clip.color,
           chromaKey: clip.chromaKey,
+          transition: clip.transition,
         },
         mediaId: clip.mediaId,
       },

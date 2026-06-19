@@ -112,6 +112,13 @@ export function TimelineClip({ clip, media, pxPerSec, active, selected, onBodyDo
       )}
       <div className={cn('pointer-events-none absolute inset-0', active || selected ? 'bg-brand/10' : '')} />
 
+      {clip.transition && (
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 border-l-2 border-brand bg-gradient-to-r from-brand/55 to-transparent"
+          style={{ width: Math.max(6, Math.min(width, clip.transition.duration * pxPerSec)) }}
+        />
+      )}
+
       <div className="pointer-events-none absolute left-1.5 top-1.5 flex gap-1">
         {clip.muted && !isText && (
           <span className="grid h-5 w-5 place-items-center rounded bg-black/60 text-danger">

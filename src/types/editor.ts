@@ -114,6 +114,12 @@ export interface Clip {
   color?: ColorAdjust;
   /** Chroma key (green-screen removal); when set the key color becomes transparent. */
   chromaKey?: ChromaKey;
+  /**
+   * A transition INTO this clip from the previous clip on the same track. The
+   * clip overlaps its predecessor by `duration` seconds; that overlap is where
+   * the cross-dissolve / fade happens.
+   */
+  transition?: Transition;
 }
 
 export function isTextClip(clip: Clip): clip is Clip & { text: TextStyle } {
@@ -232,6 +238,29 @@ export const DEFAULT_CHROMA: ChromaKey = { color: '#00ff00', similarity: 0.3, bl
 
 /** Common green/blue screen colors offered in the tool. */
 export const CHROMA_SWATCHES = ['#00ff00', '#00d426', '#0047ff', '#1f6fff'];
+
+/**
+ * Transition between two adjacent clips on a track. `dissolve` cross-fades the
+ * clips; `fadeBlack`/`fadeWhite` dip through a solid color. `duration` is the
+ * overlap length in timeline seconds.
+ */
+export type TransitionId = 'dissolve' | 'fadeBlack' | 'fadeWhite';
+
+export interface Transition {
+  type: TransitionId;
+  duration: number;
+}
+
+export interface TransitionOption {
+  id: TransitionId;
+  label: string;
+}
+
+export const TRANSITIONS: TransitionOption[] = [
+  { id: 'dissolve', label: 'Dissolve' },
+  { id: 'fadeBlack', label: 'Fade · black' },
+  { id: 'fadeWhite', label: 'Fade · white' },
+];
 
 export type ExportFormat = 'mp4' | 'webm' | 'gif';
 export type ExportQuality = 'high' | 'medium' | 'low';

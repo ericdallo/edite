@@ -22,6 +22,9 @@ export const AUDIO_FADE_MAX = 5;
 /** Default hold length for an inserted freeze frame (seconds). */
 export const FREEZE_DEFAULT_DUR = 2;
 
+/** Default length of a clip transition (seconds); the overlap between two clips. */
+export const TRANSITION_DEFAULT_DUR = 0.5;
+
 /**
  * A clip's speed curve is realised as this many constant-speed slices (for the
  * timeline integral, preview, and export segmentation). More = smoother ramps

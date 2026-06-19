@@ -14,8 +14,17 @@ import {
   type SpeedCurveId,
   type TextStyle,
   type Track,
+  type TransitionId,
 } from '@/types/editor';
-import { canMergeClips, clipEnd, clipSourceAt, clipTimelineDuration, projectDuration } from '@/lib/timeline';
+import {
+  canMergeClips,
+  clipEnd,
+  clipSourceAt,
+  clipTimelineDuration,
+  maxTransitionDuration,
+  prevClipOnTrack,
+  projectDuration,
+} from '@/lib/timeline';
 import { clamp } from '@/lib/utils';
 import { uid } from '@/lib/ids';
 import {
@@ -27,6 +36,7 @@ import {
   HISTORY_LIMIT,
   IMAGE_DEFAULT_DUR,
   MIN_CLIP,
+  TRANSITION_DEFAULT_DUR,
   TEXT_SIZE_MAX,
   TEXT_SIZE_MIN,
   ZOOM_MAX,
@@ -163,6 +173,7 @@ export interface EditorState {
   mergeClips: (ids: string[]) => void;
   freezeFrame: () => void;
   setClipCurve: (ids: string[], preset: SpeedCurveId | null) => void;
+  setClipTransition: (id: string, type: TransitionId | null, duration?: number) => void;
   extractAudio: (id: string) => void;
   duplicateClips: (ids: string[]) => void;
   copyClips: (ids: string[]) => void;
@@ -229,6 +240,9 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
         blend: clamp(c.chromaKey.blend, 0, 1),
       }
     : undefined;
+  const transition = c.transition
+    ? { type: c.transition.type, duration: clamp(c.transition.duration, 0, dur) }
+    : undefined;
   return {
     ...c,
     start: Math.max(0, c.start),
@@ -241,6 +255,7 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
     fadeOut: clamp(c.fadeOut ?? 0, 0, fadeCap),
     color,
     chromaKey,
+    transition,
   };
 }
 
@@ -564,6 +579,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const clips = state.clips.map((c) => {
         if (!idset.has(c.id) || c.text || c.freeze != null) return c;
         return clampClip({ ...c, speedCurve: curve }, mediaFor(state, c.mediaId));
+      });
+      return { clips };
+    }),
+
+  setClipTransition: (id, type, duration) =>
+    set((state) => {
+      const target = state.clips.find((c) => c.id === id);
+      if (!target || target.text || target.audioOnly) return {};
+      const prev = prevClipOnTrack(state.clips, target);
+      // A transition crosses in from an adjacent (or already overlapping) predecessor.
+      if (!prev || prev.text || prev.audioOnly || clipEnd(prev) < target.start - MIN_CLIP) return {};
+      const maxD = maxTransitionDuration(state.clips, target);
+      if (type && maxD < MIN_CLIP) return {}; // clips too short to overlap
+      const dOld = target.transition?.duration ?? 0;
+      const dNew = type
+        ? clamp(duration ?? target.transition?.duration ?? TRANSITION_DEFAULT_DUR, MIN_CLIP, maxD)
+        : 0;
+      // Move this clip (and the rest of its track) by the change in overlap: left
+      // to open the overlap, right to close it, keeping downstream clips in step.
+      const shift = dNew - dOld;
+      const startFrom = target.start;
+      const clips = state.clips.map((c) => {
+        if (c.trackId !== target.trackId || c.start < startFrom - 1e-6) return c;
+        const start = Math.max(0, c.start - shift);
+        if (c.id === target.id) return { ...c, start, transition: type ? { type, duration: dNew } : undefined };
+        return { ...c, start };
       });
       return { clips };
     }),

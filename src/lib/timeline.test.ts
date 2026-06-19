@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   audioFadeGain,
+  canAddTransition,
   canMergeClips,
   clipEnd,
   clipSnapTargets,
@@ -9,8 +10,12 @@ import {
   clipTimelineDuration,
   evalSpeedAt,
   isClipActiveAt,
+  maxTransitionDuration,
+  prevClipOnTrack,
   projectDuration,
   snapStart,
+  transitionFades,
+  transitionRenderAt,
 } from '@/lib/timeline';
 import { makeSpeedCurve } from '@/types/editor';
 import { makeClip } from '@/test/factories';
@@ -233,5 +238,52 @@ describe('snapStart', () => {
 
   it('never snaps a trailing-edge target to a negative start', () => {
     expect(snapStart(0.1, 5, [0], 0.5)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('transitions', () => {
+  const A = makeClip({ id: 'A', trackId: 't1', start: 0, in: 0, out: 5 });
+  const B = makeClip({ id: 'B', trackId: 't1', start: 5, in: 0, out: 5 });
+
+  it('prevClipOnTrack finds the earlier same-track clip', () => {
+    expect(prevClipOnTrack([A, B], B)?.id).toBe('A');
+    expect(prevClipOnTrack([A, B], A)).toBeUndefined();
+    const other = makeClip({ id: 'C', trackId: 't2', start: 0, out: 5 });
+    expect(prevClipOnTrack([other, B], B)).toBeUndefined();
+  });
+
+  it('maxTransitionDuration is bounded by both clip lengths', () => {
+    expect(maxTransitionDuration([A, B], B)).toBeCloseTo(5 - 0.06, 5);
+    expect(maxTransitionDuration([A, B], A)).toBe(0);
+  });
+
+  it('canAddTransition needs an adjacent predecessor', () => {
+    expect(canAddTransition([A, B], B)).toBe(true);
+    expect(canAddTransition([A, B], A)).toBe(false);
+    const gapped = makeClip({ id: 'B', trackId: 't1', start: 7, in: 0, out: 5 });
+    expect(canAddTransition([A, gapped], gapped)).toBe(false);
+  });
+
+  it('transitionRenderAt ramps a dissolve and dips a fade', () => {
+    const diss = { ...B, transition: { type: 'dissolve' as const, duration: 2 } };
+    expect(transitionRenderAt(diss, 5)).toMatchObject({ clipMul: 0, dipColor: null });
+    expect(transitionRenderAt(diss, 6).clipMul).toBeCloseTo(0.5, 5);
+    expect(transitionRenderAt(diss, 7).clipMul).toBeCloseTo(1, 5);
+    expect(transitionRenderAt(diss, 8)).toMatchObject({ clipMul: 1, dipColor: null });
+
+    const fade = { ...B, transition: { type: 'fadeBlack' as const, duration: 2 } };
+    const mid = transitionRenderAt(fade, 6);
+    expect(mid.dipColor).toBe('#000000');
+    expect(mid.dipOpacity).toBeCloseTo(1, 5);
+    expect(mid.clipMul).toBe(0);
+    expect(transitionRenderAt({ ...B, transition: { type: 'fadeWhite', duration: 2 } }, 6).dipColor).toBe('#ffffff');
+  });
+
+  it('transitionFades cross-fades the audio across the overlap', () => {
+    const diss = { ...B, transition: { type: 'dissolve' as const, duration: 2 } };
+    const clips = [A, diss];
+    expect(transitionFades(clips, diss).fadeIn).toBe(2);
+    expect(transitionFades(clips, A).fadeOut).toBe(2);
+    expect(transitionFades(clips, A).fadeIn).toBe(0);
   });
 });
