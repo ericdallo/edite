@@ -94,7 +94,14 @@ export function ToolPanel() {
       >
         <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line lg:hidden" />
 
-        <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
+        <div
+          className={cn(
+            // On mobile with sub-tabs the tab bar's border is the separator, so
+            // the header keeps its border only when there are no tabs below it.
+            'flex items-center gap-3 px-4 py-3.5 lg:border-b lg:border-line',
+            subs.length === 0 && 'border-b border-line',
+          )}
+        >
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-brand-bright">
             <Icon size={18} />
           </div>
@@ -112,26 +119,24 @@ export function ToolPanel() {
         </div>
 
         {/* Mobile sub-tabs: the desktop subtool rail is hidden here, so the
-            subcategories collapse into a horizontal strip inside the sheet. */}
+            subcategories collapse into an underlined tab bar inside the sheet. */}
         {subs.length > 0 && (
-          <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line px-3 py-2 lg:hidden">
+          <div role="tablist" className="flex shrink-0 border-b border-line px-2 lg:hidden">
             {subs.map((s) => {
-              const SubIcon = s.icon;
               const on = activeSub === s.id;
               return (
                 <button
                   key={s.id}
+                  role="tab"
+                  aria-selected={on}
                   onClick={() => setSubtool(s.id)}
-                  aria-pressed={on}
                   className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                    on
-                      ? 'border-brand bg-brand/15 text-ink'
-                      : 'border-line bg-surface-2 text-ink-muted hover:text-ink',
+                    'relative flex-1 whitespace-nowrap px-1 py-3 text-center text-[13px] font-medium transition-colors',
+                    on ? 'text-ink' : 'text-ink-faint hover:text-ink-muted',
                   )}
                 >
-                  <SubIcon size={14} />
                   {s.label}
+                  {on && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand" />}
                 </button>
               );
             })}
