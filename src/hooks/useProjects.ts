@@ -9,6 +9,8 @@ import {
   type ProjectSummary,
 } from '@/lib/storage/projects';
 import { openProject, saveCurrentProject } from '@/lib/storage/session';
+import { exportProjectBundle, importProjectBundle, type ImportResult } from '@/lib/storage/bundle-io';
+import { downloadBlob } from '@/lib/utils';
 
 export interface UseProjects {
   items: ProjectSummary[];
@@ -20,6 +22,8 @@ export interface UseProjects {
   remove: (id: string) => Promise<void>;
   duplicate: (id: string) => Promise<void>;
   rename: (id: string, name: string) => Promise<void>;
+  exportBundle: (id: string) => Promise<void>;
+  importBundle: (file: Blob) => Promise<ImportResult>;
 }
 
 /** Lists browser-stored projects and switches/creates/deletes the active one. */
@@ -114,5 +118,43 @@ export function useProjects(): UseProjects {
     [refresh],
   );
 
-  return { items, currentId, busy, refresh, switchTo, create, remove, duplicate, rename };
+  const exportBundle = useCallback(async (id: string) => {
+    setBusy(true);
+    try {
+      // Flush pending edits so exporting the active project includes them.
+      if (id === useEditorStore.getState().projectId) await saveCurrentProject();
+      const res = await exportProjectBundle(id);
+      if (res) downloadBlob(res.blob, res.fileName);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const importBundle = useCallback(
+    async (file: Blob) => {
+      setBusy(true);
+      try {
+        const res = await importProjectBundle(file);
+        if (res.ok) await refresh();
+        return res;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
+  return {
+    items,
+    currentId,
+    busy,
+    refresh,
+    switchTo,
+    create,
+    remove,
+    duplicate,
+    rename,
+    exportBundle,
+    importBundle,
+  };
 }

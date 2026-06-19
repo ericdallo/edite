@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Clapperboard, Copy, Pencil, Trash2, X } from 'lucide-react';
+import { Check, Clapperboard, Copy, Download, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import type { ProjectSummary } from '@/lib/storage/projects';
+import { ContextMenu, type ContextMenuState } from '@/components/ui/ContextMenu';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
 export interface ProjectCardProps {
@@ -10,6 +11,7 @@ export interface ProjectCardProps {
   onOpen: () => void;
   onRename: (name: string) => void;
   onDuplicate: () => void;
+  onExport: () => void;
   onDelete: () => void;
 }
 
@@ -20,11 +22,13 @@ export function ProjectCard({
   onOpen,
   onRename,
   onDuplicate,
+  onExport,
   onDelete,
 }: ProjectCardProps) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(project.name);
   const [confirming, setConfirming] = useState(false);
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,10 +45,31 @@ export function ProjectCard({
     if (name && name !== project.name) onRename(name);
   };
 
+  const openMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenu({
+      x: r.right - 204,
+      y: r.bottom + 4,
+      items: [
+        { id: 'rename', label: 'Rename', icon: <Pencil size={15} />, onClick: () => setRenaming(true) },
+        { id: 'duplicate', label: 'Duplicate', icon: <Copy size={15} />, onClick: onDuplicate },
+        { id: 'export', label: 'Export .edite', icon: <Download size={15} />, onClick: onExport },
+        {
+          id: 'delete',
+          label: 'Delete',
+          icon: <Trash2 size={15} />,
+          danger: true,
+          separatorBefore: true,
+          onClick: () => setConfirming(true),
+        },
+      ],
+    });
+  };
+
   return (
     <div
       className={cn(
-        'group flex flex-col overflow-hidden rounded-xl border bg-surface-2 transition-colors',
+        'group relative flex flex-col overflow-hidden rounded-xl border bg-surface-2 transition-colors',
         active ? 'border-brand/60' : 'border-line',
       )}
     >
@@ -67,6 +92,21 @@ export function ProjectCard({
             Active
           </span>
         )}
+      </button>
+
+      <button
+        type="button"
+        onClick={openMenu}
+        disabled={busy}
+        title="Project actions"
+        aria-label="Project actions"
+        className={cn(
+          'absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-lg bg-canvas/60 text-ink backdrop-blur-sm transition-opacity hover:bg-canvas/80 disabled:opacity-40',
+          'opacity-100 lg:opacity-0 lg:group-hover:opacity-100',
+          menu && 'lg:opacity-100',
+        )}
+      >
+        <MoreVertical size={16} />
       </button>
 
       <div className="flex min-w-0 flex-1 flex-col p-3">
@@ -95,69 +135,39 @@ export function ProjectCard({
           </button>
         )}
 
-        <p className="mt-0.5 truncate text-[11px] text-ink-faint">
-          {project.clipCount} {project.clipCount === 1 ? 'clip' : 'clips'} · {project.mediaCount}{' '}
-          {project.mediaCount === 1 ? 'media' : 'media'} · {formatRelativeTime(project.updatedAt)}
-        </p>
-
-        <div className="mt-2.5 flex items-center gap-1">
-          {confirming ? (
-            <>
-              <span className="mr-auto text-[11px] text-ink-muted">Delete this project?</span>
-              <button
-                onClick={() => {
-                  setConfirming(false);
-                  onDelete();
-                }}
-                disabled={busy}
-                title="Confirm delete"
-                aria-label="Confirm delete"
-                className="grid h-8 w-8 place-items-center rounded-lg text-danger transition-colors hover:bg-danger/15 disabled:opacity-50"
-              >
-                <Check size={16} />
-              </button>
-              <button
-                onClick={() => setConfirming(false)}
-                title="Cancel"
-                aria-label="Cancel delete"
-                className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
-              >
-                <X size={16} />
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => setRenaming(true)}
-                disabled={busy}
-                title="Rename"
-                aria-label="Rename project"
-                className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-50"
-              >
-                <Pencil size={15} />
-              </button>
-              <button
-                onClick={onDuplicate}
-                disabled={busy}
-                title="Duplicate"
-                aria-label="Duplicate project"
-                className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-50"
-              >
-                <Copy size={15} />
-              </button>
-              <button
-                onClick={() => setConfirming(true)}
-                disabled={busy}
-                title="Delete"
-                aria-label="Delete project"
-                className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-ink-faint transition-colors hover:bg-danger/15 hover:text-danger disabled:opacity-50"
-              >
-                <Trash2 size={15} />
-              </button>
-            </>
-          )}
-        </div>
+        {confirming ? (
+          <div className="mt-1.5 flex items-center gap-1">
+            <span className="mr-auto text-[11px] text-ink-muted">Delete this project?</span>
+            <button
+              onClick={() => {
+                setConfirming(false);
+                onDelete();
+              }}
+              disabled={busy}
+              title="Confirm delete"
+              aria-label="Confirm delete"
+              className="grid h-8 w-8 place-items-center rounded-lg text-danger transition-colors hover:bg-danger/15 disabled:opacity-50"
+            >
+              <Check size={16} />
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              title="Cancel"
+              aria-label="Cancel delete"
+              className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ) : (
+          <p className="mt-0.5 truncate text-[11px] text-ink-faint">
+            {project.clipCount} {project.clipCount === 1 ? 'clip' : 'clips'} · {project.mediaCount} media ·{' '}
+            {formatRelativeTime(project.updatedAt)}
+          </p>
+        )}
       </div>
+
+      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }

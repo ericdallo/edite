@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, FolderPlus, Plus, Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, FolderPlus, Plus, Search, Upload } from 'lucide-react';
 import type { UseProjects } from '@/hooks/useProjects';
 import { useEditorStore } from '@/store/editorStore';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -20,15 +20,39 @@ export interface ProjectsPageProps {
 }
 
 export function ProjectsPage({ projects }: ProjectsPageProps) {
-  const { items, currentId, busy, switchTo, create, remove, duplicate, rename, refresh } = projects;
+  const { items, currentId, busy, switchTo, create, remove, duplicate, rename, exportBundle, importBundle, refresh } =
+    projects;
   const setView = useEditorStore((s) => s.setView);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [usedBytes, setUsedBytes] = useState<number | null>(null);
+  const [status, setStatus] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Auto-dismiss the import status after a few seconds.
+  useEffect(() => {
+    if (!status) return;
+    const t = setTimeout(() => setStatus(null), 5000);
+    return () => clearTimeout(t);
+  }, [status]);
+
+  const runImport = async (file: File | undefined) => {
+    if (!file) return;
+    const res = await importBundle(file);
+    setStatus(res.ok ? { kind: 'ok', msg: `Imported "${res.name || 'project'}"` } : { kind: 'err', msg: res.error });
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    void runImport(files.find((f) => f.name.toLowerCase().endsWith('.edite')) ?? files[0]);
+  };
 
   // Surface how much of the browser's storage the projects occupy.
   useEffect(() => {
@@ -90,6 +114,26 @@ export function ProjectsPage({ projects }: ProjectsPageProps) {
               {formatBytes(usedBytes)} used on this device
             </span>
           )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".edite,application/zip,application/octet-stream"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              void runImport(f ?? undefined);
+            }}
+          />
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            title="Import a .edite project"
+          >
+            <Upload size={16} /> Import
+          </Button>
           <Button variant="primary" size="md" onClick={onNew} disabled={busy} title="New project">
             <Plus size={16} /> New project
           </Button>
@@ -125,7 +169,34 @@ export function ProjectsPage({ projects }: ProjectsPageProps) {
         </select>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      {status && (
+        <div
+          role="status"
+          className={cn(
+            'shrink-0 px-4 py-2 text-xs',
+            status.kind === 'ok' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
+          )}
+        >
+          {status.msg}
+        </div>
+      )}
+
+      <div
+        className={cn(
+          'relative min-h-0 flex-1 overflow-y-auto p-4 transition-colors',
+          dragging && 'ring-2 ring-inset ring-brand/60',
+        )}
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes('Files')) {
+            e.preventDefault();
+            setDragging(true);
+          }
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+        }}
+        onDrop={onDrop}
+      >
         {visible.length === 0 ? (
           <div className="mx-auto mt-16 flex max-w-sm flex-col items-center text-center">
             <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-surface-2 text-ink-faint">
@@ -136,13 +207,23 @@ export function ProjectsPage({ projects }: ProjectsPageProps) {
             </p>
             <p className="mt-1 text-xs text-ink-faint">
               {items.length === 0
-                ? 'Everything stays on this device. Create a project to get started.'
+                ? 'Everything stays on this device. Create one, or drag a .edite file here to import.'
                 : 'Try a different name.'}
             </p>
             {items.length === 0 && (
-              <Button variant="primary" size="md" onClick={onNew} disabled={busy} className="mt-5">
-                <Plus size={16} /> New project
-              </Button>
+              <div className="mt-5 flex items-center gap-2">
+                <Button variant="primary" size="md" onClick={onNew} disabled={busy}>
+                  <Plus size={16} /> New project
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={busy}
+                >
+                  <Upload size={16} /> Import
+                </Button>
+              </div>
             )}
           </div>
         ) : (
@@ -161,6 +242,7 @@ export function ProjectsPage({ projects }: ProjectsPageProps) {
                 onOpen={() => void open(p.id)}
                 onRename={(name) => void rename(p.id, name)}
                 onDuplicate={() => void duplicate(p.id)}
+                onExport={() => void exportBundle(p.id)}
                 onDelete={() => void remove(p.id)}
               />
             ))}

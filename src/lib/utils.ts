@@ -39,6 +39,18 @@ export function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
 
+/** Trigger a browser download for a blob, cleaning up the object URL after. */
+export function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Short "time since" label, e.g. "just now", "5m ago", "3h ago", "2d ago", or a date. */
 export function formatRelativeTime(ts: number, now: number = Date.now()): string {
   const diff = Math.max(0, now - ts);
