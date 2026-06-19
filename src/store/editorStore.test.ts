@@ -83,6 +83,37 @@ describe('updateText', () => {
   });
 });
 
+describe('addCaptionClips', () => {
+  it('adds text clips on one new track and selects them', () => {
+    get().addCaptionClips([
+      { start: 0, duration: 1.5, text: 'Hello' },
+      { start: 1.5, duration: 2, text: 'world' },
+    ]);
+    const s = get();
+    expect(s.tracks).toHaveLength(1);
+    expect(s.clips).toHaveLength(2);
+    expect(s.clips.every((c) => c.trackId === s.tracks[0].id)).toBe(true);
+    expect(s.clips.map((c) => c.text?.content)).toEqual(['Hello', 'world']);
+    expect(s.clips[0]).toMatchObject({ mediaId: '', muted: true, in: 0, out: 1.5, speed: 1 });
+    expect(s.selectedIds).toEqual(s.clips.map((c) => c.id));
+    expect(s.activeClipId).toBe(s.clips[1].id);
+  });
+
+  it('skips blank captions and is a no-op when all are empty', () => {
+    get().addCaptionClips([
+      { start: 0, duration: 1, text: '   ' },
+      { start: 1, duration: 1, text: 'kept' },
+    ]);
+    expect(get().clips).toHaveLength(1);
+    expect(get().clips[0].text?.content).toBe('kept');
+
+    get().newProject({ id: 'p2', name: 'P2' });
+    get().addCaptionClips([{ start: 0, duration: 1, text: '' }]);
+    expect(get().tracks).toHaveLength(0);
+    expect(get().clips).toHaveLength(0);
+  });
+});
+
 describe('orientation & background', () => {
   it('defaults new media clips to no flip/rotation', () => {
     get().addMedia(makeMedia({ id: 'm1', kind: 'video', duration: 5 }));

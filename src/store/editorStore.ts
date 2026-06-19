@@ -27,6 +27,7 @@ import {
 } from '@/lib/timeline';
 import { clamp } from '@/lib/utils';
 import { uid } from '@/lib/ids';
+import type { CaptionClip } from '@/lib/captions/segments';
 import {
   AUDIO_FADE_MAX,
   CLIP_SPEED_MAX,
@@ -43,7 +44,15 @@ import {
   ZOOM_MIN,
 } from '@/lib/constants';
 
-export type ToolId = 'media' | 'transform' | 'speed' | 'effects' | 'aspect' | 'audio' | 'text';
+export type ToolId =
+  | 'media'
+  | 'transform'
+  | 'speed'
+  | 'effects'
+  | 'aspect'
+  | 'audio'
+  | 'text'
+  | 'captions';
 
 const DEFAULT_EXPORT: ExportSettings = DEFAULT_EXPORT_SETTINGS;
 
@@ -156,6 +165,8 @@ export interface EditorState {
   addMedia: (item: MediaItem) => void;
   addClipFromMedia: (mediaId: string, opts?: { trackId?: string; start?: number }) => void;
   addTextClip: (opts?: { start?: number }) => void;
+  /** Add auto-caption text clips on a new dedicated track (one history step). */
+  addCaptionClips: (items: CaptionClip[]) => void;
   updateText: (id: string, patch: Partial<TextStyle>) => void;
 
   addTrack: () => string;
@@ -409,6 +420,45 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         clips: [...state.clips, clip],
         selectedTool: 'text',
         ...selectOne(clip.id),
+      };
+    }),
+
+  addCaptionClips: (items) =>
+    set((state) => {
+      const clean = items.filter((it) => it.text.trim().length > 0);
+      if (clean.length === 0) return {};
+      const track: Track = {
+        id: uid(),
+        name: `Captions ${state.tracks.length + 1}`,
+        hidden: false,
+        muted: false,
+      };
+      const clips: Clip[] = clean.map((it) => ({
+        id: uid(),
+        mediaId: '',
+        trackId: track.id,
+        start: Math.max(0, it.start),
+        in: 0,
+        out: Math.max(MIN_CLIP, it.duration),
+        speed: 1,
+        rect: { ...DEFAULT_TEXT_RECT },
+        opacity: 1,
+        muted: true,
+        hidden: false,
+        flipH: false,
+        flipV: false,
+        rotation: 0,
+        volume: 1,
+        fadeIn: 0,
+        fadeOut: 0,
+        text: { ...DEFAULT_TEXT_STYLE, content: it.text },
+      }));
+      const selectedIds = clips.map((c) => c.id);
+      return {
+        tracks: [...state.tracks, track],
+        clips: [...state.clips, ...clips],
+        selectedIds,
+        activeClipId: selectedIds.at(-1) ?? null,
       };
     }),
 

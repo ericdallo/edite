@@ -15,8 +15,9 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // ffmpeg.wasm spawns its own worker / loads wasm; keep it out of pre-bundling.
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+    // ffmpeg.wasm and transformers.js (Whisper) load their own wasm / workers;
+    // keep them out of pre-bundling so they resolve their assets at runtime.
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@huggingface/transformers'],
   },
   build: {
     target: 'esnext',

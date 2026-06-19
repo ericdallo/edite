@@ -1,8 +1,20 @@
-import { Film, Gauge, type LucideIcon, Move, Ratio, Sparkles, Type, Volume2, X } from 'lucide-react';
+import {
+  Captions,
+  Film,
+  Gauge,
+  type LucideIcon,
+  Move,
+  Ratio,
+  Sparkles,
+  Type,
+  Volume2,
+  X,
+} from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
 import { MediaLibrary } from '@/components/media/MediaLibrary';
 import { TextTool } from './TextTool';
+import { CaptionsTool } from './CaptionsTool';
 import { TransformTool } from './TransformTool';
 import { SpeedTool } from './SpeedTool';
 import { EffectsTool } from './EffectsTool';
@@ -12,6 +24,7 @@ import { AudioTool } from './AudioTool';
 const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = {
   media: { title: 'Media', desc: 'Your clips and uploads', icon: Film },
   text: { title: 'Text', desc: 'Add and style captions', icon: Type },
+  captions: { title: 'Auto-captions', desc: 'Transcribe speech on-device', icon: Captions },
   transform: { title: 'Transform', desc: 'Position, size & opacity', icon: Move },
   speed: { title: 'Speed', desc: 'Speed up or slow down', icon: Gauge },
   effects: { title: 'Effects', desc: 'Color filters & looks', icon: Sparkles },
@@ -85,6 +98,8 @@ export function ToolPanel() {
             <MediaLibrary />
           ) : tool === 'text' ? (
             <TextTool />
+          ) : tool === 'captions' ? (
+            <CaptionsTool />
           ) : tool === 'transform' ? (
             <TransformTool />
           ) : tool === 'speed' ? (
