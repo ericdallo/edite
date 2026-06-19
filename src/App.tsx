@@ -7,6 +7,7 @@ import { useHistory } from '@/hooks/useHistory';
 import { useTheme } from '@/hooks/useTheme';
 import { Topbar } from '@/components/layout/Topbar';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { SubtoolRail } from '@/components/layout/SubtoolRail';
 import { EditorLayout } from '@/components/layout/EditorLayout';
 import { Dropzone } from '@/components/upload/Dropzone';
 import { VideoPreview } from '@/components/preview/VideoPreview';
@@ -42,6 +43,7 @@ export default function App() {
       <Topbar projects={projects} onExport={() => setExportOpen(true)} />
       <EditorLayout
         rail={<Sidebar />}
+        subrail={showPanel ? <SubtoolRail /> : null}
         panel={showPanel ? <ToolPanel /> : null}
         stage={hasContent ? <VideoPreview /> : <Dropzone />}
         timeline={

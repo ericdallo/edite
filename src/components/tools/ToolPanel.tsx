@@ -1,18 +1,7 @@
-import {
-  Captions,
-  Film,
-  Gauge,
-  type LucideIcon,
-  Move,
-  Ratio,
-  Sparkles,
-  Spline,
-  Type,
-  Volume2,
-  X,
-} from 'lucide-react';
+import { Film, Gauge, LayoutTemplate, type LucideIcon, Sparkles, Type, Volume2, X } from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
+import { activeSubtoolDef, resolveSubtool, subtoolsFor } from './subtools';
 import { MediaLibrary } from '@/components/media/MediaLibrary';
 import { TextTool } from './TextTool';
 import { CaptionsTool } from './CaptionsTool';
@@ -23,25 +12,51 @@ import { EffectsTool } from './EffectsTool';
 import { AspectRatioTool } from './AspectRatioTool';
 import { AudioTool } from './AudioTool';
 
+/** Category header fallback (icon always shown; title/desc used when the tool has no subcategories). */
 const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = {
   media: { title: 'Media', desc: 'Your clips and uploads', icon: Film },
-  text: { title: 'Text', desc: 'Add and style captions', icon: Type },
-  captions: { title: 'Auto-captions', desc: 'Transcribe, edit & style speech', icon: Captions },
-  transform: { title: 'Transform', desc: 'Position, size & opacity', icon: Move },
-  animation: { title: 'Animation', desc: 'Keyframe motion over time', icon: Spline },
+  text: { title: 'Text', desc: 'Text overlays & captions', icon: Type },
+  layout: { title: 'Layout', desc: 'Frame, placement & motion', icon: LayoutTemplate },
   speed: { title: 'Speed', desc: 'Speed up or slow down', icon: Gauge },
-  effects: { title: 'Effects', desc: 'Color filters & looks', icon: Sparkles },
-  aspect: { title: 'Aspect ratio', desc: 'Output canvas', icon: Ratio },
+  effects: { title: 'Effects', desc: 'Filters, transitions & keying', icon: Sparkles },
   audio: { title: 'Audio', desc: 'Volume, fades & mute', icon: Volume2 },
 };
 
+function ToolContent({ tool, sub }: { tool: ToolId; sub: string }) {
+  switch (tool) {
+    case 'media':
+      return <MediaLibrary />;
+    case 'text':
+      return sub === 'captions' ? <CaptionsTool /> : <TextTool />;
+    case 'layout':
+      if (sub === 'animate') return <AnimationTool />;
+      if (sub === 'canvas') return <AspectRatioTool sub="canvas" />;
+      if (sub === 'background') return <AspectRatioTool sub="background" />;
+      return <TransformTool />;
+    case 'speed':
+      return <SpeedTool sub={sub} />;
+    case 'effects':
+      return <EffectsTool sub={sub} />;
+    case 'audio':
+      return <AudioTool sub={sub} />;
+  }
+}
+
 export function ToolPanel() {
   const tool = useEditorStore((s) => s.selectedTool);
+  const selectedSubtool = useEditorStore((s) => s.selectedSubtool);
+  const setSubtool = useEditorStore((s) => s.setSelectedSubtool);
   const panelOpen = useEditorStore((s) => s.panelOpen);
   const setPanelOpen = useEditorStore((s) => s.setPanelOpen);
   const collapsed = useEditorStore((s) => s.sidebarCollapsed);
   const meta = META[tool];
   const Icon = meta.icon;
+  const subs = subtoolsFor(tool);
+  const activeSub = resolveSubtool(tool, selectedSubtool);
+  const subDef = activeSubtoolDef(tool, selectedSubtool);
+  // Header reflects the active subcategory when there is one, else the category.
+  const title = subDef?.label ?? meta.title;
+  const desc = subDef?.desc ?? meta.desc;
   // Mobile only: a canvas-affecting tool docks the preview above the sheet (see
   // EditorLayout), so the sheet takes a fixed slice and the backdrop must not
   // dim or block the live preview behind it.
@@ -71,8 +86,8 @@ export function ToolPanel() {
           // Fixed slice when the preview is docked above (height matches the
           // spacer in EditorLayout); content scrolls within.
           previewAbove && 'h-[52dvh] lg:h-auto',
-          // desktop: static left column
-          'lg:static lg:bottom-auto lg:z-auto lg:order-2 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:overflow-hidden lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
+          // desktop: static left column (after the icon rail + subtool rail)
+          'lg:static lg:bottom-auto lg:z-auto lg:order-3 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:overflow-hidden lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
           // desktop: collapse alongside the rail when hidden (mobile sheet unaffected)
           collapsed && 'lg:w-0 lg:min-w-0 lg:border-r-0 lg:opacity-0 lg:pointer-events-none',
         )}
@@ -84,8 +99,8 @@ export function ToolPanel() {
             <Icon size={18} />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-ink">{meta.title}</h2>
-            <p className="truncate text-xs text-ink-faint">{meta.desc}</p>
+            <h2 className="text-sm font-semibold text-ink">{title}</h2>
+            <p className="truncate text-xs text-ink-faint">{desc}</p>
           </div>
           <button
             onClick={() => setPanelOpen(false)}
@@ -96,26 +111,35 @@ export function ToolPanel() {
           </button>
         </div>
 
+        {/* Mobile sub-tabs: the desktop subtool rail is hidden here, so the
+            subcategories collapse into a horizontal strip inside the sheet. */}
+        {subs.length > 0 && (
+          <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line px-3 py-2 lg:hidden">
+            {subs.map((s) => {
+              const SubIcon = s.icon;
+              const on = activeSub === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSubtool(s.id)}
+                  aria-pressed={on}
+                  className={cn(
+                    'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                    on
+                      ? 'border-brand bg-brand/15 text-ink'
+                      : 'border-line bg-surface-2 text-ink-muted hover:text-ink',
+                  )}
+                >
+                  <SubIcon size={14} />
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-4">
-          {tool === 'media' ? (
-            <MediaLibrary />
-          ) : tool === 'text' ? (
-            <TextTool />
-          ) : tool === 'captions' ? (
-            <CaptionsTool />
-          ) : tool === 'transform' ? (
-            <TransformTool />
-          ) : tool === 'animation' ? (
-            <AnimationTool />
-          ) : tool === 'speed' ? (
-            <SpeedTool />
-          ) : tool === 'effects' ? (
-            <EffectsTool />
-          ) : tool === 'aspect' ? (
-            <AspectRatioTool />
-          ) : (
-            <AudioTool />
-          )}
+          <ToolContent tool={tool} sub={activeSub} />
         </div>
       </aside>
     </>

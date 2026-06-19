@@ -16,7 +16,7 @@ function Toggle({ on }: { on: boolean }) {
   );
 }
 
-export function AudioTool() {
+export function AudioTool({ sub = 'clip' }: { sub?: string }) {
   const clips = useEditorStore((s) => s.clips);
   const media = useEditorStore((s) => s.media);
   const activeId = useEditorStore((s) => s.activeClipId);
@@ -42,100 +42,9 @@ export function AudioTool() {
   const fadeMax = Math.max(0.1, Math.min(AUDIO_FADE_MAX, dur || AUDIO_FADE_MAX));
   const clipMuted = clip?.muted ?? false;
 
-  return (
-    <div className="space-y-6">
-      {clip && carriesAudio ? (
-        <div className="space-y-5">
-          <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Selected clip</div>
-
-          <button
-            onClick={() => updateClips(selectedIds, { muted: !clipMuted })}
-            className={cn(
-              'flex w-full items-center justify-between rounded-xl border px-4 py-3 transition-colors',
-              clipMuted ? 'border-danger/50 bg-danger/10' : 'border-line bg-surface-2',
-            )}
-          >
-            <span className="flex items-center gap-2.5 text-sm font-medium text-ink">
-              {clipMuted ? (
-                <VolumeX size={18} className="text-danger" />
-              ) : (
-                <Volume2 size={18} className="text-ink-muted" />
-              )}
-              {clipMuted ? 'Clip muted' : 'Clip audio on'}
-            </span>
-            <Toggle on={clipMuted} />
-          </button>
-
-          <div className={cn(clipMuted && 'pointer-events-none opacity-40')}>
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="text-ink-muted">Volume</span>
-              <span className="font-mono text-ink">{Math.round((clip.volume ?? 1) * 100)}%</span>
-            </div>
-            <Slider
-              min={0}
-              max={CLIP_VOLUME_MAX}
-              step={0.01}
-              value={clip.volume ?? 1}
-              onChange={(v) => updateClips(selectedIds, { volume: v })}
-              ariaLabel="Clip volume"
-            />
-          </div>
-
-          <div className={cn('grid grid-cols-2 gap-3', clipMuted && 'pointer-events-none opacity-40')}>
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="text-ink-muted">Fade in</span>
-                <span className="font-mono text-ink">{(clip.fadeIn ?? 0).toFixed(1)}s</span>
-              </div>
-              <Slider
-                min={0}
-                max={fadeMax}
-                step={0.05}
-                value={Math.min(clip.fadeIn ?? 0, fadeMax)}
-                onChange={(v) => updateClips(selectedIds, { fadeIn: v })}
-                ariaLabel="Fade in"
-              />
-            </div>
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="text-ink-muted">Fade out</span>
-                <span className="font-mono text-ink">{(clip.fadeOut ?? 0).toFixed(1)}s</span>
-              </div>
-              <Slider
-                min={0}
-                max={fadeMax}
-                step={0.05}
-                value={Math.min(clip.fadeOut ?? 0, fadeMax)}
-                onChange={(v) => updateClips(selectedIds, { fadeOut: v })}
-                ariaLabel="Fade out"
-              />
-            </div>
-          </div>
-
-          {canExtract && (
-            <button
-              onClick={() => extractAudio(clip.id)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
-            >
-              <AudioLines size={16} /> Extract audio to its own track
-            </button>
-          )}
-
-          <p className="text-xs leading-relaxed text-ink-faint">
-            {count > 1
-              ? `Volume and fades apply to all ${count} selected clips.`
-              : 'A boost above 100% is applied on export; the preview here caps at 100%.'}
-          </p>
-        </div>
-      ) : (
-        <p className="text-sm text-ink-faint">
-          {clip ? 'This clip has no audio.' : 'Select a clip with sound to adjust its volume and fades.'}
-        </p>
-      )}
-
-      <div className="space-y-5 border-t border-line pt-5">
-        <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">Project audio</div>
-
+  if (sub === 'project') {
+    return (
+      <div className="space-y-5">
         <button
           onClick={toggleMute}
           className={cn(
@@ -168,6 +77,98 @@ export function AudioTool() {
             : 'Muting removes audio from the exported file. Preview volume only affects playback here.'}
         </p>
       </div>
+    );
+  }
+
+  // Default: 'clip' — the selected clip's audio.
+  if (!clip || !carriesAudio) {
+    return (
+      <p className="text-sm text-ink-faint">
+        {clip ? 'This clip has no audio.' : 'Select a clip with sound to adjust its volume and fades.'}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <button
+        onClick={() => updateClips(selectedIds, { muted: !clipMuted })}
+        className={cn(
+          'flex w-full items-center justify-between rounded-xl border px-4 py-3 transition-colors',
+          clipMuted ? 'border-danger/50 bg-danger/10' : 'border-line bg-surface-2',
+        )}
+      >
+        <span className="flex items-center gap-2.5 text-sm font-medium text-ink">
+          {clipMuted ? (
+            <VolumeX size={18} className="text-danger" />
+          ) : (
+            <Volume2 size={18} className="text-ink-muted" />
+          )}
+          {clipMuted ? 'Clip muted' : 'Clip audio on'}
+        </span>
+        <Toggle on={clipMuted} />
+      </button>
+
+      <div className={cn(clipMuted && 'pointer-events-none opacity-40')}>
+        <div className="mb-2 flex items-center justify-between text-sm">
+          <span className="text-ink-muted">Volume</span>
+          <span className="font-mono text-ink">{Math.round((clip.volume ?? 1) * 100)}%</span>
+        </div>
+        <Slider
+          min={0}
+          max={CLIP_VOLUME_MAX}
+          step={0.01}
+          value={clip.volume ?? 1}
+          onChange={(v) => updateClips(selectedIds, { volume: v })}
+          ariaLabel="Clip volume"
+        />
+      </div>
+
+      <div className={cn('grid grid-cols-2 gap-3', clipMuted && 'pointer-events-none opacity-40')}>
+        <div>
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span className="text-ink-muted">Fade in</span>
+            <span className="font-mono text-ink">{(clip.fadeIn ?? 0).toFixed(1)}s</span>
+          </div>
+          <Slider
+            min={0}
+            max={fadeMax}
+            step={0.05}
+            value={Math.min(clip.fadeIn ?? 0, fadeMax)}
+            onChange={(v) => updateClips(selectedIds, { fadeIn: v })}
+            ariaLabel="Fade in"
+          />
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span className="text-ink-muted">Fade out</span>
+            <span className="font-mono text-ink">{(clip.fadeOut ?? 0).toFixed(1)}s</span>
+          </div>
+          <Slider
+            min={0}
+            max={fadeMax}
+            step={0.05}
+            value={Math.min(clip.fadeOut ?? 0, fadeMax)}
+            onChange={(v) => updateClips(selectedIds, { fadeOut: v })}
+            ariaLabel="Fade out"
+          />
+        </div>
+      </div>
+
+      {canExtract && (
+        <button
+          onClick={() => extractAudio(clip.id)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+        >
+          <AudioLines size={16} /> Extract audio to its own track
+        </button>
+      )}
+
+      <p className="text-xs leading-relaxed text-ink-faint">
+        {count > 1
+          ? `Volume and fades apply to all ${count} selected clips.`
+          : 'A boost above 100% is applied on export; the preview here caps at 100%.'}
+      </p>
     </div>
   );
 }

@@ -63,16 +63,7 @@ import {
   ZOOM_MIN,
 } from '@/lib/constants';
 
-export type ToolId =
-  | 'media'
-  | 'transform'
-  | 'animation'
-  | 'speed'
-  | 'effects'
-  | 'aspect'
-  | 'audio'
-  | 'text'
-  | 'captions';
+export type ToolId = 'media' | 'text' | 'layout' | 'speed' | 'effects' | 'audio';
 
 /** Which top-level screen is shown (the app has no router). */
 export type AppView = 'editor' | 'projects';
@@ -183,6 +174,8 @@ export interface EditorState {
 
   playback: PlaybackState;
   selectedTool: ToolId;
+  /** active subcategory within the selected tool ('' = use the tool's first). */
+  selectedSubtool: string;
   /** mobile only: whether the tool panel sheet is open. */
   panelOpen: boolean;
   /** desktop only: hide the tool rail + panel to give the preview and timeline more room. */
@@ -211,6 +204,7 @@ export interface EditorState {
   closeProject: () => void;
   setProjectName: (name: string) => void;
   setSelectedTool: (tool: ToolId) => void;
+  setSelectedSubtool: (sub: string) => void;
   setPanelOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
@@ -388,6 +382,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   committed: emptyDoc(),
   playback: { currentTime: 0, playing: false, volume: 1 },
   selectedTool: 'media',
+  selectedSubtool: '',
   panelOpen: false,
   sidebarCollapsed: false,
   view: 'editor',
@@ -458,7 +453,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   setProjectName: (name) => set({ projectName: name }),
-  setSelectedTool: (tool) => set({ selectedTool: tool }),
+  // Switching tools resets to the new tool's first subcategory (resolved in UI).
+  setSelectedTool: (tool) =>
+    set((s) => (s.selectedTool === tool ? {} : { selectedTool: tool, selectedSubtool: '' })),
+  setSelectedSubtool: (sub) => set({ selectedSubtool: sub }),
   setPanelOpen: (open) => set({ panelOpen: open }),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
@@ -527,6 +525,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         tracks: [...state.tracks, t],
         clips: [...state.clips, clip],
         selectedTool: 'text',
+        selectedSubtool: 'text',
         ...selectOne(clip.id),
       };
     }),

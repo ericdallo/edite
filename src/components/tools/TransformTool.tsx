@@ -50,7 +50,7 @@ export function TransformTool() {
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const clips = useEditorStore((s) => s.clips);
   const updateClips = useEditorStore((s) => s.updateClips);
-  const setSelectedTool = useEditorStore((s) => s.setSelectedTool);
+  const setSelectedSubtool = useEditorStore((s) => s.setSelectedSubtool);
   const clip = clips.find((c) => c.id === activeId);
 
   if (!clip) {
@@ -124,14 +124,14 @@ export function TransformTool() {
 
       {isMedia && (
         <p className="text-xs leading-relaxed text-ink-faint">
-          Want motion? Open the{' '}
+          Want motion? Switch to{' '}
           <button
-            onClick={() => setSelectedTool('animation')}
+            onClick={() => setSelectedSubtool('animate')}
             className="font-medium text-accent underline-offset-2 hover:underline"
           >
-            Animation
+            Animate
           </button>{' '}
-          tool to keyframe position &amp; size over time.
+          to keyframe position &amp; size over time.
         </p>
       )}
 

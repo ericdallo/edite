@@ -5,12 +5,14 @@ import { SidebarToggle } from './SidebarToggle';
 
 export interface EditorLayoutProps {
   rail: ReactNode;
+  /** desktop-only second rail with the selected tool's subcategories. */
+  subrail: ReactNode;
   panel: ReactNode;
   stage: ReactNode;
   timeline: ReactNode;
 }
 
-export function EditorLayout({ rail, panel, stage, timeline }: EditorLayoutProps) {
+export function EditorLayout({ rail, subrail, panel, stage, timeline }: EditorLayoutProps) {
   const panelOpen = useEditorStore((s) => s.panelOpen);
   const tool = useEditorStore((s) => s.selectedTool);
   // On mobile the tool settings slide up as a bottom sheet. For canvas-affecting
@@ -21,7 +23,7 @@ export function EditorLayout({ rail, panel, stage, timeline }: EditorLayoutProps
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
-      <div className="relative order-1 flex min-w-0 flex-1 flex-col lg:order-3">
+      <div className="relative order-1 flex min-w-0 flex-1 flex-col lg:order-4">
         <SidebarToggle />
         <div className="relative min-h-0 flex-1">{stage}</div>
         <div className={cn(previewAbove ? 'hidden lg:contents' : 'contents')}>{timeline}</div>
@@ -30,6 +32,8 @@ export function EditorLayout({ rail, panel, stage, timeline }: EditorLayoutProps
         <div aria-hidden className={cn('shrink-0 lg:hidden', previewAbove ? 'h-[52dvh]' : 'hidden')} />
       </div>
       <div className={cn(previewAbove ? 'hidden lg:contents' : 'contents')}>{rail}</div>
+      {/* Desktop second rail (subcategories); renders nothing when the tool has none. */}
+      {subrail}
       {panel}
     </div>
   );

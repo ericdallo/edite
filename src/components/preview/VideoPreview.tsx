@@ -14,6 +14,7 @@ import {
 } from '@/lib/timeline';
 import { cssColorFilter } from '@/lib/color';
 import { clamp, cn } from '@/lib/utils';
+import { resolveSubtool } from '@/components/tools/subtools';
 import { TransformOverlay } from './TransformOverlay';
 import { TextLayer } from './TextLayer';
 import { ChromaLayer } from './ChromaLayer';
@@ -56,16 +57,18 @@ export function VideoPreview() {
   const setPlaying = useEditorStore((s) => s.setPlaying);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const selectedTool = useEditorStore((s) => s.selectedTool);
+  const selectedSubtool = useEditorStore((s) => s.selectedSubtool);
   const activeClipId = useEditorStore((s) => s.activeClipId);
 
   const ratio = resolveAspectRatio(aspect, media);
   const activeClip = clips.find((c) => c.id === activeClipId);
-  const showOverlay =
-    selectedTool === 'transform' ||
-    selectedTool === 'animation' ||
-    (selectedTool === 'text' && activeClip?.text != null);
-  const interactive =
-    selectedTool === 'transform' || selectedTool === 'animation' || selectedTool === 'text';
+  // The on-canvas transform box belongs to Layout ▸ Transform/Animate (clip
+  // placement & keyframes) and Text ▸ Text (positioning an overlay).
+  const sub = resolveSubtool(selectedTool, selectedSubtool);
+  const layoutBox = selectedTool === 'layout' && (sub === 'transform' || sub === 'animate');
+  const textBox = selectedTool === 'text' && sub === 'text';
+  const showOverlay = layoutBox || (textBox && activeClip?.text != null);
+  const interactive = layoutBox || textBox;
 
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [isFs, setIsFs] = useState(false);

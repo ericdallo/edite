@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
 import { Button } from '@/components/ui/Button';
 
-export function SpeedTool() {
+export function SpeedTool({ sub = 'normal' }: { sub?: string }) {
   const activeId = useEditorStore((s) => s.activeClipId);
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const clips = useEditorStore((s) => s.clips);
@@ -44,6 +44,71 @@ export function SpeedTool() {
   const canFreeze =
     isVideo && !clip.speedCurve && currentTime > clip.start + MIN_CLIP && currentTime < clipEnd(clip) - MIN_CLIP;
 
+  if (sub === 'curve') {
+    if (!isVideo) {
+      return (
+        <div className="space-y-2">
+          <div className="text-sm text-ink-muted">Speed curve</div>
+          <p className="text-xs leading-relaxed text-ink-faint">
+            Speed curves and freeze frames work on video clips. Select a video to ramp its speed over time.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-3">
+        <div className="text-sm text-ink-muted">Speed curve</div>
+        <div className="grid grid-cols-3 gap-2">
+          {SPEED_CURVES.map((c) => {
+            const on = curveId === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setClipCurve(selectedIds, on ? null : (c.id as SpeedCurveId))}
+                title={c.hint}
+                className={cn(
+                  'rounded-xl border px-2 py-2 text-xs font-medium leading-tight transition-colors',
+                  on
+                    ? 'border-brand bg-brand/10 text-ink'
+                    : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+                )}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+        {curveId && (
+          <button
+            onClick={() => setClipCurve(selectedIds, null)}
+            className="text-xs text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+          >
+            Clear curve (back to constant speed)
+          </button>
+        )}
+
+        <Button
+          variant="secondary"
+          size="md"
+          className="w-full"
+          disabled={!canFreeze}
+          onClick={() => freezeFrame()}
+          title="Hold the frame at the playhead (F)"
+        >
+          <Snowflake className="h-4 w-4" />
+          Freeze frame at playhead
+        </Button>
+
+        <p className="text-xs leading-relaxed text-ink-faint">
+          {curveId
+            ? 'The speed curve ramps this clip over its length; audio is time-stretched to match.'
+            : 'A curve ramps speed across the clip (ease in/out, slow-mo). Freeze holds the current frame.'}
+        </p>
+      </div>
+    );
+  }
+
+  // Default: 'normal' — constant speed.
   return (
     <div className="space-y-5">
       <div>
@@ -73,55 +138,9 @@ export function SpeedTool() {
         <Slider min={0.25} max={4} step={0.05} value={speed} onChange={setSpeed} ariaLabel="Clip speed" />
       </div>
 
-      {isVideo && (
-        <div className="space-y-3 border-t border-line pt-4">
-          <div className="text-sm text-ink-muted">Speed curve</div>
-          <div className="grid grid-cols-3 gap-2">
-            {SPEED_CURVES.map((c) => {
-              const on = curveId === c.id;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setClipCurve(selectedIds, on ? null : (c.id as SpeedCurveId))}
-                  title={c.hint}
-                  className={cn(
-                    'rounded-xl border px-2 py-2 text-xs font-medium leading-tight transition-colors',
-                    on
-                      ? 'border-brand bg-brand/10 text-ink'
-                      : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
-                  )}
-                >
-                  {c.label}
-                </button>
-              );
-            })}
-          </div>
-          {curveId && (
-            <button
-              onClick={() => setClipCurve(selectedIds, null)}
-              className="text-xs text-ink-faint underline-offset-2 hover:text-ink hover:underline"
-            >
-              Clear curve (back to constant speed)
-            </button>
-          )}
-
-          <Button
-            variant="secondary"
-            size="md"
-            className="w-full"
-            disabled={!canFreeze}
-            onClick={() => freezeFrame()}
-            title="Hold the frame at the playhead (F)"
-          >
-            <Snowflake className="h-4 w-4" />
-            Freeze frame at playhead
-          </Button>
-        </div>
-      )}
-
       <p className="text-xs leading-relaxed text-ink-faint">
         {curveId
-          ? 'The speed curve ramps this clip over its length; audio is time-stretched to match.'
+          ? 'This clip has a speed curve; setting a constant speed will replace it.'
           : count > 1
             ? `Applies to all ${count} selected clips and keeps them back-to-back. Audio is time-stretched to match.`
             : 'Higher speed shortens the clip on the timeline; audio is time-stretched to match.'}
