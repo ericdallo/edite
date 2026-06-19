@@ -6,16 +6,102 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='l' x1='10' y1='12' x2='34' y2='52' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23a78bfa'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3ClinearGradient id='r' x1='30' y1='12' x2='54' y2='52' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%2338bdf8'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M14 24C14 18.5 18.5 14 24 14H33' stroke='url(%23l)' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M14 40C14 45.5 18.5 50 24 50H33' stroke='url(%23l)' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M50 24C50 18.5 45.5 14 40 14H37' stroke='url(%23r)' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M50 40C50 45.5 45.5 50 40 50H37' stroke='url(%23r)' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M27 24.9C27 23.5 28.6 22.6 29.8 23.4L40.4 30.5C41.5 31.2 41.5 32.8 40.4 33.5L29.8 40.6C28.6 41.4 27 40.5 27 39.1V24.9Z' fill='white'/%3E%3C/svg%3E"
     />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#7c3aed" />
+
+    <title>edite — Free Online Video Editor (No Upload, In Your Browser)</title>
     <meta
       name="description"
-      content="edite — free online video editor. Trim, split, crop, change speed and aspect ratio, mute and export, 100% in your browser."
+      content="edite is a free online video editor that runs entirely in your browser. Trim, split, crop, change speed and aspect ratio, add text and picture-in-picture overlays, and export MP4, WebM or GIF. No account, no upload — your media never leaves your device."
     />
-    <title>edite — free online video editor</title>
+    <meta
+      name="keywords"
+      content="free online video editor, browser video editor, trim video online, split video, crop video, change video speed, video aspect ratio, picture-in-picture, no upload video editor, private video editor, MP4 editor, WebM, GIF maker, multi-track video editor"
+    />
+    <meta name="author" content="edite" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="application-name" content="edite" />
+    <link rel="canonical" href="https://edite.video/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="edite" />
+    <meta property="og:title" content="edite — Free Online Video Editor (No Upload, In Your Browser)" />
+    <meta
+      property="og:description"
+      content="A free, multi-track video editor that runs entirely in your browser. Trim, split, crop, reframe, add text and overlays, and export MP4/WebM/GIF. No account, no upload — your media never leaves your device."
+    />
+    <meta property="og:url" content="https://edite.video/" />
+    <meta property="og:image" content="https://edite.video/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="636" />
+    <meta property="og:image:alt" content="The edite multi-track video editor running in a web browser" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="edite — Free Online Video Editor (No Upload, In Your Browser)" />
+    <meta
+      name="twitter:description"
+      content="A free, multi-track video editor that runs entirely in your browser. Trim, split, crop, reframe, add text and overlays, and export MP4/WebM/GIF. No upload — your media never leaves your device."
+    />
+    <meta name="twitter:image" content="https://edite.video/og-image.png" />
+    <meta name="twitter:image:alt" content="The edite multi-track video editor running in a web browser" />
+
+    <!-- Structured data: tells search engines this is a free web app -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "edite",
+        "url": "https://edite.video/",
+        "description": "A free, multi-track video editor that runs entirely in the browser. Trim, split, crop, change speed and aspect ratio, add text and picture-in-picture overlays, and export MP4, WebM or GIF — with no account, no upload, and no server.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any (web browser)",
+        "browserRequirements": "Requires a modern browser with WebAssembly support",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "Trim and split video clips",
+          "Crop and change aspect ratio",
+          "Change playback speed",
+          "Multi-track timeline with picture-in-picture overlays",
+          "Add text overlays",
+          "Mute audio",
+          "Export to MP4, WebM and GIF",
+          "100% in-browser processing — no upload required"
+        ]
+      }
+    </script>
     <script type="module" crossorigin src="/assets/index-53Z6W3oi.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-OTvw4rW6.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <noscript>
+        <main style="max-width: 42rem; margin: 4rem auto; padding: 0 1.5rem; font-family: system-ui, sans-serif; line-height: 1.6;">
+          <h1>edite — free online video editor</h1>
+          <p>
+            edite is a free, multi-track video editor that runs entirely in your web browser. Import
+            videos and images, stack them on layered tracks, and trim, split, crop, change speed or
+            aspect ratio, add text and picture-in-picture overlays, then export a composited MP4,
+            WebM or GIF.
+          </p>
+          <p>
+            There is no account, no upload, and no server: all decoding, compositing and encoding
+            happen locally, so your media never leaves your device.
+          </p>
+          <p><strong>This editor requires JavaScript. Please enable JavaScript to start editing.</strong></p>
+        </main>
+      </noscript>
+    </div>
   </body>
 </html>
