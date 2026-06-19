@@ -236,15 +236,31 @@ export function makeSpeedCurve(id: SpeedCurveId): SpeedCurve {
 }
 
 /**
- * Per-clip color adjustment. Maps to both a CSS `filter` (live preview) and an
- * ffmpeg `eq`/`hue` chain (export): brightness, contrast and saturation are
- * 1 = unchanged; hue is a rotation in degrees.
+ * Per-clip color grade. The four legacy knobs (brightness, contrast, saturation
+ * = 1 unchanged; hue = degrees) map to CSS `filter` + ffmpeg `eq`/`hue`. The
+ * deeper, optional fields are a CapCut-style Adjust panel; each is 0 = neutral
+ * (sharpen/vignette: 0 = off) and is rendered by a shared WebGL shader in
+ * preview and a matching ffmpeg chain on export, so what you see is what burns.
  */
 export interface ColorAdjust {
   brightness: number;
   contrast: number;
   saturation: number;
   hue: number;
+  /** White balance, -100 (cool/blue) .. 100 (warm/amber). */
+  temperature?: number;
+  /** Green ↔ magenta balance, -100 (green) .. 100 (magenta). */
+  tint?: number;
+  /** Multiplicative exposure, -100 .. 100 (±~1.5 stops at the extremes). */
+  exposure?: number;
+  /** Bright-tone lift/recover, -100 .. 100. */
+  highlights?: number;
+  /** Dark-tone lift/crush, -100 .. 100. */
+  shadows?: number;
+  /** Unsharp-mask amount, 0 (off) .. 100. */
+  sharpen?: number;
+  /** Edge darkening, 0 (off) .. 100. */
+  vignette?: number;
 }
 
 export const NEUTRAL_COLOR: ColorAdjust = { brightness: 1, contrast: 1, saturation: 1, hue: 0 };

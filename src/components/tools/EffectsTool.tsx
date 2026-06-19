@@ -14,6 +14,15 @@ import { canAddTransition, maxTransitionDuration } from '@/lib/timeline';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
 
+/** Percent of a ×-multiplier knob (1 = 100%). */
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+/** Signed readout for a -100..100 grade slider (0 = neutral). */
+const signed = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v)}`;
+/** Degrees readout. */
+const deg = (v: number) => `${Math.round(v)}\u00b0`;
+/** Plain 0..100 amount. */
+const amt = (v: number) => `${Math.round(v)}`;
+
 function Adjust({
   label,
   value,
@@ -260,9 +269,29 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
   }
 
   if (sub === 'adjust') {
+    const ext = {
+      temperature: color.temperature ?? 0,
+      tint: color.tint ?? 0,
+      exposure: color.exposure ?? 0,
+      highlights: color.highlights ?? 0,
+      shadows: color.shadows ?? 0,
+      sharpen: color.sharpen ?? 0,
+      vignette: color.vignette ?? 0,
+    };
+    const heading = 'text-[11px] font-semibold uppercase tracking-wide text-ink-faint';
     return (
-      <div className="space-y-5">
+      <div className="space-y-6">
         <div className="space-y-4">
+          <div className={heading}>Light</div>
+          <Adjust
+            label="Exposure"
+            value={ext.exposure}
+            min={-100}
+            max={100}
+            step={1}
+            onChange={(v) => set({ exposure: v })}
+            fmt={signed}
+          />
           <Adjust
             label="Brightness"
             value={color.brightness}
@@ -270,7 +299,7 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
             max={1.5}
             step={0.01}
             onChange={(v) => set({ brightness: v })}
-            fmt={(v) => `${Math.round(v * 100)}%`}
+            fmt={pct}
           />
           <Adjust
             label="Contrast"
@@ -279,7 +308,46 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
             max={1.5}
             step={0.01}
             onChange={(v) => set({ contrast: v })}
-            fmt={(v) => `${Math.round(v * 100)}%`}
+            fmt={pct}
+          />
+          <Adjust
+            label="Highlights"
+            value={ext.highlights}
+            min={-100}
+            max={100}
+            step={1}
+            onChange={(v) => set({ highlights: v })}
+            fmt={signed}
+          />
+          <Adjust
+            label="Shadows"
+            value={ext.shadows}
+            min={-100}
+            max={100}
+            step={1}
+            onChange={(v) => set({ shadows: v })}
+            fmt={signed}
+          />
+        </div>
+        <div className="space-y-4">
+          <div className={heading}>Colour</div>
+          <Adjust
+            label="Temperature"
+            value={ext.temperature}
+            min={-100}
+            max={100}
+            step={1}
+            onChange={(v) => set({ temperature: v })}
+            fmt={signed}
+          />
+          <Adjust
+            label="Tint"
+            value={ext.tint}
+            min={-100}
+            max={100}
+            step={1}
+            onChange={(v) => set({ tint: v })}
+            fmt={signed}
           />
           <Adjust
             label="Saturation"
@@ -288,7 +356,7 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
             max={2}
             step={0.01}
             onChange={(v) => set({ saturation: v })}
-            fmt={(v) => `${Math.round(v * 100)}%`}
+            fmt={pct}
           />
           <Adjust
             label="Hue"
@@ -297,7 +365,28 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
             max={180}
             step={1}
             onChange={(v) => set({ hue: v })}
-            fmt={(v) => `${Math.round(v)}\u00b0`}
+            fmt={deg}
+          />
+        </div>
+        <div className="space-y-4">
+          <div className={heading}>Effects</div>
+          <Adjust
+            label="Sharpen"
+            value={ext.sharpen}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(v) => set({ sharpen: v })}
+            fmt={amt}
+          />
+          <Adjust
+            label="Vignette"
+            value={ext.vignette}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(v) => set({ vignette: v })}
+            fmt={amt}
           />
         </div>
         {resetColor}

@@ -30,6 +30,7 @@ import {
   projectDuration,
 } from '@/lib/timeline';
 import { clamp } from '@/lib/utils';
+import { clampColor } from '@/lib/color';
 import { uid } from '@/lib/ids';
 import {
   type Accent,
@@ -302,14 +303,7 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
   // Fades live in timeline seconds, so they can't exceed the clip's on-timeline length.
   const dur = Math.max(0, (nout - nin) / Math.max(0.0001, nspeed));
   const fadeCap = Math.min(AUDIO_FADE_MAX, dur);
-  const color = c.color
-    ? {
-        brightness: clamp(c.color.brightness, 0, 4),
-        contrast: clamp(c.color.contrast, 0, 4),
-        saturation: clamp(c.color.saturation, 0, 4),
-        hue: clamp(c.color.hue, -180, 180),
-      }
-    : undefined;
+  const color = c.color ? clampColor(c.color) : undefined;
   const chromaKey = c.chromaKey
     ? {
         color: c.chromaKey.color,

@@ -12,12 +12,12 @@ import {
   transitionFades,
   transitionRenderAt,
 } from '@/lib/timeline';
-import { cssColorFilter } from '@/lib/color';
+import { cssColorFilter, hasExtraGrade } from '@/lib/color';
 import { clamp, cn } from '@/lib/utils';
 import { resolveSubtool } from '@/components/tools/subtools';
 import { TransformOverlay } from './TransformOverlay';
 import { TextLayer } from './TextLayer';
-import { ChromaLayer } from './ChromaLayer';
+import { GLClipLayer } from './GLClipLayer';
 
 /**
  * CSS to mirror/flip/rotate a clip's media so it matches the export. For 90/270
@@ -44,6 +44,8 @@ export function VideoPreview() {
   const stageRef = useRef<HTMLDivElement>(null);
   // Holds every playable element (videos and standalone/detached audio) by clip id.
   const mediaEls = useRef<Map<string, HTMLMediaElement>>(new Map());
+  // Hidden <img> sources for GL-graded image clips, read by their grade layer.
+  const imgEls = useRef<Map<string, HTMLImageElement>>(new Map());
 
   const media = useEditorStore((s) => s.media);
   const tracks = useEditorStore((s) => s.tracks);
@@ -261,7 +263,11 @@ export function VideoPreview() {
             );
           }
           const orient = orientMediaStyle(clip, rect.w * box.w, rect.h * box.h);
-          const filter = cssColorFilter(clip.color);
+          // A clip with chroma or any deeper-grade field renders through the WebGL
+          // grade shader (which owns its color); legacy-only grades keep the cheap
+          // CSS-filter path with no WebGL overhead.
+          const gl = (m.kind === 'video' && clip.chromaKey != null) || hasExtraGrade(clip.color);
+          const filter = gl ? undefined : cssColorFilter(clip.color);
           // Compose orientation transform with the color filter on one element.
           const mediaStyle: CSSProperties | undefined =
             orient || filter ? { ...(orient ?? {}), filter } : undefined;
@@ -270,24 +276,41 @@ export function VideoPreview() {
             if (el) mediaEls.current.set(clip.id, el);
             else mediaEls.current.delete(clip.id);
           };
-          const keyed = m.kind === 'video' && clip.chromaKey != null;
+          const registerImg = (el: HTMLImageElement | null) => {
+            if (el) imgEls.current.set(clip.id, el);
+            else imgEls.current.delete(clip.id);
+          };
           const wrapper = (
             <div className="pointer-events-none absolute overflow-hidden" style={style}>
-              {keyed ? (
+              {gl ? (
                 <>
-                  {/* Hidden source video: still decoded, seeked and played by the
-                      master clock; the canvas reads its frames and keys the color out. */}
-                  <video
-                    ref={registerVideo}
-                    src={m.url}
-                    className="pointer-events-none absolute h-px w-px opacity-0"
-                    playsInline
-                    muted
-                    preload="auto"
-                  />
-                  <ChromaLayer
-                    getVideo={() => (mediaEls.current.get(clip.id) as HTMLVideoElement | undefined) ?? null}
-                    chroma={clip.chromaKey!}
+                  {/* Hidden source: still decoded (and, for video, seeked/played by
+                      the master clock); the canvas reads its frames and grades them. */}
+                  {m.kind === 'video' ? (
+                    <video
+                      ref={registerVideo}
+                      src={m.url}
+                      className="pointer-events-none absolute h-px w-px opacity-0"
+                      playsInline
+                      muted
+                      preload="auto"
+                    />
+                  ) : (
+                    <img
+                      ref={registerImg}
+                      src={m.url}
+                      alt=""
+                      className="pointer-events-none absolute h-px w-px opacity-0"
+                    />
+                  )}
+                  <GLClipLayer
+                    getSource={() =>
+                      m.kind === 'video'
+                        ? ((mediaEls.current.get(clip.id) as HTMLVideoElement | undefined) ?? null)
+                        : (imgEls.current.get(clip.id) ?? null)
+                    }
+                    grade={clip.color}
+                    chroma={m.kind === 'video' ? clip.chromaKey : null}
                     className={mediaCls}
                     style={mediaStyle}
                   />
