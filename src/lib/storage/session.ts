@@ -27,6 +27,7 @@ type PersistableState = Pick<
   | 'background'
   | 'muted'
   | 'exportSettings'
+  | 'customLuts'
 >;
 
 /** Strip runtime-only fields (url, blob) from media for persistence. */
@@ -59,6 +60,7 @@ export function snapshotFromState(s: PersistableState): ProjectSnapshot {
     background: s.background,
     muted: s.muted,
     exportSettings: s.exportSettings,
+    customLuts: s.customLuts,
   };
 }
 
@@ -121,6 +123,7 @@ export async function openProject(id: string): Promise<boolean> {
     background: data.background ?? DEFAULT_BACKGROUND,
     muted: data.muted,
     exportSettings: { ...DEFAULT_EXPORT_SETTINGS, ...data.exportSettings },
+    customLuts: data.customLuts ?? [],
     activeClipId: data.clips[0]?.id ?? null,
     selectedIds: data.clips[0] ? [data.clips[0].id] : [],
     clipboard: [],

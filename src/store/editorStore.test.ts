@@ -942,3 +942,29 @@ describe('view navigation', () => {
     expect(get().view).toBe('projects');
   });
 });
+
+describe('custom LUTs', () => {
+  const CUBE = 'LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n';
+
+  it('imports a valid cube and returns a custom id', () => {
+    const id = get().importLut('My Look', CUBE);
+    expect(id.startsWith('custom:')).toBe(true);
+    expect(get().customLuts).toHaveLength(1);
+    expect(get().customLuts[0].name).toBe('My Look');
+  });
+
+  it('rejects an invalid cube without storing it', () => {
+    expect(() => get().importLut('bad', 'not a cube')).toThrow();
+    expect(get().customLuts).toHaveLength(0);
+  });
+
+  it('removing a LUT clears it from referencing clips', () => {
+    seed();
+    const id = get().importLut('L', CUBE);
+    get().updateClips(['c1'], { color: { brightness: 1, contrast: 1, saturation: 1, hue: 0, lut: id } });
+    expect(get().clips[0].color?.lut).toBe(id);
+    get().removeLut(id);
+    expect(get().customLuts).toHaveLength(0);
+    expect(get().clips[0].color?.lut).toBeUndefined();
+  });
+});

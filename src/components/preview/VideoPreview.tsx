@@ -48,6 +48,7 @@ export function VideoPreview() {
   const imgEls = useRef<Map<string, HTMLImageElement>>(new Map());
 
   const media = useEditorStore((s) => s.media);
+  const customLuts = useEditorStore((s) => s.customLuts);
   const tracks = useEditorStore((s) => s.tracks);
   const clips = useEditorStore((s) => s.clips);
   const aspect = useEditorStore((s) => s.aspect);
@@ -312,6 +313,7 @@ export function VideoPreview() {
                     grade={clip.color}
                     chroma={m.kind === 'video' ? clip.chromaKey : null}
                     lut={clip.color?.lut}
+                    cube={customLuts.find((l) => l.id === clip.color?.lut)?.cube ?? null}
                     className={mediaCls}
                     style={mediaStyle}
                   />

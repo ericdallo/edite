@@ -396,6 +396,14 @@ export const RECOMMENDED_VIDEO_KBPS: Record<ExportResolution, number> = {
   2160: 35000,
 };
 
+/** A user-imported 3D LUT held in the project. `id` is `custom:<uid>`. */
+export interface CustomLut {
+  id: string;
+  name: string;
+  /** raw `.cube` file text. */
+  cube: string;
+}
+
 export interface ProjectSnapshot {
   id: string;
   name: string;
@@ -408,6 +416,8 @@ export interface ProjectSnapshot {
   background: string;
   muted: boolean;
   exportSettings: ExportSettings;
+  /** user-imported LUT looks referenced by clips' `color.lut`. */
+  customLuts?: CustomLut[];
   /** small JPEG data URL poster for the projects list (optional, best-effort). */
   thumbnail?: string;
 }

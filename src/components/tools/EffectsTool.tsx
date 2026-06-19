@@ -1,4 +1,5 @@
-import { Sparkles } from 'lucide-react';
+import { type ChangeEvent, useRef, useState } from 'react';
+import { Sparkles, Upload, X } from 'lucide-react';
 import {
   CHROMA_SWATCHES,
   COLOR_PRESETS,
@@ -59,6 +60,11 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
   const media = useEditorStore((s) => s.media);
   const updateClips = useEditorStore((s) => s.updateClips);
   const setClipTransition = useEditorStore((s) => s.setClipTransition);
+  const customLuts = useEditorStore((s) => s.customLuts);
+  const importLut = useEditorStore((s) => s.importLut);
+  const removeLut = useEditorStore((s) => s.removeLut);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [lutError, setLutError] = useState<string | null>(null);
   const clip = clips.find((c) => c.id === activeId);
 
   if (!clip) {
@@ -89,6 +95,19 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
   const setLut = (id?: string) => {
     const next = { ...color, lut: id };
     updateClips(selectedIds, { color: id == null && isNeutralColor(next) ? undefined : next });
+  };
+  const onImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const name = file.name.replace(/\.cube$/i, '').slice(0, 40) || 'Custom';
+      setLut(importLut(name, text));
+      setLutError(null);
+    } catch {
+      setLutError('That file is not a valid .cube LUT.');
+    }
   };
 
   const isVideo = media.find((m) => m.id === clip.mediaId)?.kind === 'video';
@@ -414,7 +433,16 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
   return (
     <div className="space-y-5">
       <div>
-        <div className="mb-2 text-sm text-ink-muted">Looks</div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-sm text-ink-muted">Looks</span>
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-1 text-xs text-ink-faint transition-colors hover:text-ink"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import
+          </button>
+        </div>
         <div className="grid grid-cols-3 gap-2">
           <button onClick={() => setLut(undefined)} className={chip(!clip.color?.lut)}>
             None
@@ -429,7 +457,27 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
               {l.label}
             </button>
           ))}
+          {customLuts.map((l) => (
+            <div key={l.id} className="relative">
+              <button
+                onClick={() => setLut(l.id)}
+                title={l.name}
+                className={cn(chip(clip.color?.lut === l.id), 'w-full truncate pr-5')}
+              >
+                {l.name}
+              </button>
+              <button
+                onClick={() => removeLut(l.id)}
+                aria-label={`Remove ${l.name}`}
+                className="absolute right-1 top-1 rounded p-0.5 text-ink-faint hover:bg-surface-3 hover:text-ink"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
         </div>
+        {lutError && <p className="mt-2 text-xs text-rose-400">{lutError}</p>}
+        <input ref={fileRef} type="file" accept=".cube" onChange={onImportFile} className="hidden" />
       </div>
       <div>
         <div className="mb-2 text-sm text-ink-muted">Presets</div>

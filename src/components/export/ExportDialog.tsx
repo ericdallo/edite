@@ -84,6 +84,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const media = useEditorStore((s) => s.media);
   const tracks = useEditorStore((s) => s.tracks);
   const clips = useEditorStore((s) => s.clips);
+  const customLuts = useEditorStore((s) => s.customLuts);
   const aspect = useEditorStore((s) => s.aspect);
   const background = useEditorStore((s) => s.background);
   const projectName = useEditorStore((s) => s.projectName);
@@ -192,6 +193,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
         params,
         media: plan.media,
         clipMediaIds: plan.clipMediaIds,
+        luts: customLuts.map((l) => ({ id: l.id, cube: l.cube })),
         signal: controller.signal,
         onProgress: setProgress,
       });

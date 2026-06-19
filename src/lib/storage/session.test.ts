@@ -24,6 +24,7 @@ describe('snapshotFromState', () => {
       background: '#101014',
       muted: true,
       exportSettings: DEFAULT_EXPORT_SETTINGS,
+      customLuts: [],
     });
     expect(snap.id).toBe('p1');
     expect(snap.name).toBe('My Project');

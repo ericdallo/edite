@@ -4,6 +4,7 @@ import {
   CAPTION_PRESETS,
   captionRect,
   type Clip,
+  type CustomLut,
   DEFAULT_BACKGROUND,
   DEFAULT_EXPORT_SETTINGS,
   DEFAULT_TEXT_RECT,
@@ -31,6 +32,7 @@ import {
 } from '@/lib/timeline';
 import { clamp } from '@/lib/utils';
 import { clampColor } from '@/lib/color';
+import { parseCube } from '@/lib/lut';
 import { uid } from '@/lib/ids';
 import {
   type Accent,
@@ -162,6 +164,8 @@ export interface EditorState {
   background: string;
   muted: boolean;
   exportSettings: ExportSettings;
+  /** user-imported `.cube` LUT looks, referenced by clips' `color.lut`. */
+  customLuts: CustomLut[];
 
   /** primary selection (drives the transform box, trim, split); always in `selectedIds` when set. */
   activeClipId: string | null;
@@ -200,6 +204,11 @@ export interface EditorState {
   isExporting: boolean;
   exportProgress: number;
   exportStage: string;
+
+  /** Import a `.cube` LUT into the project; returns its new id (throws if invalid). */
+  importLut: (name: string, cube: string) => string;
+  /** Remove an imported LUT and clear it from any clip referencing it. */
+  removeLut: (id: string) => void;
 
   newProject: (args: { id?: string; name?: string }) => void;
   closeProject: () => void;
@@ -368,6 +377,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   background: DEFAULT_BACKGROUND,
   muted: false,
   exportSettings: DEFAULT_EXPORT,
+  customLuts: [],
   activeClipId: null,
   selectedIds: [],
   clipboard: [],
@@ -406,6 +416,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         media: [],
         tracks: [],
         clips: [],
+        customLuts: [],
         aspect: s.defaultAspect,
         background: DEFAULT_BACKGROUND,
         muted: false,
@@ -434,6 +445,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         media: [],
         tracks: [],
         clips: [],
+        customLuts: [],
         activeClipId: null,
         selectedIds: [],
         clipboard: [],
@@ -1043,6 +1055,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         playback: { ...s.playback, playing: false, currentTime: clamp(s.playback.currentTime, 0, projectDuration(next.clips)) },
       };
     }),
+
+  importLut: (name, cube) => {
+    parseCube(cube); // throws on an invalid cube, before we store anything
+    const id = `custom:${uid()}`;
+    set((s) => ({ customLuts: [...s.customLuts, { id, name, cube }] }));
+    return id;
+  },
+
+  removeLut: (id) =>
+    set((s) => ({
+      customLuts: s.customLuts.filter((l) => l.id !== id),
+      clips: s.clips.map((c) => (c.color?.lut === id ? { ...c, color: { ...c.color, lut: undefined } } : c)),
+    })),
 
   hydrate: (partial) =>
     set((s) => {
