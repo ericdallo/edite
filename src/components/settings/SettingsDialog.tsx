@@ -1,16 +1,46 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Keyboard, type LucideIcon, Settings as SettingsIcon, SlidersHorizontal, X } from 'lucide-react';
+import {
+  Captions,
+  Info,
+  Keyboard,
+  type LucideIcon,
+  Palette,
+  Settings as SettingsIcon,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { GeneralSettings } from './GeneralSettings';
+import { AppearanceSettings } from './AppearanceSettings';
+import { EditingSettings } from './EditingSettings';
+import { CaptionSettings } from './CaptionSettings';
 import { ShortcutsSettings } from './ShortcutsSettings';
+import { AboutSettings } from './AboutSettings';
 
-type SectionId = 'general' | 'shortcuts';
+type SectionId = 'appearance' | 'editing' | 'captions' | 'shortcuts' | 'about';
 
 const SECTIONS: { id: SectionId; label: string; icon: LucideIcon }[] = [
-  { id: 'general', label: 'General', icon: SlidersHorizontal },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'editing', label: 'Editing', icon: SlidersHorizontal },
+  { id: 'captions', label: 'Captions', icon: Captions },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
+  { id: 'about', label: 'About', icon: Info },
 ];
+
+function SectionContent({ section }: { section: SectionId }) {
+  switch (section) {
+    case 'appearance':
+      return <AppearanceSettings />;
+    case 'editing':
+      return <EditingSettings />;
+    case 'captions':
+      return <CaptionSettings />;
+    case 'shortcuts':
+      return <ShortcutsSettings />;
+    case 'about':
+      return <AboutSettings />;
+  }
+}
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -18,7 +48,7 @@ export interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
-  const [section, setSection] = useState<SectionId>('general');
+  const [section, setSection] = useState<SectionId>('appearance');
 
   useEffect(() => {
     if (!open) return;
@@ -79,7 +109,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           </nav>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            {section === 'general' ? <GeneralSettings /> : <ShortcutsSettings />}
+            <SectionContent section={section} />
           </div>
         </div>
       </div>
