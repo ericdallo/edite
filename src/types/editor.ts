@@ -118,6 +118,8 @@ export interface Clip {
   text?: TextStyle;
   /** Enter/exit animation for a text overlay (burned into the export). */
   textAnim?: TextAnim;
+  /** Vector shape/sticker overlay (no media); mutually exclusive with `text`/media. */
+  shape?: ShapeStyle;
   /**
    * Source-time (seconds) held as a still. When set, the clip shows that single
    * frame for its whole timeline length; `in`/`out` act as the hold window and
@@ -220,6 +222,49 @@ export function textAnimUnit(id: TextAnimId | null | undefined): { ux: number; u
     default:
       return { ux: 0, uy: 0 };
   }
+}
+
+/** Built-in vector shapes/stickers, drawn by a shared canvas renderer. */
+export type ShapeKind = 'rectangle' | 'ellipse' | 'triangle' | 'diamond' | 'star' | 'arrow';
+
+export interface ShapeStyle {
+  kind: ShapeKind;
+  /** fill color (#rrggbb) or 'none'. */
+  fill: string;
+  /** outline color (#rrggbb). */
+  stroke: string;
+  /** outline width as a fraction of the box's short side (0 = no outline). */
+  strokeWidth: number;
+  /** corner radius for the rectangle, fraction of the short side (0..0.5). */
+  radius: number;
+}
+
+export interface ShapeOption {
+  kind: ShapeKind;
+  label: string;
+}
+
+export const SHAPES: ShapeOption[] = [
+  { kind: 'rectangle', label: 'Rectangle' },
+  { kind: 'ellipse', label: 'Ellipse' },
+  { kind: 'triangle', label: 'Triangle' },
+  { kind: 'diamond', label: 'Diamond' },
+  { kind: 'star', label: 'Star' },
+  { kind: 'arrow', label: 'Arrow' },
+];
+
+export const DEFAULT_SHAPE_STYLE: Omit<ShapeStyle, 'kind'> = {
+  fill: '#8b5cf6',
+  stroke: '#ffffff',
+  strokeWidth: 0,
+  radius: 0.12,
+};
+
+/** Default placement for a new shape (a roughly square centered box). */
+export const DEFAULT_SHAPE_RECT: Rect = { x: 0.36, y: 0.3, w: 0.28, h: 0.4 };
+
+export function isShapeClip(clip: Clip): clip is Clip & { shape: ShapeStyle } {
+  return clip.shape != null;
 }
 
 export type SpeedCurveId = 'rampUp' | 'rampDown' | 'bulletTime';

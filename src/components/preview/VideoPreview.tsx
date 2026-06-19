@@ -18,6 +18,7 @@ import { clamp, cn } from '@/lib/utils';
 import { resolveSubtool } from '@/components/tools/subtools';
 import { TransformOverlay } from './TransformOverlay';
 import { TextLayer } from './TextLayer';
+import { ShapeLayer } from './ShapeLayer';
 import { GLClipLayer } from './GLClipLayer';
 
 /**
@@ -267,6 +268,14 @@ export function VideoPreview() {
             return (
               <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={tstyle}>
                 <TextLayer text={clip.text} boxW={rect.w * box.w} boxH={rect.h * box.h} canvasH={box.h} />
+              </div>
+            );
+          }
+
+          if (clip.shape) {
+            return (
+              <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
+                <ShapeLayer shape={clip.shape} boxW={rect.w * box.w} boxH={rect.h * box.h} />
               </div>
             );
           }

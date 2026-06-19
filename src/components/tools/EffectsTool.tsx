@@ -71,7 +71,7 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
     return <p className="text-sm text-ink-faint">Select a clip on the timeline to color grade it.</p>;
   }
 
-  if (clip.text || clip.audioOnly) {
+  if (clip.text || clip.shape || clip.audioOnly) {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-ink">

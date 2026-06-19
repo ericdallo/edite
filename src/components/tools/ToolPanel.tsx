@@ -1,9 +1,10 @@
-import { Diamond, Film, Gauge, LayoutTemplate, type LucideIcon, Sparkles, Type, Volume2, X } from 'lucide-react';
+import { Diamond, Film, Gauge, LayoutTemplate, type LucideIcon, Shapes, Sparkles, Type, Volume2, X } from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
 import { activeSubtoolDef, resolveSubtool, subtoolsFor } from './subtools';
 import { MediaLibrary } from '@/components/media/MediaLibrary';
 import { TextTool } from './TextTool';
+import { ShapeTool } from './ShapeTool';
 import { CaptionsTool } from './CaptionsTool';
 import { TransformTool } from './TransformTool';
 import { AnimationTool } from './AnimationTool';
@@ -16,6 +17,7 @@ import { AudioTool } from './AudioTool';
 const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = {
   media: { title: 'Media', desc: 'Your clips and uploads', icon: Film },
   text: { title: 'Text', desc: 'Text overlays & captions', icon: Type },
+  shape: { title: 'Shapes', desc: 'Vector shapes & stickers', icon: Shapes },
   layout: { title: 'Layout', desc: 'Frame & placement', icon: LayoutTemplate },
   animate: { title: 'Animate', desc: 'Keyframe motion & text in/out', icon: Diamond },
   speed: { title: 'Speed', desc: 'Speed up or slow down', icon: Gauge },
@@ -29,6 +31,8 @@ function ToolContent({ tool, sub }: { tool: ToolId; sub: string }) {
       return <MediaLibrary />;
     case 'text':
       return sub === 'captions' ? <CaptionsTool /> : <TextTool />;
+    case 'shape':
+      return <ShapeTool />;
     case 'layout':
       if (sub === 'canvas') return <AspectRatioTool sub="canvas" />;
       if (sub === 'background') return <AspectRatioTool sub="background" />;

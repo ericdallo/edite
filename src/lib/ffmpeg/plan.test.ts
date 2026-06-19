@@ -36,6 +36,20 @@ describe('buildExportPlan', () => {
     expect(plan.clips).toHaveLength(1);
   });
 
+  it('emits a shape clip as a shape overlay with no media', () => {
+    const track = makeTrack({ id: 't1' });
+    const clip = makeClip({
+      trackId: 't1',
+      mediaId: '',
+      shape: { kind: 'ellipse', fill: '#ffffff', stroke: '#000000', strokeWidth: 0, radius: 0 },
+    });
+    const plan = buildExportPlan([track], [clip], []);
+    expect(plan.clips).toHaveLength(1);
+    expect(plan.clips[0].kind).toBe('shape');
+    expect(plan.clips[0].shape?.kind).toBe('ellipse');
+    expect(plan.clipMediaIds[0]).toBe('');
+  });
+
   it('drops clips whose media is missing', () => {
     const track = makeTrack({ id: 't1' });
     const clips = [makeClip({ trackId: 't1', mediaId: 'gone' })];

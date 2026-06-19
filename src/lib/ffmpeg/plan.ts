@@ -23,7 +23,12 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
     .filter((t) => !t.hidden)
     .flatMap((t) =>
       clips
-        .filter((c) => c.trackId === t.id && !c.hidden && (c.text != null || mediaById.has(c.mediaId)))
+        .filter(
+          (c) =>
+            c.trackId === t.id &&
+            !c.hidden &&
+            (c.text != null || c.shape != null || mediaById.has(c.mediaId)),
+        )
         .sort((a, b) => a.start - b.start)
         .map((clip) => ({ clip, track: t })),
     );
@@ -52,6 +57,33 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
             fadeOut: 0,
             text: clip.text,
             textAnim: clip.textAnim,
+          },
+          mediaId: '',
+        },
+      ];
+    }
+    if (clip.shape) {
+      return [
+        {
+          ec: {
+            kind: 'shape',
+            start: clip.start,
+            in: clip.in,
+            out: clip.out,
+            speed: 1,
+            rect: clip.rect,
+            opacity: clip.opacity,
+            hasAudio: false,
+            muted: true,
+            flipH: clip.flipH ?? false,
+            flipV: clip.flipV ?? false,
+            rotation: clip.rotation ?? 0,
+            volume: 1,
+            fadeIn: 0,
+            fadeOut: 0,
+            shape: clip.shape,
+            keyframes: clip.keyframes,
+            transition: clip.transition,
           },
           mediaId: '',
         },

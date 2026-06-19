@@ -4,7 +4,7 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { EyeOff, Music, Type, VolumeX } from 'lucide-react';
+import { EyeOff, Music, Shapes, Type, VolumeX } from 'lucide-react';
 import type { Clip, MediaItem } from '@/types/editor';
 import { clipTimelineDuration } from '@/lib/timeline';
 import { generateThumbnails, type Thumbnail } from '@/lib/media/thumbnails';
@@ -35,6 +35,7 @@ export function TimelineClip({ clip, media, pxPerSec, currentTime, active, selec
   const width = Math.max(2, clipTimelineDuration(clip) * pxPerSec);
   const left = clip.start * pxPerSec;
   const isText = clip.text != null;
+  const isShape = clip.shape != null;
   // A clip reads as audio when its media is audio, or it was detached from video.
   const isAudio = !!media && (media.kind === 'audio' || clip.audioOnly === true);
   const isVideo = media?.kind === 'video' && !clip.audioOnly;
@@ -86,6 +87,13 @@ export function TimelineClip({ clip, media, pxPerSec, currentTime, active, selec
             <Type size={13} className="shrink-0 text-brand-bright" />
             <span className="truncate text-[11px] font-medium text-white/90">
               {clip.text?.content || 'Text'}
+            </span>
+          </div>
+        ) : isShape ? (
+          <div className="flex h-full w-full items-center gap-1.5 bg-gradient-to-r from-accent/30 to-brand/20 px-2">
+            <Shapes size={13} className="shrink-0 text-brand-bright" />
+            <span className="truncate text-[11px] font-medium capitalize text-white/90">
+              {clip.shape?.kind ?? 'Shape'}
             </span>
           </div>
         ) : isAudio && media ? (

@@ -1,5 +1,5 @@
 import { isAudioFormat, TEXT_ANIM_OFFSET, textAnimUnit } from '@/types/editor';
-import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, TextAnim, TextStyle, Transition, TransitionId } from '@/types/editor';
+import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { lutFileName } from '@/lib/lut';
 import { ffmpegChromaFilter } from '@/lib/chroma';
@@ -8,7 +8,7 @@ import { keyframeExport } from './keyframes';
 
 export interface ExportClip {
   /** 'audio' = sound only, no video overlay (standalone audio or detached track). */
-  kind: 'video' | 'image' | 'text' | 'audio';
+  kind: 'video' | 'image' | 'text' | 'shape' | 'audio';
   /** timeline position (s) */
   start: number;
   in: number;
@@ -37,6 +37,8 @@ export interface ExportClip {
   text?: TextStyle;
   /** enter/exit animation for a text overlay (alpha + position over the in/out ramps). */
   textAnim?: TextAnim;
+  /** vector shape spec, present when kind === 'shape' (rasterized to a PNG input). */
+  shape?: ShapeStyle;
   /** source-time (s) of a held still; when set the clip is rasterized to a frozen PNG input. */
   freeze?: number;
   /** per-clip color / filter adjustment, rendered as an eq + hue chain. */
@@ -241,7 +243,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
   const inputArgs: string[] = [];
   clips.forEach((c, k) => {
     // Text overlays are pre-rasterized to a PNG, so they're looped like images.
-    if (c.kind === 'image' || c.kind === 'text') {
+    if (c.kind === 'image' || c.kind === 'text' || c.kind === 'shape') {
       inputArgs.push('-loop', '1', '-framerate', String(fps), '-t', fmt(timelineLen(c)), '-i', inputNames[k]);
     } else {
       inputArgs.push('-i', inputNames[k]);
@@ -342,7 +344,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
       graph.push(`[sb${k}][gd${k}]blend=all_expr='A*${fmt(1 - intensity)}+B*${fmt(intensity)}'[bl${k}]`);
       graph.push(tail ? `[bl${k}]${tail}[c${k}]` : `[bl${k}]null[c${k}]`);
     };
-    if (c.kind === 'image' || c.kind === 'text') {
+    if (c.kind === 'image' || c.kind === 'text' || c.kind === 'shape') {
       const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
       emit(`${pts}${orient}${cover}`);
     } else {

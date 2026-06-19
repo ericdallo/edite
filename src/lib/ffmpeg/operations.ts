@@ -4,6 +4,7 @@ import { getFFmpeg, onFFmpegLog, terminateFFmpeg } from './client';
 import { buildExportCommand, extFromMime, type BuiltCommand, type MultiExportParams } from './command';
 import { lutFileName, lutUrl } from '@/lib/lut';
 import { renderTextToBlob } from '@/lib/text/raster';
+import { renderShapeToBlob } from '@/lib/shape/raster';
 import { renderFrameToBlob } from '@/lib/media/frame';
 import { logger } from '@/lib/log';
 
@@ -122,6 +123,12 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
       if (c.kind === 'text' && c.text) {
         const blob = await renderTextToBlob(c.text, c.rect, req.params.canvasW, req.params.canvasH);
         const name = `txt_${k}.png`;
+        await ffmpeg.writeFile(name, await fetchFile(blob));
+        inputNames.push(name);
+        textNames.push(name);
+      } else if (c.kind === 'shape' && c.shape) {
+        const blob = await renderShapeToBlob(c.shape, c.rect, req.params.canvasW, req.params.canvasH);
+        const name = `shp_${k}.png`;
         await ffmpeg.writeFile(name, await fetchFile(blob));
         inputNames.push(name);
         textNames.push(name);

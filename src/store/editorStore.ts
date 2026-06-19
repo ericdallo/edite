@@ -7,6 +7,8 @@ import {
   type CustomLut,
   DEFAULT_BACKGROUND,
   DEFAULT_EXPORT_SETTINGS,
+  DEFAULT_SHAPE_RECT,
+  DEFAULT_SHAPE_STYLE,
   DEFAULT_TEXT_RECT,
   DEFAULT_TEXT_STYLE,
   type ExportSettings,
@@ -15,6 +17,7 @@ import {
   makeSpeedCurve,
   type MediaItem,
   type Rect,
+  type ShapeKind,
   type SpeedCurveId,
   type TextStyle,
   type Track,
@@ -66,7 +69,7 @@ import {
   ZOOM_MIN,
 } from '@/lib/constants';
 
-export type ToolId = 'media' | 'text' | 'layout' | 'animate' | 'speed' | 'effects' | 'audio';
+export type ToolId = 'media' | 'text' | 'shape' | 'layout' | 'animate' | 'speed' | 'effects' | 'audio';
 
 /** Which top-level screen is shown (the app has no router). */
 export type AppView = 'editor' | 'projects';
@@ -223,6 +226,7 @@ export interface EditorState {
   addMedia: (item: MediaItem) => void;
   addClipFromMedia: (mediaId: string, opts?: { trackId?: string; start?: number }) => void;
   addTextClip: (opts?: { start?: number }) => void;
+  addShapeClip: (kind: ShapeKind, opts?: { start?: number }) => void;
   /** Add auto-caption text clips on a new dedicated track (one history step). */
   addCaptionClips: (items: CaptionClip[]) => void;
   updateText: (id: string, patch: Partial<TextStyle>) => void;
@@ -532,6 +536,38 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         clips: [...state.clips, clip],
         selectedTool: 'text',
         selectedSubtool: 'text',
+        ...selectOne(clip.id),
+      };
+    }),
+
+  addShapeClip: (kind, opts) =>
+    set((state) => {
+      const t: Track = { id: uid(), name: `Shape ${state.tracks.length + 1}`, hidden: false, muted: false };
+      const clip: Clip = {
+        id: uid(),
+        mediaId: '',
+        trackId: t.id,
+        start: Math.max(0, opts?.start ?? state.playback.currentTime),
+        in: 0,
+        out: IMAGE_DEFAULT_DUR,
+        speed: 1,
+        rect: { ...DEFAULT_SHAPE_RECT },
+        opacity: 1,
+        muted: true,
+        hidden: false,
+        flipH: false,
+        flipV: false,
+        rotation: 0,
+        volume: 1,
+        fadeIn: 0,
+        fadeOut: 0,
+        shape: { kind, ...DEFAULT_SHAPE_STYLE },
+      };
+      return {
+        tracks: [...state.tracks, t],
+        clips: [...state.clips, clip],
+        selectedTool: 'shape',
+        selectedSubtool: '',
         ...selectOne(clip.id),
       };
     }),

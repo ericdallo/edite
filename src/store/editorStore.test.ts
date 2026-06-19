@@ -968,3 +968,16 @@ describe('custom LUTs', () => {
     expect(get().clips[0].color?.lut).toBeUndefined();
   });
 });
+
+describe('addShapeClip', () => {
+  it('adds a shape clip on its own track and selects the Shapes tool', () => {
+    get().addShapeClip('star');
+    const s = get();
+    expect(s.clips).toHaveLength(1);
+    expect(s.tracks).toHaveLength(1);
+    expect(s.clips[0].shape?.kind).toBe('star');
+    expect(s.clips[0].mediaId).toBe('');
+    expect(s.selectedTool).toBe('shape');
+    expect(s.activeClipId).toBe(s.clips[0].id);
+  });
+});

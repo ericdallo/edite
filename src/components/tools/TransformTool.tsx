@@ -62,7 +62,7 @@ export function TransformTool() {
   }
 
   const count = selectedIds.length;
-  const isMedia = !clip.text;
+  const isMedia = !clip.text && !clip.shape;
 
   return (
     <div className="space-y-5">

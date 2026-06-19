@@ -203,6 +203,24 @@ describe('buildExportCommand text animation', () => {
   });
 });
 
+describe('buildExportCommand shapes', () => {
+  it('loops a shape overlay like a still and composites it', () => {
+    const cmd = build([
+      makeExportClip({
+        kind: 'shape',
+        start: 0,
+        in: 0,
+        out: 4,
+        hasAudio: false,
+        shape: { kind: 'star', fill: '#ffffff', stroke: '#000000', strokeWidth: 0, radius: 0 },
+      }),
+    ]);
+    expect(strOf(cmd)).toContain('-loop 1 -framerate 30 -t 4.000 -i in_0.mp4');
+    expect(graphOf(cmd)).toContain('overlay=');
+    expect(strOf(cmd)).toContain('-an');
+  });
+});
+
 describe('buildExportCommand keyframes', () => {
   const kfClip = (over: Partial<ExportClip> = {}) =>
     makeExportClip({
