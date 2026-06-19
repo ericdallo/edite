@@ -26,6 +26,10 @@ export function ToolPanel() {
   const collapsed = useEditorStore((s) => s.sidebarCollapsed);
   const meta = META[tool];
   const Icon = meta.icon;
+  // Mobile only: a canvas-affecting tool docks the preview above the sheet (see
+  // EditorLayout), so the sheet takes a fixed slice and the backdrop must not
+  // dim or block the live preview behind it.
+  const previewAbove = panelOpen && tool !== 'media';
 
   return (
     <>
@@ -34,8 +38,11 @@ export function ToolPanel() {
         onClick={() => setPanelOpen(false)}
         aria-hidden
         className={cn(
-          'fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity lg:hidden',
+          'fixed inset-0 z-30 transition-opacity lg:hidden',
           panelOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
+          previewAbove
+            ? 'pointer-events-none bg-transparent backdrop-blur-none'
+            : 'bg-black/50 backdrop-blur-sm',
         )}
       />
 
@@ -45,6 +52,9 @@ export function ToolPanel() {
           // mobile: bottom sheet
           'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] rounded-t-2xl border border-line transition-[transform,width,opacity] duration-200 ease-out',
           panelOpen ? 'translate-y-0' : 'translate-y-full',
+          // Fixed slice when the preview is docked above (height matches the
+          // spacer in EditorLayout); content scrolls within.
+          previewAbove && 'h-[52dvh] lg:h-auto',
           // desktop: static left column
           'lg:static lg:bottom-auto lg:z-auto lg:order-2 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:overflow-hidden lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
           // desktop: collapse alongside the rail when hidden (mobile sheet unaffected)
