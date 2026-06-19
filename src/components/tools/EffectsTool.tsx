@@ -82,6 +82,9 @@ export function EffectsTool() {
 
   const canTransition = canAddTransition(clips, clip);
   const maxTrans = maxTransitionDuration(clips, clip);
+  // Show the controls always (so the feature is discoverable) but disable them
+  // until the clip has an adjacent predecessor on its track to cross-fade from.
+  const transitionDisabled = !canTransition && !clip.transition;
 
   return (
     <div className="space-y-5">
@@ -158,56 +161,57 @@ export function EffectsTool() {
         </button>
       )}
 
-      {(canTransition || clip.transition) && (
-        <div className="space-y-3 border-t border-line pt-4">
-          <div className="text-sm text-ink-muted">Transition in</div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setClipTransition(clip.id, null)}
-              className={cn(
-                'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
-                !clip.transition
-                  ? 'border-brand bg-brand/10 text-ink'
-                  : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
-              )}
-            >
-              None
-            </button>
-            {TRANSITIONS.map((t) => {
-              const on = clip.transition?.type === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setClipTransition(clip.id, t.id)}
-                  className={cn(
-                    'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
-                    on
-                      ? 'border-brand bg-brand/10 text-ink'
-                      : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
-                  )}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-          {clip.transition && (
-            <Adjust
-              label="Duration"
-              value={clip.transition.duration}
-              min={0.1}
-              max={Math.max(0.2, maxTrans)}
-              step={0.05}
-              onChange={(v) => setClipTransition(clip.id, clip.transition!.type, v)}
-              fmt={(v) => `${v.toFixed(2)}s`}
-            />
-          )}
-          <p className="text-xs leading-relaxed text-ink-faint">
-            Cross-fades in from the previous clip on this track. The clips overlap by the duration and
-            the rest of the track shifts to fit.
-          </p>
+      <div className="space-y-3 border-t border-line pt-4">
+        <div className="text-sm text-ink-muted">Transition in</div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setClipTransition(clip.id, null)}
+            disabled={transitionDisabled}
+            className={cn(
+              'rounded-xl border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+              !clip.transition
+                ? 'border-brand bg-brand/10 text-ink'
+                : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+            )}
+          >
+            None
+          </button>
+          {TRANSITIONS.map((t) => {
+            const on = clip.transition?.type === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setClipTransition(clip.id, t.id)}
+                disabled={transitionDisabled}
+                className={cn(
+                  'rounded-xl border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                  on
+                    ? 'border-brand bg-brand/10 text-ink'
+                    : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+                )}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
-      )}
+        {clip.transition && (
+          <Adjust
+            label="Duration"
+            value={clip.transition.duration}
+            min={0.1}
+            max={Math.max(0.2, maxTrans)}
+            step={0.05}
+            onChange={(v) => setClipTransition(clip.id, clip.transition!.type, v)}
+            fmt={(v) => `${v.toFixed(2)}s`}
+          />
+        )}
+        <p className="text-xs leading-relaxed text-ink-faint">
+          {transitionDisabled
+            ? 'Cross-fades this clip with the one right before it on the same track. Add a clip just before this one \u2014 split a clip (S) or drag two onto one track \u2014 then pick a style.'
+            : 'Cross-fades in from the previous clip on this track. The clips overlap by the duration and the rest of the track shifts to fit.'}
+        </p>
+      </div>
 
       {isVideo && (
         <div className="space-y-3 border-t border-line pt-4">
