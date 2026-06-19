@@ -311,6 +311,7 @@ export function VideoPreview() {
                     }
                     grade={clip.color}
                     chroma={m.kind === 'video' ? clip.chromaKey : null}
+                    lut={clip.color?.lut}
                     className={mediaCls}
                     style={mediaStyle}
                   />

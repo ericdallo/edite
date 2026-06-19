@@ -46,6 +46,7 @@ export function clampColor(c: ColorAdjust): ColorAdjust {
     if (c[k] != null) out[k] = clampNum(c[k] as number, EXTRA_RANGE[k][0], EXTRA_RANGE[k][1]);
   }
   if (c.intensity != null) out.intensity = clampNum(c.intensity, 0, 1);
+  if (c.lut != null) out.lut = c.lut;
   return out;
 }
 
@@ -59,6 +60,8 @@ export function isNeutralColor(c?: ColorAdjust | null): boolean {
   if (!c) return true;
   // Intensity 0 dials the whole grade off, so the look is the original.
   if (gradeIntensity(c) <= EPS) return true;
+  // A LUT look is a non-linear remap the knobs can't represent.
+  if (c.lut) return false;
   return (
     Math.abs(c.brightness - 1) < EPS &&
     Math.abs(c.contrast - 1) < EPS &&
@@ -78,6 +81,7 @@ export function colorEquals(a?: ColorAdjust | null, b?: ColorAdjust | null): boo
     Math.abs(x.saturation - y.saturation) < EPS &&
     Math.abs(x.hue - y.hue) < EPS &&
     Math.abs(gradeIntensity(x) - gradeIntensity(y)) < EPS &&
+    (x.lut ?? '') === (y.lut ?? '') &&
     EXTRA_KEYS.every((k) => Math.abs((x[k] ?? 0) - (y[k] ?? 0)) < EPS)
   );
 }
@@ -99,7 +103,7 @@ export function hasExtraGrade(c?: ColorAdjust | null): boolean {
  * otherwise non-neutral grade (CSS can't blend toward the original).
  */
 export function needsGradeShader(c?: ColorAdjust | null): boolean {
-  return hasExtraGrade(c) || (gradeIntensity(c) < 1 - EPS && !isNeutralColor(c));
+  return hasExtraGrade(c) || !!c?.lut || (gradeIntensity(c) < 1 - EPS && !isNeutralColor(c));
 }
 
 /**

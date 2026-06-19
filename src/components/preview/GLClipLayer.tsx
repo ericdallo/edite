@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useRef } from 'react';
 import type { ChromaKey, ColorAdjust } from '@/types/editor';
 import { gradeUniforms } from '@/lib/color';
+import { lutUrl, packLut, parseCube } from '@/lib/lut';
 import { hexToRgb01 } from '@/lib/chroma';
 
 const VERT = `
@@ -31,9 +32,29 @@ uniform float u_chroma; // 1 = key enabled
 uniform vec3 u_key;
 uniform float u_sim;
 uniform float u_blend;
+uniform sampler2D u_lut; // packed 3D LUT (size blue-slices across)
+uniform float u_lutSize;
+uniform float u_hasLut;
 varying vec2 v_uv;
 
 const vec3 LUM = vec3(0.213, 0.715, 0.072);
+
+// Trilinear sample of the packed LUT: bilinear red/green inside a blue slice
+// (hardware LINEAR), blended manually between the two nearest blue slices.
+vec3 sampleLut(vec3 c) {
+  c = clamp(c, 0.0, 1.0);
+  float n = u_lutSize;
+  float W = n * n;
+  float bf = c.b * (n - 1.0);
+  float b0 = floor(bf);
+  float fb = bf - b0;
+  float b1 = min(b0 + 1.0, n - 1.0);
+  float uR = c.r * (n - 1.0) + 0.5;
+  float v = (c.g * (n - 1.0) + 0.5) / n;
+  vec3 s0 = texture2D(u_lut, vec2((b0 * n + uR) / W, v)).rgb;
+  vec3 s1 = texture2D(u_lut, vec2((b1 * n + uR) / W, v)).rgb;
+  return mix(s0, s1, fb);
+}
 
 vec2 rgb2uv(vec3 c) {
   float u = -0.168736 * c.r - 0.331264 * c.g + 0.5 * c.b + 0.5;
@@ -89,6 +110,7 @@ void main() {
     rgb *= 1.0 - u_vig * smoothstep(0.35, 1.0, r);
   }
   rgb = clamp(rgb, 0.0, 1.0);
+  if (u_hasLut > 0.5) rgb = sampleLut(rgb); // designed look, after the knobs
   rgb = mix(src.rgb, rgb, u_intensity); // dial the whole grade back toward the source
 
   float a = src.a;
@@ -115,12 +137,18 @@ export function GLClipLayer({
   getSource,
   grade,
   chroma,
+  lut,
+  cube,
   className,
   style,
 }: {
   getSource: () => HTMLVideoElement | HTMLImageElement | null;
   grade?: ColorAdjust | null;
   chroma?: ChromaKey | null;
+  /** LUT look id to apply (bundled or `custom:`), or null for none. */
+  lut?: string | null;
+  /** raw `.cube` text for a custom LUT, when its bytes aren't fetchable by URL. */
+  cube?: string | null;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -128,9 +156,13 @@ export function GLClipLayer({
   const getSourceRef = useRef(getSource);
   const gradeRef = useRef(grade);
   const chromaRef = useRef(chroma);
+  const lutRef = useRef(lut);
+  const cubeRef = useRef(cube);
   getSourceRef.current = getSource;
   gradeRef.current = grade;
   chromaRef.current = chroma;
+  lutRef.current = lut;
+  cubeRef.current = cube;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -188,11 +220,22 @@ export function GLClipLayer({
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
     const tex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    // Texture unit 1 holds the active LUT (a 1x1 placeholder until one loads).
+    const lutTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, lutTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0]));
 
     const u = (name: string) => gl.getUniformLocation(prog, name);
     const uBcs = u('u_bcs');
@@ -207,7 +250,40 @@ export function GLClipLayer({
     const uKey = u('u_key');
     const uSim = u('u_sim');
     const uBlend = u('u_blend');
+    const uLutSize = u('u_lutSize');
+    const uHasLut = u('u_hasLut');
+    gl.uniform1i(u('u_tex'), 0);
+    gl.uniform1i(u('u_lut'), 1);
     gl.clearColor(0, 0, 0, 0);
+
+    // Lazy LUT load: fetch (bundled) or use the inline cube (custom), parse, pack
+    // and upload when the id changes; until ready the look just isn't applied.
+    let lutLoadedId: string | null = null;
+    let lutSize = 0;
+    let lutLoading = false;
+    const loadLut = async (id: string) => {
+      lutLoading = true;
+      try {
+        const url = lutUrl(id);
+        let text: string | null = cubeRef.current ?? null;
+        if (url) {
+          const res = await fetch(url);
+          text = res.ok ? await res.text() : null;
+        }
+        if (text == null || stopped) return;
+        const packed = packLut(parseCube(text));
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, lutTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, packed.width, packed.height, 0, gl.RGB, gl.UNSIGNED_BYTE, packed.pixels);
+        lutSize = packed.size;
+        lutLoadedId = id;
+      } catch {
+        lutLoadedId = null;
+        lutSize = 0;
+      } finally {
+        lutLoading = false;
+      }
+    };
 
     const loop = () => {
       if (stopped) return;
@@ -239,7 +315,18 @@ export function GLClipLayer({
           } else {
             gl.uniform1f(uChroma, 0);
           }
+          const wantLut = lutRef.current;
+          if (wantLut) {
+            if (lutLoadedId !== wantLut && !lutLoading) loadLut(wantLut);
+            gl.uniform1f(uHasLut, lutLoadedId === wantLut && lutSize > 0 ? 1 : 0);
+            gl.uniform1f(uLutSize, lutSize > 0 ? lutSize : 2);
+          } else {
+            gl.uniform1f(uHasLut, 0);
+            lutLoadedId = null;
+          }
           try {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, tex);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, el);
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -256,6 +343,7 @@ export function GLClipLayer({
       stopped = true;
       cancelAnimationFrame(raf);
       gl.deleteTexture(tex);
+      gl.deleteTexture(lutTex);
       gl.deleteBuffer(buf);
       gl.deleteProgram(prog);
     };

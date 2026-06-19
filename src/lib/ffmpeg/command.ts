@@ -1,6 +1,7 @@
 import { isAudioFormat } from '@/types/editor';
 import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, TextStyle, Transition, TransitionId } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
+import { lutFileName } from '@/lib/lut';
 import { ffmpegChromaFilter } from '@/lib/chroma';
 import { transitionFamily } from '@/lib/timeline';
 import { keyframeExport } from './keyframes';
@@ -262,7 +263,10 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const cover = kf
       ? `scale=${kf.refW}:${kf.refH}:force_original_aspect_ratio=increase,crop=${kf.refW}:${kf.refH},setsar=1,scale=w='${kf.w}':h='${kf.h}':eval=frame`
       : `scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1`;
-    const colorF = ffmpegColorFilter(c.color);
+    // A LUT look applies after the knobs (lut3d reads a .cube the runner writes
+    // into the FS); it joins the grade chain so the intensity blend dials it too.
+    const lutNode = c.color?.lut ? `lut3d=${lutFileName(c.color.lut)}` : '';
+    const colorF = [ffmpegColorFilter(c.color), lutNode].filter(Boolean).join(',');
     const color = colorF ? `,${colorF}` : '';
     // Grade strength: when < 1 the grade is rendered on a split branch and blended
     // back over the original, matching the preview shader's mix(orig, graded, i).

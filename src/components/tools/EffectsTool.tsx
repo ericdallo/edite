@@ -10,6 +10,7 @@ import {
 } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { colorEquals, isNeutralColor } from '@/lib/color';
+import { LUT_LOOKS } from '@/lib/lut';
 import { canAddTransition, maxTransitionDuration } from '@/lib/timeline';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
@@ -85,6 +86,10 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
   // of the current intensity (so pulling intensity to 0 doesn't hide the slider).
   const hasLook = clip.color != null && !isNeutralColor({ ...clip.color, intensity: 1 });
   const set = (patch: Partial<ColorAdjust>) => updateClips(selectedIds, { color: { ...color, ...patch } });
+  const setLut = (id?: string) => {
+    const next = { ...color, lut: id };
+    updateClips(selectedIds, { color: id == null && isNeutralColor(next) ? undefined : next });
+  };
 
   const isVideo = media.find((m) => m.id === clip.mediaId)?.kind === 'video';
   const chroma: ChromaKey = clip.chromaKey ?? DEFAULT_CHROMA;
@@ -398,11 +403,36 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
     );
   }
 
-  // Default: 'filters' — quick-look presets.
+  // Default: 'filters' — designed LUT looks plus quick knob presets.
+  const chip = (on: boolean) =>
+    cn(
+      'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
+      on
+        ? 'border-brand bg-brand/10 text-ink'
+        : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+    );
   return (
     <div className="space-y-5">
       <div>
-        <div className="mb-2 text-sm text-ink-muted">Filters</div>
+        <div className="mb-2 text-sm text-ink-muted">Looks</div>
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => setLut(undefined)} className={chip(!clip.color?.lut)}>
+            None
+          </button>
+          {LUT_LOOKS.map((l) => (
+            <button
+              key={l.id}
+              onClick={() => setLut(l.id)}
+              title={l.category}
+              className={chip(clip.color?.lut === l.id)}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="mb-2 text-sm text-ink-muted">Presets</div>
         <div className="grid grid-cols-3 gap-2">
           {COLOR_PRESETS.map((p) => {
             const on = p.id === 'none' ? neutral : colorEquals(clip.color, p.color);
@@ -410,14 +440,11 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
               <button
                 key={p.id}
                 onClick={() =>
-                  updateClips(selectedIds, { color: p.id === 'none' ? undefined : { ...p.color } })
+                  updateClips(selectedIds, {
+                    color: p.id === 'none' ? undefined : { ...p.color, lut: clip.color?.lut },
+                  })
                 }
-                className={cn(
-                  'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
-                  on
-                    ? 'border-brand bg-brand/10 text-ink'
-                    : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
-                )}
+                className={chip(on)}
               >
                 {p.label}
               </button>

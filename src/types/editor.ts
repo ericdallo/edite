@@ -263,6 +263,8 @@ export interface ColorAdjust {
   vignette?: number;
   /** Strength of the whole grade, 0 (original) .. 1 (full); absent = full. */
   intensity?: number;
+  /** Bundled or imported 3D LUT look id applied after the knobs (absent = none). */
+  lut?: string;
 }
 
 export const NEUTRAL_COLOR: ColorAdjust = { brightness: 1, contrast: 1, saturation: 1, hue: 0 };

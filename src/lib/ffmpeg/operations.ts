@@ -2,6 +2,7 @@ import { type FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
 import { getFFmpeg, onFFmpegLog, terminateFFmpeg } from './client';
 import { buildExportCommand, extFromMime, type BuiltCommand, type MultiExportParams } from './command';
+import { lutFileName, lutUrl } from '@/lib/lut';
 import { renderTextToBlob } from '@/lib/text/raster';
 import { renderFrameToBlob } from '@/lib/media/frame';
 import { logger } from '@/lib/log';
@@ -28,6 +29,8 @@ export interface ExportRequest {
   media: ExportMedia[];
   /** media id for each clip, in the same order as params.clips */
   clipMediaIds: string[];
+  /** raw `.cube` text for any imported (custom:) LUTs referenced by the clips. */
+  luts?: { id: string; cube: string }[];
   onProgress?: (ratio: number) => void;
   /** abort to cancel: terminates the ffmpeg worker mid-render */
   signal?: AbortSignal;
@@ -80,6 +83,7 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
 
   const nameById = new Map<string, string>();
   const textNames: string[] = [];
+  const lutNames: string[] = [];
   const logLines: string[] = [];
   let offLog: (() => void) | undefined;
   let built: BuiltCommand | undefined;
@@ -133,6 +137,32 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
         inputNames.push(nameById.get(req.clipMediaIds[k]) ?? '');
       }
     }
+    // Write any referenced LUT cubes into the FS so `lut3d` can read them: custom
+    // (imported) ones come inline in the request, bundled ones are fetched.
+    const lutIds = [...new Set(clips.map((c) => c.color?.lut).filter((id): id is string => !!id))];
+    const customLuts = new Map((req.luts ?? []).map((l) => [l.id, l.cube]));
+    for (const id of lutIds) {
+      throwIfAborted();
+      const name = lutFileName(id);
+      const custom = customLuts.get(id);
+      if (custom != null) {
+        await ffmpeg.writeFile(name, new TextEncoder().encode(custom));
+      } else {
+        const url = lutUrl(id);
+        if (!url) {
+          logger.warn('no source for LUT', id);
+          continue;
+        }
+        const res = await fetch(url);
+        if (!res.ok) {
+          logger.warn('failed to fetch LUT', id, res.status);
+          continue;
+        }
+        await ffmpeg.writeFile(name, new Uint8Array(await res.arrayBuffer()));
+      }
+      lutNames.push(name);
+    }
+
     built = buildExportCommand(inputNames, { ...req.params, clips });
     logger.info('ffmpeg command:\n' + ['ffmpeg', ...built.args].join(' '));
 
@@ -170,6 +200,7 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
     if (!signal?.aborted) {
       for (const name of nameById.values()) await ffmpeg.deleteFile(name).catch(() => undefined);
       for (const name of textNames) await ffmpeg.deleteFile(name).catch(() => undefined);
+      for (const name of lutNames) await ffmpeg.deleteFile(name).catch(() => undefined);
       if (built) await ffmpeg.deleteFile(built.outputName).catch(() => undefined);
     }
   }

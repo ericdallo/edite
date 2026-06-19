@@ -148,6 +148,27 @@ describe('buildExportCommand grade intensity', () => {
   });
 });
 
+describe('buildExportCommand LUT looks', () => {
+  it('appends a lut3d node for a look and nothing for a plain clip', () => {
+    const g = graphOf(
+      build([makeExportClip({ color: { brightness: 1, contrast: 1, saturation: 1, hue: 0, lut: 'cinematic' } })]),
+    );
+    expect(g).toContain('lut3d=lut_cinematic.cube');
+    expect(graphOf(build([makeExportClip()]))).not.toContain('lut3d');
+  });
+
+  it('blends a LUT over the original at partial intensity', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({ color: { brightness: 1, contrast: 1, saturation: 1, hue: 0, lut: 'noir', intensity: 0.5 } }),
+      ]),
+    );
+    expect(g).toContain('lut3d=lut_noir.cube');
+    expect(g).toContain('split=2');
+    expect(g).toContain("blend=all_expr='A*0.500+B*0.500'");
+  });
+});
+
 describe('buildExportCommand keyframes', () => {
   const kfClip = (over: Partial<ExportClip> = {}) =>
     makeExportClip({
