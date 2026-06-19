@@ -105,6 +105,15 @@ describe('buildExportCommand video graph', () => {
     expect(graphOf(build([makeExportClip({ opacity: 0.5 })]))).toContain('colorchannelmixer=aa=0.500');
     expect(graphOf(build([makeExportClip({ opacity: 1 })]))).not.toContain('colorchannelmixer');
   });
+
+  it('injects an eq/hue chain for a colored clip and nothing for a neutral one', () => {
+    const g = graphOf(
+      build([makeExportClip({ color: { brightness: 1.2, contrast: 1.1, saturation: 0.8, hue: 12 } })]),
+    );
+    expect(g).toContain('eq=brightness=0.200:contrast=1.100:saturation=0.800');
+    expect(g).toContain('hue=h=12.00');
+    expect(graphOf(build([makeExportClip()]))).not.toContain('eq=');
+  });
 });
 
 describe('buildExportCommand audio', () => {

@@ -75,6 +75,20 @@ describe('buildExportPlan', () => {
     expect(plan.clips[0]).toMatchObject({ flipH: true, flipV: false, rotation: 90 });
   });
 
+  it('carries a clip color adjustment onto its export clips', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1' });
+    const color = { brightness: 1.1, contrast: 1.2, saturation: 0.8, hue: 15 };
+    const plain = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1', color })], [media]);
+    expect(plain.clips[0].color).toEqual(color);
+    // Every tiled segment of a curved clip inherits the same color.
+    const curved = makeClip({
+      trackId: 't1', mediaId: 'm1', start: 0, in: 0, out: 10, color, speedCurve: makeSpeedCurve('rampUp'),
+    });
+    const plan = buildExportPlan([track], [curved], [makeMedia({ id: 'm1', kind: 'video', duration: 12 })]);
+    expect(plan.clips.every((c) => c.color === color || JSON.stringify(c.color) === JSON.stringify(color))).toBe(true);
+  });
+
   it('expands a speed-curved clip into tiled constant-speed segments', () => {
     const track = makeTrack({ id: 't1' });
     const media = makeMedia({ id: 'm1', kind: 'video', duration: 12 });

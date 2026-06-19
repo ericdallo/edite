@@ -33,7 +33,7 @@ import {
   ZOOM_MIN,
 } from '@/lib/constants';
 
-export type ToolId = 'media' | 'transform' | 'speed' | 'aspect' | 'audio' | 'text';
+export type ToolId = 'media' | 'transform' | 'speed' | 'effects' | 'aspect' | 'audio' | 'text';
 
 const DEFAULT_EXPORT: ExportSettings = DEFAULT_EXPORT_SETTINGS;
 
@@ -214,6 +214,14 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
   // Fades live in timeline seconds, so they can't exceed the clip's on-timeline length.
   const dur = Math.max(0, (nout - nin) / Math.max(0.0001, nspeed));
   const fadeCap = Math.min(AUDIO_FADE_MAX, dur);
+  const color = c.color
+    ? {
+        brightness: clamp(c.color.brightness, 0, 4),
+        contrast: clamp(c.color.contrast, 0, 4),
+        saturation: clamp(c.color.saturation, 0, 4),
+        hue: clamp(c.color.hue, -180, 180),
+      }
+    : undefined;
   return {
     ...c,
     start: Math.max(0, c.start),
@@ -224,6 +232,7 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
     volume: clamp(c.volume ?? 1, 0, CLIP_VOLUME_MAX),
     fadeIn: clamp(c.fadeIn ?? 0, 0, fadeCap),
     fadeOut: clamp(c.fadeOut ?? 0, 0, fadeCap),
+    color,
   };
 }
 

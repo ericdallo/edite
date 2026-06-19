@@ -110,6 +110,8 @@ export interface Clip {
   freeze?: number;
   /** Variable-speed profile across the clip; overrides the constant `speed`. */
   speedCurve?: SpeedCurve;
+  /** Color / filter adjustment (brightness, contrast, saturation, hue). */
+  color?: ColorAdjust;
 }
 
 export function isTextClip(clip: Clip): clip is Clip & { text: TextStyle } {
@@ -182,6 +184,36 @@ export function makeSpeedCurve(id: SpeedCurveId): SpeedCurve {
   const opt = speedCurveById(id);
   return { preset: id, points: opt.points.map((p) => ({ ...p })) };
 }
+
+/**
+ * Per-clip color adjustment. Maps to both a CSS `filter` (live preview) and an
+ * ffmpeg `eq`/`hue` chain (export): brightness, contrast and saturation are
+ * 1 = unchanged; hue is a rotation in degrees.
+ */
+export interface ColorAdjust {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  hue: number;
+}
+
+export const NEUTRAL_COLOR: ColorAdjust = { brightness: 1, contrast: 1, saturation: 1, hue: 0 };
+
+export interface ColorPreset {
+  id: string;
+  label: string;
+  color: ColorAdjust;
+}
+
+/** One-tap filter looks, all built from the same brightness/contrast/saturation/hue knobs. */
+export const COLOR_PRESETS: ColorPreset[] = [
+  { id: 'none', label: 'None', color: NEUTRAL_COLOR },
+  { id: 'bw', label: 'B&W', color: { brightness: 1, contrast: 1.1, saturation: 0, hue: 0 } },
+  { id: 'vivid', label: 'Vivid', color: { brightness: 1.03, contrast: 1.15, saturation: 1.4, hue: 0 } },
+  { id: 'warm', label: 'Warm', color: { brightness: 1.04, contrast: 1.05, saturation: 1.18, hue: -10 } },
+  { id: 'cool', label: 'Cool', color: { brightness: 1, contrast: 1.05, saturation: 1.1, hue: 12 } },
+  { id: 'vintage', label: 'Vintage', color: { brightness: 1.08, contrast: 0.9, saturation: 0.72, hue: -6 } },
+];
 
 export type ExportFormat = 'mp4' | 'webm' | 'gif';
 export type ExportQuality = 'high' | 'medium' | 'low';

@@ -1,10 +1,11 @@
-import { Film, Gauge, type LucideIcon, Move, Ratio, Type, Volume2, X } from 'lucide-react';
+import { Film, Gauge, type LucideIcon, Move, Ratio, Sparkles, Type, Volume2, X } from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
 import { MediaLibrary } from '@/components/media/MediaLibrary';
 import { TextTool } from './TextTool';
 import { TransformTool } from './TransformTool';
 import { SpeedTool } from './SpeedTool';
+import { EffectsTool } from './EffectsTool';
 import { AspectRatioTool } from './AspectRatioTool';
 import { AudioTool } from './AudioTool';
 
@@ -13,6 +14,7 @@ const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = 
   text: { title: 'Text', desc: 'Add and style captions', icon: Type },
   transform: { title: 'Transform', desc: 'Position, size & opacity', icon: Move },
   speed: { title: 'Speed', desc: 'Speed up or slow down', icon: Gauge },
+  effects: { title: 'Effects', desc: 'Color filters & looks', icon: Sparkles },
   aspect: { title: 'Aspect ratio', desc: 'Output canvas', icon: Ratio },
   audio: { title: 'Audio', desc: 'Volume, fades & mute', icon: Volume2 },
 };
@@ -77,6 +79,8 @@ export function ToolPanel() {
             <TransformTool />
           ) : tool === 'speed' ? (
             <SpeedTool />
+          ) : tool === 'effects' ? (
+            <EffectsTool />
           ) : tool === 'aspect' ? (
             <AspectRatioTool />
           ) : (

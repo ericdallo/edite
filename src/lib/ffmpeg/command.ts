@@ -1,4 +1,5 @@
-import type { ExportFormat, ExportQuality, TextStyle } from '@/types/editor';
+import type { ColorAdjust, ExportFormat, ExportQuality, TextStyle } from '@/types/editor';
+import { ffmpegColorFilter } from '@/lib/color';
 
 export interface ExportClip {
   /** 'audio' = sound only, no video overlay (standalone audio or detached track). */
@@ -29,6 +30,8 @@ export interface ExportClip {
   text?: TextStyle;
   /** source-time (s) of a held still; when set the clip is rasterized to a frozen PNG input. */
   freeze?: number;
+  /** per-clip color / filter adjustment, rendered as an eq + hue chain. */
+  color?: ColorAdjust;
 }
 
 export interface MultiExportParams {
@@ -161,6 +164,8 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const x = Math.round(c.rect.x * W);
     const y = Math.round(c.rect.y * H);
     const cover = `scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1`;
+    const colorF = ffmpegColorFilter(c.color);
+    const color = colorF ? `,${colorF}` : '';
     const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
     // Shift each clip's PTS to its timeline start so overlay frames line up with
     // the enable window; without this the input reaches EOF early and the slot
@@ -169,10 +174,10 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const orient = orientFilters(c);
     if (c.kind === 'image' || c.kind === 'text') {
       const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
-      graph.push(`[${k}:v]${pts}${orient}${cover}${op}[c${k}]`);
+      graph.push(`[${k}:v]${pts}${orient}${cover}${color}${op}[c${k}]`);
     } else {
       const base = Math.abs(c.speed - 1) > 1e-3 ? `(PTS-STARTPTS)/${c.speed}` : 'PTS-STARTPTS';
-      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${orient}${cover}${op}[c${k}]`);
+      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${orient}${cover}${color}${op}[c${k}]`);
     }
     const end = c.start + timelineLen(c);
     // eof_action=repeat (not pass): once a clip's frames run out it holds its

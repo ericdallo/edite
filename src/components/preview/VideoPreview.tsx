@@ -2,6 +2,7 @@ import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { useEditorStore } from '@/store/editorStore';
 import { type Clip, resolveAspectRatio } from '@/types/editor';
 import { audioFadeGain, clipSourceAt, clipSpeedAt, isClipActiveAt, projectDuration } from '@/lib/timeline';
+import { cssColorFilter } from '@/lib/color';
 import { clamp, cn } from '@/lib/utils';
 import { TransformOverlay } from './TransformOverlay';
 import { TextLayer } from './TextLayer';
@@ -195,6 +196,10 @@ export function VideoPreview() {
             );
           }
           const orient = orientMediaStyle(clip, clip.rect.w * box.w, clip.rect.h * box.h);
+          const filter = cssColorFilter(clip.color);
+          // Compose orientation transform with the color filter on one element.
+          const mediaStyle: CSSProperties | undefined =
+            orient || filter ? { ...(orient ?? {}), filter } : undefined;
           const mediaCls = cn('object-cover', orient ? '' : 'h-full w-full');
           return (
             <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
@@ -206,13 +211,13 @@ export function VideoPreview() {
                   }}
                   src={m.url}
                   className={mediaCls}
-                  style={orient}
+                  style={mediaStyle}
                   playsInline
                   muted
                   preload="auto"
                 />
               ) : (
-                <img src={m.url} alt="" className={mediaCls} style={orient} />
+                <img src={m.url} alt="" className={mediaCls} style={mediaStyle} />
               )}
             </div>
           );

@@ -84,6 +84,7 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           // Fades belong to the whole clip: ramp in on the first segment, out on the last.
           fadeIn: i === 0 ? clip.fadeIn ?? 0 : 0,
           fadeOut: i === last ? clip.fadeOut ?? 0 : 0,
+          color: clip.color,
         },
         mediaId: clip.mediaId,
       }));
@@ -110,6 +111,7 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
           fadeIn: clip.fadeIn ?? 0,
           fadeOut: clip.fadeOut ?? 0,
           freeze: clip.freeze,
+          color: clip.color,
         },
         mediaId: clip.mediaId,
       },
