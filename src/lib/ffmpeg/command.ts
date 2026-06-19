@@ -52,6 +52,10 @@ export interface MultiExportParams {
   clips: ExportClip[];
   format: ExportFormat;
   quality: ExportQuality;
+  /** audio bitrate in kbps (AAC for MP4, Opus for WebM). */
+  audioBitrate: number;
+  /** optional target video bitrate in kbps; when > 0 it overrides the CRF preset. */
+  videoBitrate?: number;
   globalMuted: boolean;
   /** output canvas background color (hex, e.g. #000000) */
   background: string;
@@ -269,7 +273,16 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     );
     acc = `ov${k}`;
   });
-  graph.push(`[${acc}]${p.format === 'mp4' ? 'format=yuv420p' : 'null'}[vout]`);
+  if (p.format === 'gif') {
+    // Generate a palette from the whole clip and apply it, instead of ffmpeg's
+    // default per-frame 256-color quantisation: much better color fidelity and
+    // smaller files. Done in one graph via split (palettegen buffers frames).
+    graph.push(
+      `[${acc}]split[gsrc][gen];[gen]palettegen=stats_mode=diff[pal];[gsrc][pal]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle[vout]`,
+    );
+  } else {
+    graph.push(`[${acc}]${p.format === 'mp4' ? 'format=yuv420p' : 'null'}[vout]`);
+  }
 
   const useAudio = !p.globalMuted && p.format !== 'gif';
   const audioLabels: string[] = [];
@@ -305,14 +318,20 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
   args.push('-t', fmt(duration));
 
   const crf = videoCrf(p.quality, p.format);
+  const abr = `${Math.max(32, Math.round(p.audioBitrate || 160))}k`;
+  const vbr = p.videoBitrate && p.videoBitrate > 0 ? `${Math.round(p.videoBitrate)}k` : null;
   if (p.format === 'mp4') {
-    args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', crf, '-pix_fmt', 'yuv420p');
-    if (withAudio) args.push('-c:a', 'aac', '-b:a', '160k');
+    args.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p');
+    if (vbr) args.push('-b:v', vbr, '-maxrate', vbr, '-bufsize', `${Math.round((p.videoBitrate ?? 0) * 2)}k`);
+    else args.push('-crf', crf);
+    if (withAudio) args.push('-c:a', 'aac', '-b:a', abr);
     else args.push('-an');
     args.push('-movflags', '+faststart');
   } else if (p.format === 'webm') {
-    args.push('-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', crf, '-row-mt', '1');
-    if (withAudio) args.push('-c:a', 'libopus', '-b:a', '160k');
+    args.push('-c:v', 'libvpx-vp9', '-row-mt', '1');
+    if (vbr) args.push('-b:v', vbr);
+    else args.push('-b:v', '0', '-crf', crf);
+    if (withAudio) args.push('-c:a', 'libopus', '-b:a', abr);
     else args.push('-an');
   } else {
     args.push('-an');

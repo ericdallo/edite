@@ -19,6 +19,7 @@ function build(clips: ExportClip[], over: Partial<MultiExportParams> = {}): Buil
     clips,
     format: 'mp4',
     quality: 'high',
+    audioBitrate: 192,
     globalMuted: false,
     background: '#000000',
     ...over,
@@ -319,5 +320,38 @@ describe('buildExportCommand codecs', () => {
     const s = strOf(build([makeExportClip({ hasAudio: true })], { format: 'webm' }));
     expect(s).toContain('-c:v libvpx-vp9');
     expect(s).toContain('-c:a libopus');
+  });
+
+  it('defaults to CRF when no custom bitrate is set', () => {
+    expect(strOf(build([makeExportClip()], { format: 'mp4' }))).toContain('-crf 20');
+    const webm = strOf(build([makeExportClip()], { format: 'webm' }));
+    expect(webm).toContain('-b:v 0');
+    expect(webm).toContain('-crf 30');
+  });
+
+  it('honours the chosen audio bitrate', () => {
+    expect(strOf(build([makeExportClip({ hasAudio: true })], { audioBitrate: 256 }))).toContain('-b:a 256k');
+    expect(strOf(build([makeExportClip({ hasAudio: true })], { format: 'webm', audioBitrate: 128 }))).toContain(
+      '-b:a 128k',
+    );
+  });
+
+  it('switches to target video bitrate (VBR) when a custom bitrate is set', () => {
+    const mp4 = strOf(build([makeExportClip()], { format: 'mp4', videoBitrate: 8000 }));
+    expect(mp4).toContain('-b:v 8000k');
+    expect(mp4).toContain('-maxrate 8000k');
+    expect(mp4).not.toContain('-crf');
+
+    const webm = strOf(build([makeExportClip()], { format: 'webm', videoBitrate: 6000 }));
+    expect(webm).toContain('-b:v 6000k');
+    expect(webm).not.toContain('-b:v 0');
+    expect(webm).not.toContain('-crf');
+  });
+
+  it('builds an optimised palette for gif and stays silent', () => {
+    const cmd = build([makeExportClip()], { format: 'gif' });
+    expect(graphOf(cmd)).toContain('palettegen');
+    expect(graphOf(cmd)).toContain('paletteuse');
+    expect(strOf(cmd)).toContain('-an');
   });
 });

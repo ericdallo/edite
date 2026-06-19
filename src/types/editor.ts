@@ -331,13 +331,23 @@ export type ExportFormat = 'mp4' | 'webm' | 'gif';
 export type ExportQuality = 'high' | 'medium' | 'low';
 /** Target short-side resolution in pixels (e.g. 1080 renders 1080p). */
 export type ExportResolution = 480 | 720 | 1080 | 1440 | 2160;
-export type ExportFps = 24 | 30 | 60;
+export type ExportFps = 24 | 25 | 30 | 50 | 60;
 
 export interface ExportSettings {
   format: ExportFormat;
   quality: ExportQuality;
   resolution: ExportResolution;
   fps: ExportFps;
+  /** Include an audio track in the render (always silent for GIF). */
+  audio: boolean;
+  /** Audio bitrate in kbps (AAC for MP4, Opus for WebM). */
+  audioBitrate: number;
+  /**
+   * Optional target video bitrate in kbps. When set (> 0) the encoder targets
+   * that bitrate (predictable file size); when omitted it uses the quality
+   * preset's CRF (better quality per byte, but size varies with content).
+   */
+  videoBitrate?: number;
 }
 
 export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
@@ -345,6 +355,20 @@ export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   quality: 'high',
   resolution: 1080,
   fps: 30,
+  audio: true,
+  audioBitrate: 192,
+};
+
+/** Audio bitrate choices (kbps) offered in the export dialog. */
+export const AUDIO_BITRATES = [128, 192, 256, 320] as const;
+
+/** Sensible default target video bitrate (kbps) per resolution for custom mode. */
+export const RECOMMENDED_VIDEO_KBPS: Record<ExportResolution, number> = {
+  480: 1500,
+  720: 4000,
+  1080: 8000,
+  1440: 16000,
+  2160: 35000,
 };
 
 export interface ProjectSnapshot {
@@ -503,7 +527,30 @@ export const RESOLUTIONS: ResolutionOption[] = [
   { id: 2160, label: '2160p', hint: '4K' },
 ];
 
-export const FPS_PRESETS: ExportFps[] = [24, 30, 60];
+export const FPS_PRESETS: ExportFps[] = [24, 25, 30, 50, 60];
+
+export interface ExportPreset {
+  id: string;
+  label: string;
+  hint: string;
+  aspect: AspectRatioId;
+  resolution: ExportResolution;
+  fps: ExportFps;
+}
+
+/**
+ * One-tap export presets for common destinations. Applying one sets the project
+ * aspect ratio together with the export resolution and frame rate, the way
+ * CapCut's "platform" presets do.
+ */
+export const EXPORT_PRESETS: ExportPreset[] = [
+  { id: 'tiktok', label: 'TikTok / Reels', hint: '9:16 · 1080p', aspect: '9:16', resolution: 1080, fps: 30 },
+  { id: 'shorts', label: 'YT Shorts', hint: '9:16 · 60fps', aspect: '9:16', resolution: 1080, fps: 60 },
+  { id: 'youtube', label: 'YouTube', hint: '16:9 · 1080p', aspect: '16:9', resolution: 1080, fps: 30 },
+  { id: 'youtube4k', label: 'YouTube 4K', hint: '16:9 · 2160p', aspect: '16:9', resolution: 2160, fps: 30 },
+  { id: 'instagram', label: 'Instagram', hint: '1:1 · 1080p', aspect: '1:1', resolution: 1080, fps: 30 },
+  { id: 'portrait', label: 'Insta Portrait', hint: '4:5 · 1080p', aspect: '4:5', resolution: 1080, fps: 30 },
+];
 
 export function aspectById(id: AspectRatioId): AspectRatioOption {
   return ASPECT_RATIOS.find((a) => a.id === id) ?? ASPECT_RATIOS[0];
