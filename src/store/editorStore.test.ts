@@ -9,6 +9,7 @@ import {
   TEXT_SIZE_MAX,
 } from '@/lib/constants';
 import { makeClip, makeMedia, makeTrack } from '@/test/factories';
+import { CAPTION_PRESETS, isCaptionClip } from '@/types/editor';
 
 const store = useEditorStore;
 const get = () => store.getState();
@@ -95,8 +96,22 @@ describe('addCaptionClips', () => {
     expect(s.clips.every((c) => c.trackId === s.tracks[0].id)).toBe(true);
     expect(s.clips.map((c) => c.text?.content)).toEqual(['Hello', 'world']);
     expect(s.clips[0]).toMatchObject({ mediaId: '', muted: true, in: 0, out: 1.5, speed: 1 });
+    expect(s.clips.every(isCaptionClip)).toBe(true);
     expect(s.selectedIds).toEqual(s.clips.map((c) => c.id));
     expect(s.activeClipId).toBe(s.clips[1].id);
+  });
+
+  it('carries per-word timings onto the caption marker', () => {
+    get().addCaptionClips([
+      { start: 0, duration: 2, text: 'hi there', words: [
+        { text: 'hi', start: 0, end: 0.5 },
+        { text: 'there', start: 0.6, end: 1.2 },
+      ] },
+    ]);
+    expect(get().clips[0].caption?.words).toEqual([
+      { text: 'hi', start: 0, end: 0.5 },
+      { text: 'there', start: 0.6, end: 1.2 },
+    ]);
   });
 
   it('skips blank captions and is a no-op when all are empty', () => {
@@ -111,6 +126,50 @@ describe('addCaptionClips', () => {
     get().addCaptionClips([{ start: 0, duration: 1, text: '' }]);
     expect(get().tracks).toHaveLength(0);
     expect(get().clips).toHaveLength(0);
+  });
+});
+
+describe('caption editing', () => {
+  beforeEach(() => {
+    get().addCaptionClips([
+      { start: 0, duration: 1, text: 'one', words: [{ text: 'one', start: 0, end: 1 }] },
+      { start: 1, duration: 1, text: 'two', words: [{ text: 'two', start: 0, end: 1 }] },
+    ]);
+  });
+
+  it('seeds captions with the Classic preset look', () => {
+    expect(get().clips[0].text?.color).toBe(CAPTION_PRESETS[0].style.color);
+  });
+
+  it('styleCaptions restyles every caption and applies a position rect', () => {
+    get().styleCaptions({ color: '#22d3ee', fontWeight: 800 }, { y: 0.06 });
+    const caps = get().clips.filter(isCaptionClip);
+    expect(caps).toHaveLength(2);
+    expect(caps.every((c) => c.text.color === '#22d3ee' && c.text.fontWeight === 800)).toBe(true);
+    expect(caps.every((c) => c.rect.y === 0.06)).toBe(true);
+  });
+
+  it('styleCaptions clamps font size and leaves non-captions alone', () => {
+    get().addTextClip();
+    get().styleCaptions({ fontSize: 99 });
+    expect(get().clips.filter(isCaptionClip).every((c) => c.text.fontSize === TEXT_SIZE_MAX)).toBe(true);
+    const plain = get().clips.find((c) => c.text && c.caption == null);
+    expect(plain?.text?.fontSize).not.toBe(TEXT_SIZE_MAX);
+  });
+
+  it('mergeCaptionWithNext joins text, span and word timings', () => {
+    const [a, b] = get().clips;
+    get().mergeCaptionWithNext(a.id);
+    const caps = get().clips.filter(isCaptionClip);
+    expect(caps).toHaveLength(1);
+    expect(caps[0].text.content).toBe('one two');
+    expect(caps[0].out).toBe(2);
+    expect(caps[0].caption.words).toEqual([
+      { text: 'one', start: 0, end: 1 },
+      { text: 'two', start: 1, end: 2 },
+    ]);
+    expect(get().clips.some((c) => c.id === b.id)).toBe(false);
+    expect(get().activeClipId).toBe(a.id);
   });
 });
 

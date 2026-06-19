@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import {
   type AspectRatioId,
+  CAPTION_PRESETS,
+  captionRect,
   type Clip,
   DEFAULT_BACKGROUND,
   DEFAULT_EXPORT_SETTINGS,
@@ -173,6 +175,10 @@ export interface EditorState {
   /** Add auto-caption text clips on a new dedicated track (one history step). */
   addCaptionClips: (items: CaptionClip[]) => void;
   updateText: (id: string, patch: Partial<TextStyle>) => void;
+  /** Restyle every caption clip at once (style + optional position rect). */
+  styleCaptions: (patch: Partial<TextStyle>, rectPatch?: Partial<Rect>) => void;
+  /** Merge a caption line with the next caption on the same track. */
+  mergeCaptionWithNext: (id: string) => void;
 
   addTrack: () => string;
   removeTrack: (id: string) => void;
@@ -479,7 +485,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         in: 0,
         out: Math.max(MIN_CLIP, it.duration),
         speed: 1,
-        rect: { ...DEFAULT_TEXT_RECT },
+        rect: captionRect('bottom'),
         opacity: 1,
         muted: true,
         hidden: false,
@@ -489,7 +495,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         volume: 1,
         fadeIn: 0,
         fadeOut: 0,
-        text: { ...DEFAULT_TEXT_STYLE, content: it.text },
+        text: { ...DEFAULT_TEXT_STYLE, ...CAPTION_PRESETS[0].style, content: it.text },
+        caption: { words: it.words },
       }));
       const selectedIds = clips.map((c) => c.id);
       return {
@@ -508,6 +515,49 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (patch.fontSize !== undefined) text.fontSize = clamp(patch.fontSize, TEXT_SIZE_MIN, TEXT_SIZE_MAX);
       if (patch.backgroundOpacity !== undefined) text.backgroundOpacity = clamp(patch.backgroundOpacity, 0, 1);
       return { clips: state.clips.map((c) => (c.id === id ? { ...c, text } : c)) };
+    }),
+
+  styleCaptions: (patch, rectPatch) =>
+    set((state) => {
+      let changed = false;
+      const clips = state.clips.map((c) => {
+        if (c.caption == null || !c.text) return c;
+        changed = true;
+        const text: TextStyle = { ...c.text, ...patch };
+        if (patch.fontSize !== undefined) text.fontSize = clamp(patch.fontSize, TEXT_SIZE_MIN, TEXT_SIZE_MAX);
+        if (patch.backgroundOpacity !== undefined) text.backgroundOpacity = clamp(patch.backgroundOpacity, 0, 1);
+        return { ...c, text, rect: rectPatch ? { ...c.rect, ...rectPatch } : c.rect };
+      });
+      return changed ? { clips } : {};
+    }),
+
+  mergeCaptionWithNext: (id) =>
+    set((state) => {
+      const cur = state.clips.find((c) => c.id === id);
+      if (!cur || cur.caption == null || !cur.text) return {};
+      const next = state.clips
+        .filter((c) => c.caption != null && c.text && c.trackId === cur.trackId && c.start > cur.start + 1e-6)
+        .sort((a, b) => a.start - b.start)[0];
+      if (!next?.text) return {};
+      // Caption clips have in=0 and speed=1, so timeline length == out.
+      const nextEnd = next.start + (next.out - next.in);
+      const out = Math.max(cur.out, nextEnd - cur.start);
+      const gap = next.start - cur.start;
+      const curWords = cur.caption.words ?? [];
+      const nextWords = (next.caption?.words ?? []).map((w) => ({
+        text: w.text,
+        start: w.start + gap,
+        end: w.end + gap,
+      }));
+      const content = `${cur.text.content} ${next.text.content}`.replace(/\s+/g, ' ').trim();
+      const merged: Clip = {
+        ...cur,
+        out,
+        text: { ...cur.text, content },
+        caption: { words: [...curWords, ...nextWords] },
+      };
+      const clips = state.clips.filter((c) => c.id !== next.id).map((c) => (c.id === cur.id ? merged : c));
+      return { clips, ...selectOne(cur.id) };
     }),
 
   addTrack: () => {

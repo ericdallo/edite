@@ -26,7 +26,7 @@ import { AudioTool } from './AudioTool';
 const META: Record<ToolId, { title: string; desc: string; icon: LucideIcon }> = {
   media: { title: 'Media', desc: 'Your clips and uploads', icon: Film },
   text: { title: 'Text', desc: 'Add and style captions', icon: Type },
-  captions: { title: 'Auto-captions', desc: 'Transcribe speech on-device', icon: Captions },
+  captions: { title: 'Auto-captions', desc: 'Transcribe, edit & style speech', icon: Captions },
   transform: { title: 'Transform', desc: 'Position, size & opacity', icon: Move },
   animation: { title: 'Animation', desc: 'Keyframe motion over time', icon: Spline },
   speed: { title: 'Speed', desc: 'Speed up or slow down', icon: Gauge },

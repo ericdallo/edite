@@ -4,7 +4,7 @@
  * download from the Hugging Face CDN (cached by the browser afterwards).
  */
 
-export type CaptionModelId = 'tiny' | 'base';
+export type CaptionModelId = 'tiny' | 'base' | 'small' | 'turbo';
 
 export interface CaptionModelOption {
   id: CaptionModelId;
@@ -12,12 +12,20 @@ export interface CaptionModelOption {
   hint: string;
   /** Rough download size for the quantized model, shown in the UI. */
   size: string;
+  /** Needs WebGPU (too slow on the WASM fallback); the picker disables it otherwise. */
+  gpuOnly?: boolean;
 }
 
-/** Models offered in the tool. `base` is the accuracy/size sweet spot; `tiny` is faster. */
+/**
+ * Models offered in the tool, fastest to most accurate. `small` is the sweet
+ * spot for non-English (a big jump over `base` for e.g. Portuguese); `turbo`
+ * (large-v3-turbo) is the most accurate but a large download and WebGPU-only.
+ */
 export const CAPTION_MODELS: CaptionModelOption[] = [
-  { id: 'base', label: 'Base', hint: 'Best accuracy', size: '~80 MB' },
   { id: 'tiny', label: 'Tiny', hint: 'Fastest', size: '~40 MB' },
+  { id: 'base', label: 'Base', hint: 'Fast', size: '~80 MB' },
+  { id: 'small', label: 'Small', hint: 'Most accurate', size: '~240 MB' },
+  { id: 'turbo', label: 'Turbo', hint: 'Best, large download', size: '~800 MB', gpuOnly: true },
 ];
 
 export interface CaptionLanguage {
@@ -51,10 +59,25 @@ export const CAPTION_LANGUAGES: CaptionLanguage[] = [
 /**
  * Hugging Face repo for a model. English-only picks the smaller, more accurate
  * `.en` variant; everything else uses the multilingual model. The
- * `onnx-community` namespace ships the Transformers.js v3 ONNX weights.
+ * `onnx-community` namespace ships the Transformers.js v3 ONNX weights. `turbo`
+ * maps to large-v3-turbo, which is multilingual-only (no `.en`).
  */
 export function whisperRepo(model: CaptionModelId, englishOnly: boolean): string {
+  if (model === 'turbo') return 'onnx-community/whisper-large-v3-turbo';
   return `onnx-community/whisper-${model}${englishOnly ? '.en' : ''}`;
+}
+
+/** Quantization variants we load (subset of what Transformers.js accepts). */
+export type WhisperDtype = 'q8' | 'q4' | 'q4f16';
+
+/**
+ * Quantization to load per device. `turbo` uses 4-bit (with fp16 activations on
+ * WebGPU) to keep the download manageable; the smaller models use 8-bit, which
+ * is the accuracy/size sweet spot and runs fine on both WebGPU and WASM.
+ */
+export function dtypeForModel(model: CaptionModelId, device: 'webgpu' | 'wasm'): WhisperDtype {
+  if (model === 'turbo') return device === 'webgpu' ? 'q4f16' : 'q4';
+  return 'q8';
 }
 
 /** Whether a chosen language should use the English-only model. */

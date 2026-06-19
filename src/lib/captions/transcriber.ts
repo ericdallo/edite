@@ -9,10 +9,12 @@
 import type { ProgressInfo } from '@huggingface/transformers';
 import { logger } from '@/lib/log';
 import {
+  dtypeForModel,
   isEnglishOnly,
   whisperLanguageName,
   whisperRepo,
   type CaptionModelId,
+  type WhisperDtype,
 } from './models';
 import { parseWhisperChunks, type RawSegment, type WhisperOutput } from './segments';
 
@@ -33,7 +35,15 @@ export interface TranscribeOptions {
   onProgress?: (p: TranscribeProgress) => void;
 }
 
+export interface TranscribeResult {
+  /** Word-level segments when `wordLevel`, otherwise sentence-level segments. */
+  segments: RawSegment[];
+  /** Whether `segments` carry usable per-word timings (to be grouped into lines). */
+  wordLevel: boolean;
+}
+
 type Device = 'webgpu' | 'wasm';
+type Timestamps = 'word' | true;
 type AsrPipe = (audio: Float32Array, options?: Record<string, unknown>) => Promise<unknown>;
 
 let cache: { key: string; pipe: AsrPipe } | null = null;
@@ -48,9 +58,10 @@ function webgpuAvailable(): boolean {
 async function getPipe(
   repo: string,
   device: Device,
+  dtype: WhisperDtype,
   progressCallback: (info: ProgressInfo) => void,
 ): Promise<AsrPipe> {
-  const key = `${repo}|${device}`;
+  const key = `${repo}|${device}|${dtype}`;
   if (cache?.key === key) return cache.pipe;
   const { pipeline, env } = await import('@huggingface/transformers');
   // Remote models only (we never ship local weights); cache them in the browser.
@@ -58,21 +69,33 @@ async function getPipe(
   env.useBrowserCache = true;
   const pipe = (await pipeline('automatic-speech-recognition', repo, {
     device,
-    dtype: 'q8',
+    dtype,
     progress_callback: progressCallback,
   })) as unknown as AsrPipe;
   cache = { key, pipe };
   return pipe;
 }
 
+function asSingle(output: unknown): WhisperOutput {
+  return (Array.isArray(output) ? output[0] : output) as WhisperOutput;
+}
+
+/** Number of distinct word start times (rounded to 10 ms) — 1 means degenerate. */
+function distinctStarts(segments: RawSegment[]): number {
+  return new Set(segments.map((s) => Math.round(s.start * 100))).size;
+}
+
 /**
- * Transcribe 16 kHz mono PCM into timestamped segments. Tries WebGPU first and
- * transparently retries on WASM if the GPU path fails (build or inference).
+ * Transcribe 16 kHz mono PCM into segments. Asks for word-level timestamps so
+ * captions can be split into short, speech-synced lines; if the model returns
+ * unusable word timings (a known Whisper quirk on some inputs) it falls back to
+ * sentence-level timing. Tries WebGPU first and retries on WASM if the GPU path
+ * fails.
  */
 export async function transcribe(
   samples: Float32Array,
   opts: TranscribeOptions,
-): Promise<RawSegment[]> {
+): Promise<TranscribeResult> {
   const repo = whisperRepo(opts.model, isEnglishOnly(opts.language));
   const audioDuration = samples.length / SAMPLE_RATE;
 
@@ -95,31 +118,50 @@ export async function transcribe(
   };
 
   const language = whisperLanguageName(opts.language);
-  const callOptions: Record<string, unknown> = {
-    return_timestamps: true,
+  const baseOptions: Record<string, unknown> = {
     chunk_length_s: 30,
     stride_length_s: 5,
     ...(language ? { language, task: 'transcribe' } : {}),
   };
 
-  const run = async (device: Device): Promise<unknown> => {
-    const pipe = await getPipe(repo, device, progressCallback);
+  let usedDevice: Device = webgpuAvailable() ? 'webgpu' : 'wasm';
+  const run = async (device: Device, timestamps: Timestamps): Promise<unknown> => {
+    const pipe = await getPipe(repo, device, dtypeForModel(opts.model, device), progressCallback);
+    usedDevice = device;
     opts.onProgress?.({ stage: 'transcribing', progress: 0 });
-    return pipe(samples, callOptions);
+    return pipe(samples, { ...baseOptions, return_timestamps: timestamps });
   };
 
-  const wantGpu = webgpuAvailable();
-  let output: unknown;
-  try {
-    output = await run(wantGpu ? 'webgpu' : 'wasm');
-  } catch (err) {
-    if (!wantGpu) throw err;
-    logger.warn('webgpu transcription failed, retrying on wasm', err);
-    files.clear();
-    output = await run('wasm');
-  }
+  const attempt = async (timestamps: Timestamps): Promise<unknown> => {
+    const wantGpu = webgpuAvailable();
+    try {
+      return await run(wantGpu ? 'webgpu' : 'wasm', timestamps);
+    } catch (err) {
+      if (!wantGpu) throw err;
+      logger.warn('webgpu transcription failed, retrying on wasm', err);
+      files.clear();
+      return run('wasm', timestamps);
+    }
+  };
 
+  const wordOut = asSingle(await attempt('word'));
+  const wordSegments = parseWhisperChunks(wordOut, audioDuration);
+  const chunkCount = wordOut.chunks?.length ?? 0;
   opts.onProgress?.({ stage: 'transcribing', progress: 1 });
-  const single = (Array.isArray(output) ? output[0] : output) as WhisperOutput;
-  return parseWhisperChunks(single, audioDuration);
+
+  // Good word timings: hand them off to be grouped into lines.
+  if (chunkCount > 1 && distinctStarts(wordSegments) > 1) {
+    return { segments: wordSegments, wordLevel: true };
+  }
+  // The model gave no per-chunk breakdown — it's already one sentence-ish blob.
+  if (chunkCount <= 1) {
+    return { segments: wordSegments, wordLevel: false };
+  }
+  // Word timings came back degenerate; re-run for sentence-level timing on the
+  // device that just worked.
+  logger.warn('word-level timestamps unusable, falling back to sentence timing');
+  files.clear();
+  const sentenceOut = asSingle(await run(usedDevice, true));
+  opts.onProgress?.({ stage: 'transcribing', progress: 1 });
+  return { segments: parseWhisperChunks(sentenceOut, audioDuration), wordLevel: false };
 }

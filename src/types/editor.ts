@@ -138,10 +138,34 @@ export interface Clip {
    * of held static; fewer than 2 leaves `rect` static (no change).
    */
   keyframes?: Keyframe[];
+  /**
+   * Marks the clip as an auto-caption line (a text clip created by the captions
+   * tool) and carries optional per-word timings, used by the caption manager
+   * and a future word-by-word highlight. Presence is the marker; `words` is
+   * relative to the clip's start in timeline seconds.
+   */
+  caption?: CaptionMeta;
+}
+
+/** A single transcribed word with timing relative to its caption clip's start (seconds). */
+export interface CaptionWord {
+  text: string;
+  start: number;
+  end: number;
+}
+
+/** Metadata attached to an auto-caption text clip. */
+export interface CaptionMeta {
+  words?: CaptionWord[];
 }
 
 export function isTextClip(clip: Clip): clip is Clip & { text: TextStyle } {
   return clip.text != null;
+}
+
+/** A caption clip is a text clip created by the auto-captions tool. */
+export function isCaptionClip(clip: Clip): clip is Clip & { text: TextStyle; caption: CaptionMeta } {
+  return clip.caption != null && clip.text != null;
 }
 
 export type SpeedCurveId = 'rampUp' | 'rampDown' | 'bulletTime';
@@ -401,6 +425,67 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
 
 /** Default text box: a centered lower third (fractions of the canvas). */
 export const DEFAULT_TEXT_RECT: Rect = { x: 0.1, y: 0.66, w: 0.8, h: 0.2 };
+
+/** Where a caption line sits on the canvas. */
+export type CaptionPosition = 'bottom' | 'center' | 'top';
+
+/** The caption box for a position preset (fractions of the canvas). */
+export function captionRect(position: CaptionPosition): Rect {
+  const w = 0.84;
+  const h = 0.2;
+  const x = (1 - w) / 2;
+  const y = position === 'top' ? 0.06 : position === 'center' ? (1 - h) / 2 : 0.74;
+  return { x, y, w, h };
+}
+
+export interface CaptionPreset {
+  id: string;
+  label: string;
+  /** Style overrides applied on top of {@link DEFAULT_TEXT_STYLE} for every caption. */
+  style: Partial<TextStyle>;
+}
+
+/**
+ * Quick caption looks applied to all captions at once. Kept to fields the text
+ * renderer already supports (font, weight, color, box, shadow, size) so what
+ * you see in the preview is exactly what burns in on export.
+ */
+export const CAPTION_PRESETS: CaptionPreset[] = [
+  {
+    id: 'classic',
+    label: 'Classic',
+    style: { fontWeight: 700, color: '#ffffff', background: null, shadow: true, fontSize: 0.078 },
+  },
+  {
+    id: 'boxed',
+    label: 'Boxed',
+    style: {
+      fontWeight: 700,
+      color: '#ffffff',
+      background: '#000000',
+      backgroundOpacity: 0.62,
+      shadow: false,
+      fontSize: 0.07,
+    },
+  },
+  {
+    id: 'bold',
+    label: 'Bold',
+    style: {
+      fontFamily: 'Impact, Haettenschweiler, sans-serif',
+      fontWeight: 800,
+      color: '#ffffff',
+      background: null,
+      shadow: true,
+      fontSize: 0.105,
+    },
+  },
+  {
+    id: 'pop',
+    label: 'Pop',
+    style: { fontWeight: 800, color: '#fbbf24', background: null, shadow: true, fontSize: 0.095 },
+  },
+];
 
 export interface ResolutionOption {
   id: ExportResolution;
