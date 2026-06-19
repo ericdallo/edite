@@ -185,17 +185,25 @@ export function VideoPreview() {
           const tr = transitionRenderAt(clip, currentTime);
           // Animated placement from the clip's keyframes (the static rect when none).
           const rect = clipTransformAt(clip, currentTime).rect;
+          // Slides translate the incoming clip in; wipes/iris reveal it behind a
+          // clip-path. These mirror what the export encodes.
+          const slide =
+            tr.offsetX || tr.offsetY
+              ? `translate(${(tr.offsetX * box.w).toFixed(2)}px, ${(tr.offsetY * box.h).toFixed(2)}px)`
+              : undefined;
           // Keep clips mounted and painted (opacity 0 when inactive) instead of
           // display:none so their parked frame stays decoded and shows instantly
           // at a cut — no black flash while the browser seeks/decodes.
-          const style = {
+          const style: CSSProperties = {
             left: `${rect.x * 100}%`,
             top: `${rect.y * 100}%`,
             width: `${rect.w * 100}%`,
             height: `${rect.h * 100}%`,
             opacity: active ? clip.opacity * tr.clipMul : 0,
             zIndex: active ? 1 : 0,
-          } as const;
+            transform: slide,
+            clipPath: tr.clipPath ?? undefined,
+          };
 
           if (clip.text) {
             return (

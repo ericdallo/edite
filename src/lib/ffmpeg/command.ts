@@ -1,6 +1,7 @@
-import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, TextStyle, Transition } from '@/types/editor';
+import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, TextStyle, Transition, TransitionId } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { ffmpegChromaFilter } from '@/lib/chroma';
+import { transitionFamily } from '@/lib/timeline';
 import { keyframeExport } from './keyframes';
 
 export interface ExportClip {
@@ -142,6 +143,24 @@ function orientFilters(c: ExportClip): string {
 }
 
 /**
+ * A geq alpha mask that reveals the layer over the overlap for a wipe / iris,
+ * multiplied by the layer's own alpha so opacity still composes. Each option
+ * value is single-quoted so its commas are safe in the filtergraph, and the
+ * mask is gated to the overlap with `enable` so it's free outside it. Mirrors
+ * the CSS clip-path the preview uses (`transitionRenderAt`).
+ */
+function wipeMask(type: TransitionId, start: number, dur: number): string {
+  const prog = `clip((T-${fmt(start)})/${fmt(dur)},0,1)`;
+  let cond: string;
+  if (type === 'wipeRight') cond = `lte(X,W*${prog})`;
+  else if (type === 'wipeLeft') cond = `gte(X,W*(1-${prog}))`;
+  else if (type === 'wipeDown') cond = `lte(Y,H*${prog})`;
+  else if (type === 'wipeUp') cond = `gte(Y,H*(1-${prog}))`;
+  else cond = `lte(hypot(X-W/2,Y-H/2),hypot(W/2,H/2)*${prog})`; // circleOpen / iris
+  return `format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*${cond}':enable='between(t,${fmt(start)},${fmt(start + dur)})'`;
+}
+
+/**
  * Build a compositing ffmpeg command: each clip is one input, scaled to its rect
  * and overlaid (bottom -> top) onto a canvas, enabled only during its time span.
  * Audio from each unmuted clip is delayed to its start and mixed.
@@ -185,18 +204,21 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const chromaF = ffmpegChromaFilter(c.chromaKey);
     const chroma = chromaF ? `,${chromaF}` : '';
     const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
-    // Transition INTO this clip: a dissolve ramps its alpha in over the whole
-    // overlap; a fade type reveals it in the second half (the dip layer below
-    // covers the first half). `st` is in timeline seconds (PTS is shifted below).
-    const tr = c.transition;
+    // Transition INTO this clip, by family: dissolve ramps alpha over the whole
+    // overlap; fade reveals it in the second half (a color dip below covers the
+    // first); wipe / iris reveal it behind a moving geq alpha mask; slides move
+    // the overlay position (handled below, not here). `t`/`T` are timeline
+    // seconds once the PTS is shifted.
+    const tr = c.transition && c.transition.duration > 1e-3 ? c.transition : undefined;
+    const fam = tr ? transitionFamily(tr.type) : null;
     let trans = '';
-    if (tr && tr.duration > 1e-3) {
-      if (tr.type === 'dissolve') {
-        trans = `,format=rgba,fade=t=in:st=${fmt(c.start)}:d=${fmt(tr.duration)}:alpha=1`;
-      } else {
-        const hd = tr.duration / 2;
-        trans = `,format=rgba,fade=t=in:st=${fmt(c.start + hd)}:d=${fmt(hd)}:alpha=1`;
-      }
+    if (tr && fam === 'dissolve') {
+      trans = `,format=rgba,fade=t=in:st=${fmt(c.start)}:d=${fmt(tr.duration)}:alpha=1`;
+    } else if (tr && fam === 'fade') {
+      const hd = tr.duration / 2;
+      trans = `,format=rgba,fade=t=in:st=${fmt(c.start + hd)}:d=${fmt(hd)}:alpha=1`;
+    } else if (tr && (fam === 'wipe' || fam === 'iris')) {
+      trans = `,${wipeMask(tr.type, c.start, tr.duration)}`;
     }
     // Shift each clip's PTS to its timeline start so overlay frames line up with
     // the enable window; without this the input reaches EOF early and the slot
@@ -212,7 +234,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     }
     // A fade-to-color transition: a solid dip between the previous clip (already
     // in the accumulator) and this one, peaking opaque at the overlap midpoint.
-    if (tr && tr.type !== 'dissolve' && tr.duration > 1e-3) {
+    if (tr && fam === 'fade') {
       const hd = tr.duration / 2;
       const ov0 = c.start;
       const ov1 = c.start + tr.duration;
@@ -227,7 +249,21 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // eof_action=repeat (not pass): once a clip's frames run out it holds its
     // last frame instead of exposing black for a frame at the junction; `enable`
     // still gates it off outside its window, so intentional gaps stay black.
-    const pos = kf ? `x='${kf.x}':y='${kf.y}':eval=frame` : `${x}:${y}`;
+    // Slides add an offset to the overlay position over the overlap (composing
+    // with any keyframe position); it decays to 0 by the end of the transition.
+    let sdx = '';
+    let sdy = '';
+    if (tr && fam === 'slide') {
+      const dk = `(1-clip((t-${fmt(c.start)})/${fmt(tr.duration)},0,1))`;
+      if (tr.type === 'slideRight') sdx = `+(${fmt(-(c.rect.x + c.rect.w) * W)})*${dk}`;
+      else if (tr.type === 'slideLeft') sdx = `+(${fmt((1 - c.rect.x) * W)})*${dk}`;
+      else if (tr.type === 'slideDown') sdy = `+(${fmt(-(c.rect.y + c.rect.h) * H)})*${dk}`;
+      else if (tr.type === 'slideUp') sdy = `+(${fmt((1 - c.rect.y) * H)})*${dk}`;
+    }
+    const baseX = kf ? kf.x : `${x}`;
+    const baseY = kf ? kf.y : `${y}`;
+    const pos =
+      kf || sdx || sdy ? `x='${baseX}${sdx}':y='${baseY}${sdy}':eval=frame` : `${x}:${y}`;
     graph.push(
       `[${acc}][c${k}]overlay=${pos}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=repeat[ov${k}]`,
     );

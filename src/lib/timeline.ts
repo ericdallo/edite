@@ -1,4 +1,4 @@
-import type { Clip, Rect, SpeedCurve } from '@/types/editor';
+import type { Clip, Rect, SpeedCurve, TransitionId } from '@/types/editor';
 import { MIN_CLIP, SPEED_CURVE_SLICES } from '@/lib/constants';
 
 /** Instantaneous speed (×) at source progress `u` in [0,1], piecewise-linear between points. */
@@ -218,27 +218,76 @@ export interface TransitionRender {
   dipColor: string | null;
   /** dip layer opacity (0..1). */
   dipOpacity: number;
+  /** incoming-clip translation as a fraction of the canvas (slides). */
+  offsetX: number;
+  offsetY: number;
+  /** CSS clip-path that reveals the incoming clip (wipes / iris), or null. */
+  clipPath: string | null;
 }
 
-const NO_TRANSITION: TransitionRender = { clipMul: 1, dipColor: null, dipOpacity: 0 };
+const NO_TRANSITION: TransitionRender = {
+  clipMul: 1,
+  dipColor: null,
+  dipOpacity: 0,
+  offsetX: 0,
+  offsetY: 0,
+  clipPath: null,
+};
+
+export type TransitionFamily = 'dissolve' | 'fade' | 'slide' | 'wipe' | 'iris';
+
+/** Group a transition id into the family that decides how it animates. */
+export function transitionFamily(type: TransitionId): TransitionFamily {
+  if (type === 'fadeBlack' || type === 'fadeWhite') return 'fade';
+  if (type === 'circleOpen') return 'iris';
+  if (type === 'slideLeft' || type === 'slideRight' || type === 'slideUp' || type === 'slideDown') return 'slide';
+  if (type === 'wipeLeft' || type === 'wipeRight' || type === 'wipeUp' || type === 'wipeDown') return 'wipe';
+  return 'dissolve';
+}
 
 /**
- * How to render the incoming clip and its dip layer at time `t`. Only the
- * incoming clip is modulated: dissolve ramps its opacity 0->1 over the overlap;
- * fade types keep it hidden until mid then reveal it from under a color dip that
- * peaks at the midpoint. The preview and export both follow this shape.
+ * How to render the incoming clip at time `t`. Dissolve ramps its opacity over
+ * the overlap; fade types reveal it from under a color dip; slides translate it
+ * in from an edge; wipes / iris reveal it behind a moving CSS clip-path. The
+ * preview reads this directly and the export encodes the same shapes, so they
+ * match.
  */
 export function transitionRenderAt(clip: Clip, t: number): TransitionRender {
   const tr = clip.transition;
   if (!tr || tr.duration <= 0) return NO_TRANSITION;
   const p = (t - clip.start) / tr.duration;
   if (p < 0 || p > 1) return NO_TRANSITION;
-  if (tr.type === 'dissolve') return { clipMul: p, dipColor: null, dipOpacity: 0 };
-  return {
-    clipMul: Math.max(0, Math.min(1, (p - 0.5) * 2)),
-    dipColor: tr.type === 'fadeWhite' ? '#ffffff' : '#000000',
-    dipOpacity: 1 - Math.abs(2 * p - 1),
-  };
+  const fam = transitionFamily(tr.type);
+  if (fam === 'dissolve') return { ...NO_TRANSITION, clipMul: p };
+  if (fam === 'fade') {
+    return {
+      ...NO_TRANSITION,
+      clipMul: Math.max(0, Math.min(1, (p - 0.5) * 2)),
+      dipColor: tr.type === 'fadeWhite' ? '#ffffff' : '#000000',
+      dipOpacity: 1 - Math.abs(2 * p - 1),
+    };
+  }
+  if (fam === 'slide') {
+    const r = clip.rect;
+    const k = 1 - p;
+    let offsetX = 0;
+    let offsetY = 0;
+    if (tr.type === 'slideRight') offsetX = -(r.x + r.w) * k;
+    else if (tr.type === 'slideLeft') offsetX = (1 - r.x) * k;
+    else if (tr.type === 'slideDown') offsetY = -(r.y + r.h) * k;
+    else if (tr.type === 'slideUp') offsetY = (1 - r.y) * k;
+    return { ...NO_TRANSITION, offsetX, offsetY };
+  }
+  // wipe / iris: reveal via a moving CSS clip-path.
+  const k = 1 - p;
+  const pct = (v: number) => `${(v * 100).toFixed(2)}%`;
+  let clipPath: string;
+  if (tr.type === 'wipeRight') clipPath = `inset(0 ${pct(k)} 0 0)`;
+  else if (tr.type === 'wipeLeft') clipPath = `inset(0 0 0 ${pct(k)})`;
+  else if (tr.type === 'wipeDown') clipPath = `inset(0 0 ${pct(k)} 0)`;
+  else if (tr.type === 'wipeUp') clipPath = `inset(${pct(k)} 0 0 0)`;
+  else clipPath = `circle(${(p * 70.71).toFixed(2)}% at 50% 50%)`;
+  return { ...NO_TRANSITION, clipPath };
 }
 
 /**

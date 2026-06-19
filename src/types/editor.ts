@@ -258,11 +258,25 @@ export const DEFAULT_CHROMA: ChromaKey = { color: '#00ff00', similarity: 0.3, bl
 export const CHROMA_SWATCHES = ['#00ff00', '#00d426', '#0047ff', '#1f6fff'];
 
 /**
- * Transition between two adjacent clips on a track. `dissolve` cross-fades the
- * clips; `fadeBlack`/`fadeWhite` dip through a solid color. `duration` is the
- * overlap length in timeline seconds.
+ * Transition between two adjacent clips on a track, applied over the leading
+ * overlap. `dissolve` cross-fades; `fadeBlack`/`fadeWhite` dip through a solid
+ * color; `slide*` slides the incoming clip in from an edge; `wipe*` reveals it
+ * behind a moving edge; `circleOpen` reveals it in a growing circle (iris).
+ * `duration` is the overlap length in timeline seconds.
  */
-export type TransitionId = 'dissolve' | 'fadeBlack' | 'fadeWhite';
+export type TransitionId =
+  | 'dissolve'
+  | 'fadeBlack'
+  | 'fadeWhite'
+  | 'slideLeft'
+  | 'slideRight'
+  | 'slideUp'
+  | 'slideDown'
+  | 'wipeLeft'
+  | 'wipeRight'
+  | 'wipeUp'
+  | 'wipeDown'
+  | 'circleOpen';
 
 export interface Transition {
   type: TransitionId;
@@ -278,6 +292,15 @@ export const TRANSITIONS: TransitionOption[] = [
   { id: 'dissolve', label: 'Dissolve' },
   { id: 'fadeBlack', label: 'Fade · black' },
   { id: 'fadeWhite', label: 'Fade · white' },
+  { id: 'slideRight', label: 'Slide →' },
+  { id: 'slideLeft', label: 'Slide ←' },
+  { id: 'slideDown', label: 'Slide ↓' },
+  { id: 'slideUp', label: 'Slide ↑' },
+  { id: 'wipeRight', label: 'Wipe →' },
+  { id: 'wipeLeft', label: 'Wipe ←' },
+  { id: 'wipeDown', label: 'Wipe ↓' },
+  { id: 'wipeUp', label: 'Wipe ↑' },
+  { id: 'circleOpen', label: 'Iris' },
 ];
 
 export type ExportFormat = 'mp4' | 'webm' | 'gif';

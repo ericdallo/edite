@@ -180,8 +180,45 @@ describe('buildExportCommand transitions', () => {
     );
   });
 
+  it('slides the incoming clip in with an animated overlay offset (no alpha fade)', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({ kind: 'video', start: 0, in: 0, out: 5 }),
+        makeExportClip({ kind: 'video', start: 4, in: 0, out: 5, transition: { type: 'slideRight', duration: 1 } }),
+      ]),
+    );
+    expect(g).toContain("overlay=x='"); // position is a t-expression
+    expect(g).toContain('clip((t-4.000)/1.000,0,1)'); // decays over the overlap
+    expect(g).not.toContain('alpha=1'); // slides don't fade alpha
+    expect(g).not.toContain('geq='); // and don't mask
+  });
+
+  it('reveals a wipe behind a geq alpha mask gated to the overlap', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({ kind: 'video', start: 0, in: 0, out: 5 }),
+        makeExportClip({ kind: 'video', start: 4, in: 0, out: 5, transition: { type: 'wipeRight', duration: 1 } }),
+      ]),
+    );
+    expect(g).toContain("geq=r='r(X,Y)'");
+    expect(g).toContain("a='alpha(X,Y)*lte(X,W*clip((T-4.000)/1.000,0,1))'");
+    expect(g).toContain("enable='between(t,4.000,5.000)'"); // mask only during the overlap
+    expect(g).not.toContain('color=c=black'); // no dip layer
+  });
+
+  it('reveals an iris with a radial geq mask', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({ kind: 'video', start: 0, in: 0, out: 5 }),
+        makeExportClip({ kind: 'video', start: 4, in: 0, out: 5, transition: { type: 'circleOpen', duration: 1 } }),
+      ]),
+    );
+    expect(g).toContain('hypot(X-W/2,Y-H/2)');
+  });
+
   it('leaves clips without a transition untouched', () => {
     expect(graphOf(build([makeExportClip()]))).not.toContain('alpha=1');
+    expect(graphOf(build([makeExportClip()]))).not.toContain('geq=');
   });
 });
 

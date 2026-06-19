@@ -16,6 +16,7 @@ import {
   projectDuration,
   snapStart,
   transitionFades,
+  transitionFamily,
   transitionRenderAt,
 } from '@/lib/timeline';
 import { makeSpeedCurve } from '@/types/editor';
@@ -341,5 +342,47 @@ describe('clipTransformAt', () => {
     });
     // within the second segment (local 4 of [2,6]): halfway from 0.2 -> 0.6
     expect(clipTransformAt(clip, 4).rect.x).toBeCloseTo(0.4, 5);
+  });
+});
+
+describe('directional transitions', () => {
+  it('transitionFamily groups each id', () => {
+    expect(transitionFamily('dissolve')).toBe('dissolve');
+    expect(transitionFamily('fadeBlack')).toBe('fade');
+    expect(transitionFamily('fadeWhite')).toBe('fade');
+    expect(transitionFamily('slideRight')).toBe('slide');
+    expect(transitionFamily('wipeUp')).toBe('wipe');
+    expect(transitionFamily('circleOpen')).toBe('iris');
+  });
+
+  it('slides translate the incoming clip in over the overlap, fully opaque', () => {
+    const clip = makeClip({ start: 0, transition: { type: 'slideRight', duration: 2 } });
+    expect(transitionRenderAt(clip, 0)).toMatchObject({ clipMul: 1, offsetX: -1, offsetY: 0, clipPath: null });
+    expect(transitionRenderAt(clip, 1).offsetX).toBeCloseTo(-0.5, 5);
+    expect(transitionRenderAt(clip, 2).offsetX).toBeCloseTo(0, 5);
+    // slideUp moves vertically only
+    const up = makeClip({ start: 0, transition: { type: 'slideUp', duration: 2 } });
+    expect(transitionRenderAt(up, 0)).toMatchObject({ offsetX: 0, offsetY: 1 });
+  });
+
+  it('wipes reveal behind a shrinking inset clip-path', () => {
+    const clip = makeClip({ start: 0, transition: { type: 'wipeRight', duration: 2 } });
+    expect(transitionRenderAt(clip, 0).clipPath).toBe('inset(0 100.00% 0 0)');
+    expect(transitionRenderAt(clip, 1).clipPath).toBe('inset(0 50.00% 0 0)');
+    expect(transitionRenderAt(clip, 2).clipPath).toBe('inset(0 0.00% 0 0)');
+    expect(transitionRenderAt(clip, 1).clipMul).toBe(1);
+  });
+
+  it('iris reveals in a growing circle', () => {
+    const clip = makeClip({ start: 0, transition: { type: 'circleOpen', duration: 2 } });
+    expect(transitionRenderAt(clip, 0).clipPath).toBe('circle(0.00% at 50% 50%)');
+    expect(transitionRenderAt(clip, 2).clipPath).toBe('circle(70.71% at 50% 50%)');
+  });
+
+  it('leaves dissolve/fade without offsets or a clip-path', () => {
+    const diss = makeClip({ start: 0, transition: { type: 'dissolve', duration: 2 } });
+    expect(transitionRenderAt(diss, 1)).toMatchObject({ offsetX: 0, offsetY: 0, clipPath: null });
+    const fade = makeClip({ start: 0, transition: { type: 'fadeBlack', duration: 2 } });
+    expect(transitionRenderAt(fade, 1)).toMatchObject({ offsetX: 0, offsetY: 0, clipPath: null });
   });
 });
