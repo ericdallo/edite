@@ -1,5 +1,7 @@
 # edite
 
+![](./demo.png)
+
 A free, multi-track video editor that runs **entirely in the browser**. Import videos and images,
 stack them on layered tracks, trim/split/speed/reframe, add picture-in-picture overlays, and export
 a composited MP4/WebM/GIF. No account, no upload, no server: your media never leaves the device.
