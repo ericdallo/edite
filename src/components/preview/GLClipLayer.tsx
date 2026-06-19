@@ -25,6 +25,7 @@ uniform vec3 u_gain;    // per-channel gain (exposure + temperature + tint)
 uniform vec2 u_tone;    // tone-curve output at input 0.25 / 0.75
 uniform float u_vig;    // vignette 0..1
 uniform float u_sharpen;
+uniform float u_intensity; // grade strength 0..1
 uniform vec2 u_texel;   // 1/width, 1/height
 uniform float u_chroma; // 1 = key enabled
 uniform vec3 u_key;
@@ -88,6 +89,7 @@ void main() {
     rgb *= 1.0 - u_vig * smoothstep(0.35, 1.0, r);
   }
   rgb = clamp(rgb, 0.0, 1.0);
+  rgb = mix(src.rgb, rgb, u_intensity); // dial the whole grade back toward the source
 
   float a = src.a;
   if (u_chroma > 0.5) {
@@ -199,6 +201,7 @@ export function GLClipLayer({
     const uTone = u('u_tone');
     const uVig = u('u_vig');
     const uSharpen = u('u_sharpen');
+    const uIntensity = u('u_intensity');
     const uTexel = u('u_texel');
     const uChroma = u('u_chroma');
     const uKey = u('u_key');
@@ -224,6 +227,7 @@ export function GLClipLayer({
           gl.uniform2f(uTone, g.toneLow, g.toneHigh);
           gl.uniform1f(uVig, g.vignette);
           gl.uniform1f(uSharpen, g.sharpen);
+          gl.uniform1f(uIntensity, g.intensity);
           gl.uniform2f(uTexel, 1 / canvas.width, 1 / canvas.height);
           const ck = chromaRef.current;
           if (ck) {

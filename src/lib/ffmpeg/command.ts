@@ -264,6 +264,10 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
       : `scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1`;
     const colorF = ffmpegColorFilter(c.color);
     const color = colorF ? `,${colorF}` : '';
+    // Grade strength: when < 1 the grade is rendered on a split branch and blended
+    // back over the original, matching the preview shader's mix(orig, graded, i).
+    const intensity = c.color?.intensity ?? 1;
+    const blendGrade = colorF !== '' && intensity < 1 - 1e-3;
     const chromaF = ffmpegChromaFilter(c.chromaKey);
     const chroma = chromaF ? `,${chromaF}` : '';
     const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
@@ -288,12 +292,26 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // renders black (e.g. the tail clip of a split).
     const delay = c.start > 1e-6 ? `+${fmt(c.start)}/TB` : '';
     const orient = orientFilters(c);
+    const tail = `${chroma}${op}${trans}`;
+    // Emit the clip's video chain from its pre-color `head`. Without an intensity
+    // dial it's one linear statement (unchanged); with one, the grade runs on a
+    // split branch and is blended over the original at the chosen strength.
+    const emit = (head: string) => {
+      if (!blendGrade) {
+        graph.push(`[${k}:v]${head}${color}${tail}[c${k}]`);
+        return;
+      }
+      graph.push(`[${k}:v]${head},format=rgba,split=2[sb${k}][sg${k}]`);
+      graph.push(`[sg${k}]${colorF},format=rgba[gd${k}]`);
+      graph.push(`[sb${k}][gd${k}]blend=all_expr='A*${fmt(1 - intensity)}+B*${fmt(intensity)}'[bl${k}]`);
+      graph.push(tail ? `[bl${k}]${tail}[c${k}]` : `[bl${k}]null[c${k}]`);
+    };
     if (c.kind === 'image' || c.kind === 'text') {
       const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
-      graph.push(`[${k}:v]${pts}${orient}${cover}${color}${chroma}${op}${trans}[c${k}]`);
+      emit(`${pts}${orient}${cover}`);
     } else {
       const base = Math.abs(c.speed - 1) > 1e-3 ? `(PTS-STARTPTS)/${c.speed}` : 'PTS-STARTPTS';
-      graph.push(`[${k}:v]trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${orient}${cover}${color}${chroma}${op}${trans}[c${k}]`);
+      emit(`trim=${fmt(c.in)}:${fmt(c.out)},setpts=${base}${delay},${orient}${cover}`);
     }
     // A fade-to-color transition: a solid dip between the previous clip (already
     // in the accumulator) and this one, peaking opaque at the overlap midpoint.

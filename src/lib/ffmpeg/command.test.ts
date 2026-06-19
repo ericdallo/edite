@@ -123,6 +123,31 @@ describe('buildExportCommand video graph', () => {
   });
 });
 
+describe('buildExportCommand grade intensity', () => {
+  const colored = (intensity?: number) =>
+    makeExportClip({ color: { brightness: 1.2, contrast: 1, saturation: 1, hue: 0, intensity } });
+
+  it('keeps a linear chain at full strength', () => {
+    const g = graphOf(build([colored(1)]));
+    expect(g).toContain('eq=brightness=0.200');
+    expect(g).not.toContain('split=2');
+    expect(g).not.toContain('blend=all_expr');
+  });
+
+  it('splits and blends the grade over the original at partial strength', () => {
+    const g = graphOf(build([colored(0.5)]));
+    expect(g).toContain('split=2');
+    expect(g).toContain("blend=all_expr='A*0.500+B*0.500'");
+    expect(g).toContain('eq=brightness=0.200'); // graded on the split branch
+  });
+
+  it('drops the grade entirely at zero strength', () => {
+    const g = graphOf(build([colored(0)]));
+    expect(g).not.toContain('eq=');
+    expect(g).not.toContain('blend=all_expr');
+  });
+});
+
 describe('buildExportCommand keyframes', () => {
   const kfClip = (over: Partial<ExportClip> = {}) =>
     makeExportClip({

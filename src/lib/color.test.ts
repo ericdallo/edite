@@ -4,9 +4,11 @@ import {
   colorEquals,
   cssColorFilter,
   ffmpegColorFilter,
+  gradeIntensity,
   gradeUniforms,
   hasExtraGrade,
   isNeutralColor,
+  needsGradeShader,
   tonePoints,
 } from '@/lib/color';
 import { NEUTRAL_COLOR } from '@/types/editor';
@@ -155,11 +157,36 @@ describe('gradeUniforms', () => {
     expect(u.toneHigh).toBeCloseTo(0.75);
     expect(u.vignette).toBe(0);
     expect(u.sharpen).toBe(0);
+    expect(u.intensity).toBe(1);
   });
 
   it('converts hue to radians and scales sharpen/vignette to 0..max', () => {
     expect(gradeUniforms({ ...NEUTRAL_COLOR, hue: 180 }).hue).toBeCloseTo(Math.PI);
     expect(gradeUniforms({ ...NEUTRAL_COLOR, sharpen: 100 }).sharpen).toBeCloseTo(1.5);
     expect(gradeUniforms({ ...NEUTRAL_COLOR, vignette: 100 }).vignette).toBeCloseTo(1);
+    expect(gradeUniforms({ ...NEUTRAL_COLOR, intensity: 0.4 }).intensity).toBeCloseTo(0.4);
+  });
+});
+
+describe('grade intensity', () => {
+  it('defaults to full and reads the field when set', () => {
+    expect(gradeIntensity(undefined)).toBe(1);
+    expect(gradeIntensity({ ...NEUTRAL_COLOR })).toBe(1);
+    expect(gradeIntensity({ ...NEUTRAL_COLOR, intensity: 0.3 })).toBeCloseTo(0.3);
+  });
+
+  it('treats intensity 0 as a neutral (off) grade', () => {
+    expect(isNeutralColor({ brightness: 1.3, contrast: 1.2, saturation: 1.4, hue: 30, intensity: 0 })).toBe(true);
+    expect(isNeutralColor({ brightness: 1.3, contrast: 1.2, saturation: 1.4, hue: 30, intensity: 0.5 })).toBe(false);
+  });
+
+  it('routes a partially-dialed legacy grade through the shader', () => {
+    // Legacy-only at full strength can stay on the CSS path...
+    expect(needsGradeShader({ brightness: 1.3, contrast: 1, saturation: 1, hue: 0 })).toBe(false);
+    // ...but once intensity is partial, only the shader can blend it.
+    expect(needsGradeShader({ brightness: 1.3, contrast: 1, saturation: 1, hue: 0, intensity: 0.5 })).toBe(true);
+    // A deeper field always needs the shader.
+    expect(needsGradeShader({ ...NEUTRAL_COLOR, temperature: 20 })).toBe(true);
+    expect(needsGradeShader(undefined)).toBe(false);
   });
 });

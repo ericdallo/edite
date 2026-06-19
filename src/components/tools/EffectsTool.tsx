@@ -81,6 +81,9 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
   const color: ColorAdjust = clip.color ?? NEUTRAL_COLOR;
   const count = selectedIds.length;
   const neutral = isNeutralColor(clip.color);
+  // A look exists to dial back when the grade params are non-neutral, regardless
+  // of the current intensity (so pulling intensity to 0 doesn't hide the slider).
+  const hasLook = clip.color != null && !isNeutralColor({ ...clip.color, intensity: 1 });
   const set = (patch: Partial<ColorAdjust>) => updateClips(selectedIds, { color: { ...color, ...patch } });
 
   const isVideo = media.find((m) => m.id === clip.mediaId)?.kind === 'video';
@@ -422,6 +425,17 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
           })}
         </div>
       </div>
+      {hasLook && (
+        <Adjust
+          label="Intensity"
+          value={color.intensity ?? 1}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => set({ intensity: v })}
+          fmt={pct}
+        />
+      )}
       {resetColor}
       {scopeNote}
     </div>

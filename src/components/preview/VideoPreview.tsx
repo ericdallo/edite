@@ -12,7 +12,7 @@ import {
   transitionFades,
   transitionRenderAt,
 } from '@/lib/timeline';
-import { cssColorFilter, hasExtraGrade } from '@/lib/color';
+import { cssColorFilter, needsGradeShader } from '@/lib/color';
 import { clamp, cn } from '@/lib/utils';
 import { resolveSubtool } from '@/components/tools/subtools';
 import { TransformOverlay } from './TransformOverlay';
@@ -266,7 +266,7 @@ export function VideoPreview() {
           // A clip with chroma or any deeper-grade field renders through the WebGL
           // grade shader (which owns its color); legacy-only grades keep the cheap
           // CSS-filter path with no WebGL overhead.
-          const gl = (m.kind === 'video' && clip.chromaKey != null) || hasExtraGrade(clip.color);
+          const gl = (m.kind === 'video' && clip.chromaKey != null) || needsGradeShader(clip.color);
           const filter = gl ? undefined : cssColorFilter(clip.color);
           // Compose orientation transform with the color filter on one element.
           const mediaStyle: CSSProperties | undefined =

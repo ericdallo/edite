@@ -45,12 +45,20 @@ export function clampColor(c: ColorAdjust): ColorAdjust {
   for (const k of EXTRA_KEYS) {
     if (c[k] != null) out[k] = clampNum(c[k] as number, EXTRA_RANGE[k][0], EXTRA_RANGE[k][1]);
   }
+  if (c.intensity != null) out.intensity = clampNum(c.intensity, 0, 1);
   return out;
+}
+
+/** The grade strength (0 = original, 1 = full); absent means full. */
+export function gradeIntensity(c?: ColorAdjust | null): number {
+  return c?.intensity ?? 1;
 }
 
 /** True when a color adjustment leaves the image unchanged (or is absent). */
 export function isNeutralColor(c?: ColorAdjust | null): boolean {
   if (!c) return true;
+  // Intensity 0 dials the whole grade off, so the look is the original.
+  if (gradeIntensity(c) <= EPS) return true;
   return (
     Math.abs(c.brightness - 1) < EPS &&
     Math.abs(c.contrast - 1) < EPS &&
@@ -69,6 +77,7 @@ export function colorEquals(a?: ColorAdjust | null, b?: ColorAdjust | null): boo
     Math.abs(x.contrast - y.contrast) < EPS &&
     Math.abs(x.saturation - y.saturation) < EPS &&
     Math.abs(x.hue - y.hue) < EPS &&
+    Math.abs(gradeIntensity(x) - gradeIntensity(y)) < EPS &&
     EXTRA_KEYS.every((k) => Math.abs((x[k] ?? 0) - (y[k] ?? 0)) < EPS)
   );
 }
@@ -82,6 +91,15 @@ export function colorEquals(a?: ColorAdjust | null, b?: ColorAdjust | null): boo
 export function hasExtraGrade(c?: ColorAdjust | null): boolean {
   if (!c) return false;
   return EXTRA_KEYS.some((k) => Math.abs(c[k] ?? 0) > EPS);
+}
+
+/**
+ * Whether the preview must grade this clip through the WebGL shader rather than
+ * the CSS-filter path: any deeper field, or a partial intensity dialing back an
+ * otherwise non-neutral grade (CSS can't blend toward the original).
+ */
+export function needsGradeShader(c?: ColorAdjust | null): boolean {
+  return hasExtraGrade(c) || (gradeIntensity(c) < 1 - EPS && !isNeutralColor(c));
 }
 
 /**
@@ -185,6 +203,8 @@ export interface GradeUniforms {
   vignette: number;
   /** unsharp-mask amount (matches the ffmpeg `unsharp` luma amount). */
   sharpen: number;
+  /** grade strength, 0 (original) .. 1 (full), blended against the source. */
+  intensity: number;
 }
 
 /**
@@ -202,6 +222,7 @@ export function gradeUniforms(c?: ColorAdjust | null): GradeUniforms {
     ...tonePointsUniform(v),
     vignette: (v.vignette ?? 0) / 100,
     sharpen: ((v.sharpen ?? 0) / 100) * 1.5,
+    intensity: gradeIntensity(v),
   };
 }
 
