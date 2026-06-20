@@ -212,6 +212,13 @@ export function GLClipLayer({
     gl.linkProgram(prog);
     gl.useProgram(prog);
 
+    // The LUT is an RGB texture whose rows (size*size*3 bytes) aren't a multiple
+    // of 4, so the default UNPACK_ALIGNMENT of 4 makes texImage2D reject it (the
+    // upload silently fails and the black placeholder stays bound -> every Look
+    // renders black). Byte-tight unpacking fixes it; video frames are RGBA and
+    // unaffected.
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
@@ -274,9 +281,17 @@ export function GLClipLayer({
         const packed = packLut(parseCube(text));
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, lutTex);
+        gl.getError(); // drain any stale error so the check below is about this upload
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, packed.width, packed.height, 0, gl.RGB, gl.UNSIGNED_BYTE, packed.pixels);
-        lutSize = packed.size;
-        lutLoadedId = id;
+        if (gl.getError() !== gl.NO_ERROR) {
+          // Upload rejected: skip the look rather than sampling the black
+          // placeholder (which would blank the clip).
+          lutLoadedId = null;
+          lutSize = 0;
+        } else {
+          lutSize = packed.size;
+          lutLoadedId = id;
+        }
       } catch {
         lutLoadedId = null;
         lutSize = 0;
