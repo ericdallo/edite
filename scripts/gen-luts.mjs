@@ -320,54 +320,85 @@ function buildCube({ id, title, fn }) {
 }
 
 // --- Thumbnails ------------------------------------------------------------
-// A synthetic sample image (no external asset, CC0): a hue/luma gradient over a
-// strip of memory-colour chips (skin, sky, foliage, red, neutral, gold), so each
-// look's warmth, contrast, saturation and mono behaviour reads at a glance.
-const TW = 96;
-const TH = 64;
-const CHIP_H = 16;
-const GRAD_H = TH - CHIP_H;
-const CHIPS = [
-  [0.91, 0.71, 0.56], // skin
-  [0.47, 0.72, 0.93], // sky
-  [0.36, 0.6, 0.27], // foliage
-  [0.84, 0.28, 0.25], // red
-  [0.61, 0.61, 0.61], // neutral
-  [0.93, 0.76, 0.31], // gold
-];
+// A self-authored landscape scene (no external asset, CC0): a golden-hour sky
+// with a low sun over layered green hills, plus a little grain. It's real-scene
+// content — sky blue, warm sunlight, greens, shadows and highlights — so a
+// look's warmth, contrast and saturation read at a glance, like the sample photo
+// CapCut previews filters on.
+const TW = 120;
+const TH = 80;
 
-function hslToRgb(h, s, l) {
-  if (s === 0) return [l, l, l];
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  const hk = (t) => {
-    let tc = t;
-    if (tc < 0) tc += 1;
-    if (tc > 1) tc -= 1;
-    if (tc < 1 / 6) return p + (q - p) * 6 * tc;
-    if (tc < 1 / 2) return q;
-    if (tc < 2 / 3) return p + (q - p) * (2 / 3 - tc) * 6;
-    return p;
-  };
-  return [hk(h + 1 / 3), hk(h), hk(h - 1 / 3)];
+const smooth = (t) => {
+  const c = t < 0 ? 0 : t > 1 ? 1 : t;
+  return c * c * (3 - 2 * c);
+};
+// Deterministic per-pixel pseudo-random in 0..1, for a touch of film grain.
+const hash = (x, y) => {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+const mix3 = (a, b, t) => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
+
+const HORIZON = 0.6;
+const SUN_X = 0.7;
+const SUN_Y = HORIZON - 0.04;
+const SKY_TOP = [0.17, 0.35, 0.62];
+const SKY_HORIZON = [1.0, 0.76, 0.5];
+
+// Sky colour + sun glow at a point (also reused for the horizon haze).
+function skyAt(fx, fy) {
+  const base = mix3(SKY_TOP, SKY_HORIZON, smooth(Math.max(0, fy) / HORIZON));
+  const d = Math.hypot(fx - SUN_X, (fy - SUN_Y) * 1.35);
+  const glow = Math.exp(-(d * d) / (2 * 0.11 * 0.11));
+  const core = Math.exp(-(d * d) / (2 * 0.025 * 0.025));
+  return [
+    base[0] + 1.0 * glow * 0.7 + core * 0.5,
+    base[1] + 0.86 * glow * 0.7 + core * 0.5,
+    base[2] + 0.62 * glow * 0.7 + core * 0.45,
+  ];
 }
+
+// Three green hill layers, back (sunlit) to front (dark), each a wavy crest.
+const HILLS = [
+  { base: HORIZON + 0.0, amp: 0.025, freq: 7.0, phase: 0.6, color: [0.5, 0.52, 0.3] },
+  { base: HORIZON + 0.12, amp: 0.035, freq: 4.3, phase: 2.1, color: [0.28, 0.4, 0.18] },
+  { base: HORIZON + 0.26, amp: 0.045, freq: 3.1, phase: 0.2, color: [0.14, 0.23, 0.1] },
+];
 
 function buildSample() {
   const buf = Buffer.alloc(TW * TH * 3);
   for (let y = 0; y < TH; y++) {
     for (let x = 0; x < TW; x++) {
+      const fx = x / (TW - 1);
+      const fy = y / (TH - 1);
       let rgb;
-      if (y >= GRAD_H) {
-        rgb = CHIPS[Math.min(CHIPS.length - 1, Math.floor((x / TW) * CHIPS.length))];
+      if (fy < HORIZON) {
+        rgb = skyAt(fx, fy);
       } else {
-        const hue = (x / (TW - 1)) * 0.78; // red -> blue/violet
-        const light = mix(0.86, 0.2, y / (GRAD_H - 1));
-        rgb = hslToRgb(hue, 0.55, light);
+        rgb = null;
+        // Pick the front-most hill layer whose crest is above this point.
+        for (let i = HILLS.length - 1; i >= 0; i--) {
+          const h = HILLS[i];
+          const top = h.base + h.amp * Math.sin(fx * h.freq + h.phase) + h.amp * 0.5 * Math.sin(fx * h.freq * 2.3);
+          if (fy >= top) {
+            const depth = smooth((fy - top) / 0.5); // darken down the slope
+            let c = mix3(h.color, [h.color[0] * 0.45, h.color[1] * 0.45, h.color[2] * 0.45], depth);
+            if (i === 0) {
+              // Warm side-light on the back hill, falling off away from the sun.
+              const warm = Math.exp(-((fx - SUN_X) ** 2) / (2 * 0.3 * 0.3)) * 0.35;
+              c = [c[0] + warm * 0.5, c[1] + warm * 0.35, c[2] + warm * 0.1];
+            }
+            rgb = c;
+            break;
+          }
+        }
+        if (!rgb) rgb = mix3(SKY_HORIZON, [0.6, 0.55, 0.35], 0.5); // thin horizon haze
       }
+      const grain = (hash(x, y) - 0.5) * 0.03;
       const o = (y * TW + x) * 3;
-      buf[o] = Math.round(clamp01(rgb[0]) * 255);
-      buf[o + 1] = Math.round(clamp01(rgb[1]) * 255);
-      buf[o + 2] = Math.round(clamp01(rgb[2]) * 255);
+      buf[o] = Math.round(clamp01(rgb[0] + grain) * 255);
+      buf[o + 1] = Math.round(clamp01(rgb[1] + grain) * 255);
+      buf[o + 2] = Math.round(clamp01(rgb[2] + grain) * 255);
     }
   }
   return buf;
