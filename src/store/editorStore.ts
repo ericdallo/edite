@@ -225,7 +225,7 @@ export interface EditorState {
 
   addMedia: (item: MediaItem) => void;
   addClipFromMedia: (mediaId: string, opts?: { trackId?: string; start?: number }) => void;
-  addTextClip: (opts?: { start?: number }) => void;
+  addTextClip: (opts?: { start?: number; style?: Partial<TextStyle> }) => void;
   addShapeClip: (kind: ShapeKind, opts?: { start?: number }) => void;
   /** Add auto-caption text clips on a new dedicated track (one history step). */
   addCaptionClips: (items: CaptionClip[]) => void;
@@ -530,7 +530,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         volume: 1,
         fadeIn: 0,
         fadeOut: 0,
-        text: { ...DEFAULT_TEXT_STYLE },
+        text: { ...DEFAULT_TEXT_STYLE, ...opts?.style },
       };
       return {
         tracks: [...state.tracks, t],
