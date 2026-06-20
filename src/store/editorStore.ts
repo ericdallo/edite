@@ -750,7 +750,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   moveClipToNewTrack: (id, start, edge) =>
     set((state) => {
       const t: Track = { id: uid(), name: `Track ${state.tracks.length + 1}`, hidden: false, muted: false };
-      const tracks = edge === 'below' ? [t, ...state.tracks] : [...state.tracks, t];
+      // Rows render top-to-bottom in array order, so 'below' = a new bottom row
+      // (append) and 'above' = a new top row (prepend).
+      const tracks = edge === 'below' ? [...state.tracks, t] : [t, ...state.tracks];
       const clips = state.clips.map((c) =>
         c.id === id ? { ...c, start: Math.max(0, start), trackId: t.id } : c,
       );

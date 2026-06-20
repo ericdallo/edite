@@ -192,7 +192,10 @@ export function Timeline() {
     };
   }, [setZoom]);
 
-  const rowsTopOrder = [...tracks].reverse();
+  // Rows render in track order (top to bottom). New elements append to the end,
+  // so they appear at the bottom row, and compositing keeps the last track on
+  // top, so a freshly added clip is also visible over the others.
+  const rowsTopOrder = tracks;
 
   const timeFromClientX = (clientX: number) => {
     const el = contentRef.current;

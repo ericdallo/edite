@@ -215,18 +215,18 @@ describe('moveClip', () => {
 describe('moveClipToNewTrack', () => {
   beforeEach(seed);
 
-  it("'below' inserts the new track as the bottom layer (index 0)", () => {
+  it("'below' adds the new track as the bottom row (end of the list)", () => {
     get().moveClipToNewTrack('c1', 2, 'below');
     const s = get();
     expect(s.tracks).toHaveLength(2);
-    expect(s.clips[0].trackId).toBe(s.tracks[0].id);
+    expect(s.clips[0].trackId).toBe(s.tracks[s.tracks.length - 1].id);
     expect(s.clips[0].start).toBe(2);
   });
 
-  it("'above' appends the new track as the top layer", () => {
+  it("'above' adds the new track as the top row (start of the list)", () => {
     get().moveClipToNewTrack('c1', 0, 'above');
     const s = get();
-    expect(s.clips[0].trackId).toBe(s.tracks[s.tracks.length - 1].id);
+    expect(s.clips[0].trackId).toBe(s.tracks[0].id);
   });
 });
 
