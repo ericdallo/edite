@@ -1,7 +1,23 @@
-import { BACKGROUND_SWATCHES, DEFAULT_SHAPE_STYLE, SHAPES, type ShapeStyle } from '@/types/editor';
+import { ArrowRight, Circle, Diamond, type LucideIcon, Square, Star, Triangle } from 'lucide-react';
+import {
+  BACKGROUND_SWATCHES,
+  DEFAULT_SHAPE_STYLE,
+  SHAPES,
+  type ShapeKind,
+  type ShapeStyle,
+} from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
+
+const SHAPE_ICONS: Record<ShapeKind, LucideIcon> = {
+  rectangle: Square,
+  ellipse: Circle,
+  triangle: Triangle,
+  diamond: Diamond,
+  star: Star,
+  arrow: ArrowRight,
+};
 
 function Row({
   label,
@@ -72,15 +88,19 @@ export function ShapeTool() {
     <div>
       <div className="mb-2 text-sm text-ink-muted">Add a shape</div>
       <div className="grid grid-cols-3 gap-2">
-        {SHAPES.map((s) => (
-          <button
-            key={s.kind}
-            onClick={() => addShapeClip(s.kind)}
-            className="rounded-xl border border-line bg-surface-2 px-2 py-3 text-xs font-medium text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
-          >
-            {s.label}
-          </button>
-        ))}
+        {SHAPES.map((s) => {
+          const Icon = SHAPE_ICONS[s.kind];
+          return (
+            <button
+              key={s.kind}
+              onClick={() => addShapeClip(s.kind)}
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-surface-2 px-2 py-2.5 text-[11px] font-medium text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+            >
+              <Icon size={20} className="text-ink" />
+              {s.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

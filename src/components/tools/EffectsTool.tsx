@@ -1,5 +1,23 @@
 import { type ChangeEvent, useRef, useState } from 'react';
-import { Sparkles, Upload, X } from 'lucide-react';
+import {
+  Aperture,
+  ArrowDown,
+  ArrowDownToLine,
+  ArrowLeft,
+  ArrowLeftToLine,
+  ArrowRight,
+  ArrowRightToLine,
+  ArrowUp,
+  ArrowUpToLine,
+  Ban,
+  Blend,
+  type LucideIcon,
+  Moon,
+  Sparkles,
+  Sun,
+  Upload,
+  X,
+} from 'lucide-react';
 import {
   CHROMA_SWATCHES,
   COLOR_PRESETS,
@@ -8,8 +26,24 @@ import {
   DEFAULT_CHROMA,
   NEUTRAL_COLOR,
   TRANSITIONS,
+  type TransitionId,
 } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
+
+const TRANSITION_ICONS: Record<TransitionId, LucideIcon> = {
+  dissolve: Blend,
+  fadeBlack: Moon,
+  fadeWhite: Sun,
+  slideLeft: ArrowLeft,
+  slideRight: ArrowRight,
+  slideUp: ArrowUp,
+  slideDown: ArrowDown,
+  wipeLeft: ArrowLeftToLine,
+  wipeRight: ArrowRightToLine,
+  wipeUp: ArrowUpToLine,
+  wipeDown: ArrowDownToLine,
+  circleOpen: Aperture,
+};
 import { colorEquals, isNeutralColor } from '@/lib/color';
 import { LUT_LOOKS } from '@/lib/lut';
 import { canAddTransition, maxTransitionDuration } from '@/lib/timeline';
@@ -148,28 +182,31 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
             onClick={() => setClipTransition(clip.id, null)}
             disabled={transitionDisabled}
             className={cn(
-              'rounded-xl border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+              'flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
               !clip.transition
                 ? 'border-brand bg-brand/10 text-ink'
                 : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
             )}
           >
+            <Ban size={14} className="shrink-0" />
             None
           </button>
           {TRANSITIONS.map((t) => {
             const on = clip.transition?.type === t.id;
+            const Icon = TRANSITION_ICONS[t.id];
             return (
               <button
                 key={t.id}
                 onClick={() => setClipTransition(clip.id, t.id)}
                 disabled={transitionDisabled}
                 className={cn(
-                  'rounded-xl border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                  'flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
                   on
                     ? 'border-brand bg-brand/10 text-ink'
                     : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
                 )}
               >
+                <Icon size={14} className="shrink-0" />
                 {t.label}
               </button>
             );
