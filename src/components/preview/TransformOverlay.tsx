@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent } from 'react';
+import { type PointerEvent as ReactPointerEvent, useRef } from 'react';
 import type { Rect } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { clipTransformAt } from '@/lib/timeline';
@@ -8,13 +8,26 @@ import { clamp, cn } from '@/lib/utils';
 type Mode = 'move' | 'nw' | 'ne' | 'sw' | 'se';
 const MIN = 0.05;
 
-export function TransformOverlay({ width, height }: { width: number; height: number }) {
+export function TransformOverlay({
+  width,
+  height,
+  onDoubleClickBox,
+}: {
+  width: number;
+  height: number;
+  /** Double-click/tap on the move box (used to enter inline text editing). */
+  onDoubleClickBox?: () => void;
+}) {
   const activeId = useEditorStore((s) => s.activeClipId);
   const clips = useEditorStore((s) => s.clips);
   const currentTime = useEditorStore((s) => s.playback.currentTime);
   const setClipRect = useEditorStore((s) => s.setClipRect);
   const upsertKeyframe = useEditorStore((s) => s.upsertKeyframe);
   const updateClip = useEditorStore((s) => s.updateClip);
+  // Tap tracking on the move box drives double-tap-to-edit (more reliable on
+  // touch than the native dblclick under `touch-none`).
+  const lastTapRef = useRef(0);
+  const movedRef = useRef(false);
   const clip = clips.find((c) => c.id === activeId);
   if (!clip) return null;
   const isText = clip.text != null;
@@ -40,12 +53,14 @@ export function TransformOverlay({ width, height }: { width: number; height: num
     } catch {
       // setPointerCapture can throw if the pointer is already gone; ignore.
     }
+    movedRef.current = false;
     const sx = e.clientX;
     const sy = e.clientY;
     const o = { ...r };
     const aspect = o.w / o.h; // fraction ratio, kept constant while scaling
     const startFont = clip.text?.fontSize ?? 0;
     const move = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientX - sx) > 3 || Math.abs(ev.clientY - sy) > 3) movedRef.current = true;
       const dx = (ev.clientX - sx) / width;
       const dy = (ev.clientY - sy) / height;
       const n: Rect = { ...o };
@@ -109,6 +124,16 @@ export function TransformOverlay({ width, height }: { width: number; height: num
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      // A tap on the move box (no drag): two within 300ms enter inline editing.
+      if (mode === 'move' && !movedRef.current && onDoubleClickBox) {
+        const now = performance.now();
+        if (now - lastTapRef.current < 300) {
+          lastTapRef.current = 0;
+          onDoubleClickBox();
+        } else {
+          lastTapRef.current = now;
+        }
+      }
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);

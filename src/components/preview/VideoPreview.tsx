@@ -84,6 +84,12 @@ export function VideoPreview() {
 
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [isFs, setIsFs] = useState(false);
+  // Inline content editing of the selected text clip, entered by double-tapping
+  // its box in the preview (CapCut-style).
+  const [editingText, setEditingText] = useState(false);
+  useEffect(() => {
+    setEditingText(false);
+  }, [activeClipId, selectedTool, selectedSubtool]);
 
   // Track fullscreen of the preview stage so the toggle icon stays in sync.
   useEffect(() => {
@@ -255,6 +261,9 @@ export function VideoPreview() {
           };
 
           if (clip.text) {
+            // The clip being edited inline is drawn by the textarea overlay
+            // below, so skip its canvas layer to avoid a doubled render.
+            if (editingText && clip.id === activeClipId) return null;
             // Enter/exit animation: scale opacity and translate the box (slides),
             // matching the export's text overlay fade + offset.
             const ta = clip.textAnim ? textAnimAt(clip, currentTime) : null;
@@ -395,7 +404,23 @@ export function VideoPreview() {
           return <Fragment key={clip.id}>{wrapper}</Fragment>;
         })}
 
-        {showOverlay && box.w > 0 && <TransformOverlay width={box.w} height={box.h} />}
+        {showOverlay && !editingText && box.w > 0 && (
+          <TransformOverlay
+            width={box.w}
+            height={box.h}
+            onDoubleClickBox={
+              activeClip?.text != null
+                ? () => {
+                    setPlaying(false);
+                    setEditingText(true);
+                  }
+                : undefined
+            }
+          />
+        )}
+        {editingText && activeClip?.text != null && box.w > 0 && (
+          <TextEditOverlay clip={activeClip} boxH={box.h} onDone={() => setEditingText(false)} />
+        )}
       </div>
 
       <button
@@ -407,5 +432,71 @@ export function VideoPreview() {
         {isFs ? <Minimize size={16} /> : <Maximize size={16} />}
       </button>
     </div>
+  );
+}
+
+/**
+ * A transparent textarea laid over the selected text clip's box, matched to its
+ * font so editing feels in-place. Live-updates the clip's content; commits and
+ * exits on blur or Escape.
+ */
+function TextEditOverlay({
+  clip,
+  boxH,
+  onDone,
+}: {
+  clip: Clip;
+  boxH: number;
+  onDone: () => void;
+}) {
+  const updateText = useEditorStore((s) => s.updateText);
+  const currentTime = useEditorStore((s) => s.playback.currentTime);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const text = clip.text;
+  const rect = clipTransformAt(clip, currentTime).rect;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    // Place the caret at the end rather than selecting everything.
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+  }, []);
+
+  if (!text) return null;
+  const fontPx = Math.max(1, text.fontSize * boxH);
+  const style: CSSProperties = {
+    left: `${rect.x * 100}%`,
+    top: `${rect.y * 100}%`,
+    width: `${rect.w * 100}%`,
+    height: `${rect.h * 100}%`,
+    fontFamily: text.fontFamily,
+    fontSize: `${fontPx}px`,
+    fontWeight: text.fontWeight,
+    fontStyle: text.italic ? 'italic' : 'normal',
+    lineHeight: text.lineHeight || 1.2,
+    color: text.color,
+    textAlign: text.align,
+    caretColor: text.color,
+    padding: `${fontPx * 0.28}px`,
+  };
+
+  return (
+    <textarea
+      ref={ref}
+      value={text.content}
+      onChange={(e) => updateText(clip.id, { content: e.target.value })}
+      onBlur={onDone}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+      spellCheck={false}
+      className="absolute z-30 resize-none overflow-hidden rounded-sm border border-dashed border-brand-bright/70 bg-transparent outline-none ring-2 ring-brand-bright/30"
+      style={style}
+    />
   );
 }
