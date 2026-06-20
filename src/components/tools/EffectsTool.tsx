@@ -114,7 +114,7 @@ function FilterTile({
           selected ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink-faint',
         )}
       >
-        <div className="relative aspect-[3/2] w-full bg-surface-3">
+        <div className="relative aspect-square w-full bg-surface-3">
           {thumb ? (
             <img src={thumb} alt="" draggable={false} className="h-full w-full object-cover" />
           ) : (
