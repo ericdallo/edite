@@ -23,8 +23,8 @@ export function SubtoolRail() {
     <nav
       aria-label="Subcategories"
       className={cn(
-        'hidden shrink-0 flex-col items-stretch gap-1 overflow-hidden border-r border-line bg-surface/20 px-2 py-3',
-        'lg:order-2 lg:flex lg:w-[92px]',
+        'hidden shrink-0 flex-col items-stretch gap-0.5 overflow-hidden border-r border-line bg-surface/20 px-1 py-2',
+        'lg:order-2 lg:flex lg:w-[60px]',
         'lg:transition-[width,opacity] lg:duration-200 lg:ease-out',
         collapsed && 'lg:w-0 lg:min-w-0 lg:border-r-0 lg:px-0 lg:opacity-0 lg:pointer-events-none',
       )}
@@ -40,12 +40,12 @@ export function SubtoolRail() {
             aria-label={s.label}
             aria-pressed={on}
             className={cn(
-              'group relative flex flex-col items-center justify-center gap-1.5 rounded-xl px-1 py-2.5 transition-colors',
+              'group relative flex flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 transition-colors',
               on ? 'bg-surface-3 text-ink' : 'text-ink-faint hover:bg-surface-2 hover:text-ink-muted',
             )}
           >
-            {on && <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-brand" />}
-            <Icon size={19} strokeWidth={on ? 2.4 : 2} />
+            {on && <span className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r-full bg-brand" />}
+            <Icon size={18} strokeWidth={on ? 2.4 : 2} />
             <span className="text-center text-[10px] font-medium leading-tight">{s.label}</span>
           </button>
         );
