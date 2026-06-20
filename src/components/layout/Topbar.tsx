@@ -26,7 +26,7 @@ export function Topbar({ projects, onExport }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface/60 px-2 backdrop-blur-md lg:gap-3 lg:px-3">
+    <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-line bg-surface/60 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-md lg:gap-3 lg:px-3">
       <BrandLogo className="pl-1" />
 
       <div className="mx-1 hidden h-6 w-px bg-line md:block" />
