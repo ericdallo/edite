@@ -9,6 +9,23 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   base: '/',
   plugins: [react(), tailwindcss()],
+  // Cross-origin isolation so SharedArrayBuffer (the multi-thread ffmpeg core)
+  // is available during local dev/preview. Production runs on GitHub Pages, which
+  // can't set headers, so it relies on public/coi-serviceworker.js instead.
+  // `credentialless` keeps cross-origin captions model downloads (HuggingFace
+  // CDN) working without requiring CORP headers on them.
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
+  },
+  preview: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

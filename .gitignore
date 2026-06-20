@@ -2,8 +2,9 @@ node_modules
 dist
 dist-ssr
 
-# ffmpeg core is copied in from node_modules at pre dev/build time
+# ffmpeg cores (single- and multi-thread) are copied in from node_modules at pre dev/build time
 public/ffmpeg
+public/ffmpeg-mt
 
 *.local
 # temp design scratch files
