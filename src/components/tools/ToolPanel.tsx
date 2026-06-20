@@ -133,13 +133,13 @@ export function ToolPanel() {
         className={cn(
           'order-3 flex flex-col bg-surface shadow-2xl',
           // mobile: bottom sheet
-          'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] rounded-t-2xl border border-line transition-[transform,width,opacity] duration-200 ease-out',
-          panelOpen ? 'translate-y-0' : 'translate-y-full',
+          'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] rounded-t-2xl border border-line transition-[transform,width,opacity] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
+          panelOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0',
           // Fixed slice when the preview is docked above (height matches the
           // spacer in EditorLayout); content scrolls within.
           previewAbove && 'h-[52dvh] lg:h-auto',
           // desktop: static left column (after the icon rail + subtool rail)
-          'lg:static lg:bottom-auto lg:z-auto lg:order-3 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:overflow-hidden lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
+          'lg:static lg:bottom-auto lg:z-auto lg:order-3 lg:max-h-none lg:w-[300px] lg:translate-y-0 lg:opacity-100 lg:overflow-hidden lg:rounded-none lg:border-0 lg:border-r lg:border-line lg:bg-surface/30 lg:shadow-none',
           // desktop: collapse alongside the rail when hidden (mobile sheet unaffected)
           collapsed && 'lg:w-0 lg:min-w-0 lg:border-r-0 lg:opacity-0 lg:pointer-events-none',
         )}
