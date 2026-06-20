@@ -154,25 +154,101 @@ export function Timeline() {
     return rowsTopOrder[clamp(idx, 0, rowsTopOrder.length - 1)]?.id;
   };
 
-  // Empty area / ruler: press and drag to scrub the playhead. A plain click
-  // (no drag) also clears the selection.
+  // Capture the pointer on the element the gesture started on, then drive the
+  // drag from window-level move/up/cancel. Capturing is what stops a touch drag
+  // from being stolen by the scrollable timeline container (the move/up still
+  // bubble to window). The returned listeners are torn down on up or cancel.
+  const beginDrag = (
+    e: ReactPointerEvent,
+    move: (ev: PointerEvent) => void,
+    up: (ev: PointerEvent) => void,
+    capture = true,
+  ) => {
+    if (capture) {
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        // setPointerCapture can throw if the pointer is already gone; ignore.
+      }
+    }
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      up(ev);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  // Scroll the timeline view while a drag holds near its left/right edge, so a
+  // zoomed-in timeline stays reachable on touch. Returns a stop function.
+  const startEdgeScroll = (getClientX: () => number, onScroll: () => void) => {
+    let raf = 0;
+    const tick = () => {
+      const sc = scrollRef.current;
+      if (sc) {
+        const r = sc.getBoundingClientRect();
+        const edge = 36;
+        const x = getClientX();
+        let dx = 0;
+        if (x > r.right - edge) dx = Math.min(24, x - (r.right - edge));
+        else if (x < r.left + edge) dx = -Math.min(24, r.left + edge - x);
+        if (dx !== 0 && sc.scrollWidth > sc.clientWidth) {
+          sc.scrollLeft += dx;
+          onScroll();
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  };
+
+  // Anywhere that is not a clip (ruler, empty track space, below the tracks):
+  // press and drag to scrub the playhead, CapCut-style. A plain tap clears the
+  // selection. A horizontal touch drag can't scroll the strip (touch-action is
+  // pan-y on the content), so scrubbing past the edge auto-scrolls the view;
+  // a vertical drag still scrolls the tracks natively.
   const onAreaPointerDown = (e: ReactPointerEvent) => {
     if (pxPerSec <= 0) return;
+    const el = e.currentTarget as HTMLElement;
+    const pid = e.pointerId;
     const startX = e.clientX;
+    let clientX = e.clientX;
     let moved = false;
     setPlaying(false);
     setCurrentTime(timeFromClientX(e.clientX));
+    const stopEdge = startEdgeScroll(
+      () => clientX,
+      () => setCurrentTime(timeFromClientX(clientX)),
+    );
     const move = (ev: PointerEvent) => {
-      if (!moved && Math.abs(ev.clientX - startX) > 3) moved = true;
+      clientX = ev.clientX;
+      if (!moved && Math.abs(ev.clientX - startX) > 3) {
+        // Once the drag reads as horizontal, lock it to the scrub so it can't
+        // become a scroll; a vertical (track) scroll never reaches here.
+        moved = true;
+        try {
+          el.setPointerCapture(pid);
+        } catch {
+          // ignore
+        }
+      }
       setCurrentTime(timeFromClientX(ev.clientX));
     };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      if (!moved) clearSelection();
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    // Don't capture: with touch-action pan-y on the content, a vertical drag
+    // still scrolls the tracks natively, while a horizontal drag scrubs here.
+    beginDrag(
+      e,
+      move,
+      () => {
+        stopEdge();
+        if (!moved) clearSelection();
+      },
+      false,
+    );
   };
 
   const onClipBodyDown = (e: ReactPointerEvent, clipId: string) => {
@@ -230,8 +306,6 @@ export function Timeline() {
       moveClip(clipId, newStart, trackId);
     };
     const up = (ev: PointerEvent) => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
       if (!moved) {
         // a plain click on a clip already in a multi-selection collapses to just it
         if (group) setActiveClip(clipId);
@@ -243,8 +317,7 @@ export function Timeline() {
       setDragClipId(null);
       setOverNewTrack(false);
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    beginDrag(e, move, up);
   };
 
   const onHandleDown = (e: ReactPointerEvent, clipId: string, edge: 'in' | 'out') => {
@@ -271,26 +344,24 @@ export function Timeline() {
         setCurrentTime(newStart);
       }
     };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    beginDrag(e, move, () => undefined);
   };
 
   const grabPlayhead = (e: ReactPointerEvent) => {
     e.stopPropagation();
     if (pxPerSec <= 0) return;
+    let clientX = e.clientX;
     setPlaying(false);
     setCurrentTime(timeFromClientX(e.clientX));
-    const move = (ev: PointerEvent) => setCurrentTime(timeFromClientX(ev.clientX));
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+    const stopEdge = startEdgeScroll(
+      () => clientX,
+      () => setCurrentTime(timeFromClientX(clientX)),
+    );
+    const move = (ev: PointerEvent) => {
+      clientX = ev.clientX;
+      setCurrentTime(timeFromClientX(ev.clientX));
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    beginDrag(e, move, () => stopEdge());
   };
 
   const openClipMenu = (e: ReactMouseEvent, id: string) => {
@@ -488,11 +559,13 @@ export function Timeline() {
       </div>
 
       <div ref={scrollRef} className="relative flex-1 overflow-auto overscroll-x-contain">
-        <div ref={contentRef} className="relative select-none" style={{ width: trackW || '100%', minHeight: '100%' }}>
-          <div
-            className="sticky top-0 z-20 h-6 border-b border-line/40 bg-surface/80 text-[10px] text-ink-faint backdrop-blur"
-            onPointerDown={onAreaPointerDown}
-          >
+        <div
+          ref={contentRef}
+          className="relative touch-pan-y select-none"
+          style={{ width: trackW || '100%', minHeight: '100%' }}
+          onPointerDown={onAreaPointerDown}
+        >
+          <div className="sticky top-0 z-20 h-6 border-b border-line/40 bg-surface/80 text-[10px] text-ink-faint backdrop-blur">
             {tickStep > 0 &&
               Array.from({ length: Math.floor(displayDuration / tickStep) + 1 }).map((_, i) => {
                 const t = i * tickStep;
@@ -516,7 +589,6 @@ export function Timeline() {
                 key={track.id}
                 className="relative border-b border-line/40"
                 style={{ height: ROW_H }}
-                onPointerDown={onAreaPointerDown}
                 onContextMenu={(e) => openTrackMenu(e, track.id)}
               >
                 {(track.hidden || track.muted) && (
