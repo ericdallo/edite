@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Download, Github, Maximize, Minimize, Redo2, Settings, Undo2 } from 'lucide-react';
+import { useState } from 'react';
+import { Download, Github, Redo2, Settings, Undo2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import type { UseProjects } from '@/hooks/useProjects';
 import { REPO_URL } from '@/lib/constants';
@@ -24,20 +24,6 @@ export function Topbar({ projects, onExport }: TopbarProps) {
   const showHistory = hasContent || canUndo || canRedo;
   const showProjects = hasContent || projects.items.length > 0;
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // App-level fullscreen (Android Chrome / desktop); hidden where unsupported,
-  // e.g. iOS Safari, which instead runs chrome-free once added to the home screen.
-  const [isFs, setIsFs] = useState(false);
-  const canFullscreen = typeof document !== 'undefined' && document.fullscreenEnabled;
-  useEffect(() => {
-    const onFs = () => setIsFs(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onFs);
-    return () => document.removeEventListener('fullscreenchange', onFs);
-  }, []);
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) document.exitFullscreen?.();
-    else document.documentElement.requestFullscreen?.().catch(() => undefined);
-  };
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface/60 px-2 backdrop-blur-md lg:gap-3 lg:px-3">
@@ -79,16 +65,6 @@ export function Topbar({ projects, onExport }: TopbarProps) {
               <Redo2 size={18} />
             </button>
           </div>
-        )}
-        {canFullscreen && (
-          <button
-            onClick={toggleFullscreen}
-            title={isFs ? 'Exit fullscreen' : 'Fullscreen'}
-            aria-label={isFs ? 'Exit fullscreen' : 'Fullscreen'}
-            className="grid h-9 w-9 place-items-center rounded-xl text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink lg:hidden"
-          >
-            {isFs ? <Minimize size={18} /> : <Maximize size={18} />}
-          </button>
         )}
         <button
           onClick={() => setSettingsOpen(true)}
