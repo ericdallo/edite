@@ -230,6 +230,33 @@ describe('moveClipToNewTrack', () => {
   });
 });
 
+describe('pruneEmptyTracks', () => {
+  beforeEach(seed);
+
+  it('removes lanes that have no clips', () => {
+    store.setState({ tracks: [makeTrack({ id: 't1' }), makeTrack({ id: 't2' })] });
+    get().pruneEmptyTracks();
+    const s = get();
+    expect(s.tracks).toHaveLength(1);
+    expect(s.tracks[0].id).toBe('t1');
+  });
+
+  it('never prunes down to zero tracks', () => {
+    store.setState({ tracks: [makeTrack({ id: 't1' })], clips: [] });
+    get().pruneEmptyTracks();
+    expect(get().tracks).toHaveLength(1);
+  });
+
+  it('collapses the lane a clip was moved out of', () => {
+    get().moveClipToNewTrack('c1', 0, 'below');
+    expect(get().tracks).toHaveLength(2);
+    get().pruneEmptyTracks();
+    const s = get();
+    expect(s.tracks).toHaveLength(1);
+    expect(s.clips[0].trackId).toBe(s.tracks[0].id);
+  });
+});
+
 describe('splitAt', () => {
   beforeEach(seed);
 

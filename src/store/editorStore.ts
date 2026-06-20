@@ -237,6 +237,7 @@ export interface EditorState {
 
   addTrack: () => string;
   removeTrack: (id: string) => void;
+  pruneEmptyTracks: () => void;
   setTrackMuted: (id: string, muted: boolean) => void;
   setTrackHidden: (id: string, hidden: boolean) => void;
 
@@ -677,6 +678,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const selectedIds = s.selectedIds.filter((cid) => clips.some((c) => c.id === cid));
       const activeClipId = selectedIds.includes(s.activeClipId ?? '') ? s.activeClipId : selectedIds.at(-1) ?? null;
       return { tracks: s.tracks.filter((t) => t.id !== id), clips, selectedIds, activeClipId };
+    }),
+
+  // Drop lanes left empty after a move (CapCut-style), so dragging a clip to a
+  // new lane and back doesn't accumulate blank lanes. Always keep one track.
+  pruneEmptyTracks: () =>
+    set((s) => {
+      if (s.tracks.length <= 1) return {};
+      const used = new Set(s.clips.map((c) => c.trackId));
+      const tracks = s.tracks.filter((t) => used.has(t.id));
+      if (tracks.length === s.tracks.length) return {};
+      return { tracks: tracks.length ? tracks : s.tracks.slice(0, 1) };
     }),
 
   setTrackMuted: (id, muted) =>

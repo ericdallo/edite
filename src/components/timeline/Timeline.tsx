@@ -78,6 +78,7 @@ export function Timeline() {
   const rippleDeleteClips = useEditorStore((s) => s.rippleDeleteClips);
   const addTrack = useEditorStore((s) => s.addTrack);
   const removeTrack = useEditorStore((s) => s.removeTrack);
+  const pruneEmptyTracks = useEditorStore((s) => s.pruneEmptyTracks);
   const setTrackMuted = useEditorStore((s) => s.setTrackMuted);
   const setTrackHidden = useEditorStore((s) => s.setTrackHidden);
 
@@ -374,6 +375,8 @@ export function Timeline() {
       } else if (!group && toNewTrack) {
         moveClipToNewTrack(clipId, curStart, 'below');
       }
+      // Collapse any lane this move left empty so they don't pile up.
+      if (moved) pruneEmptyTracks();
       setDragClipId(null);
       setOverNewTrack(false);
     };
