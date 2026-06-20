@@ -1,5 +1,5 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, Download, Loader2, Volume2, VolumeX } from 'lucide-react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronDown, Download, Loader2, Share2, Volume2, VolumeX } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import {
   ASPECT_RATIOS,
@@ -41,6 +41,14 @@ const COMPRESSION: { id: ExportQuality; label: string; hint: string }[] = [
   { id: 'medium', label: 'Balanced', hint: 'Recommended' },
   { id: 'low', label: 'Smaller', hint: 'Smallest size' },
 ];
+// MIME fallback for the shared File when the export blob carries no type.
+const SHARE_MIME: Record<ExportFormat, string> = {
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  gif: 'image/gif',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+};
 
 function Status({
   icon,
@@ -97,10 +105,20 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ url: string; size: number } | null>(null);
+  const [result, setResult] = useState<{ url: string; size: number; blob: Blob } | null>(null);
   const [advanced, setAdvanced] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const abortRef = useRef<AbortController | null>(null);
+
+  // Whether this device can share files (mobile Safari/Chrome). Probed once with
+  // a dummy file; gates the Share button so desktop just sees Download.
+  const canShareFiles = useMemo(
+    () =>
+      typeof navigator !== 'undefined' &&
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [new File(['x'], 'x.txt', { type: 'text/plain' })] }),
+    [],
+  );
 
   // Tick an elapsed-time counter while rendering (no ETA is possible on the
   // single-thread WASM core, so we show elapsed instead).
@@ -159,6 +177,24 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
     a.remove();
   };
 
+  // Hand the rendered file to the OS share sheet (Photos, AirDrop, messaging…),
+  // which is the natural "save to my phone" path on mobile. Falls back to a plain
+  // download if sharing is unsupported or the user cancels.
+  const doShare = async (blob: Blob, url: string) => {
+    try {
+      const file = new File([blob], fileName, { type: blob.type || SHARE_MIME[format] });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: baseName });
+        return;
+      }
+    } catch (e) {
+      // The user dismissing the share sheet rejects with AbortError — not an error.
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      logger.error('share failed, falling back to download:', e);
+    }
+    doDownload(url);
+  };
+
   const start = async () => {
     setError(null);
     setProgress(0);
@@ -198,7 +234,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
         onProgress: setProgress,
       });
       const url = URL.createObjectURL(out);
-      setResult({ url, size: out.size });
+      setResult({ url, size: out.size, blob: out });
       setStage('done');
       doDownload(url);
     } catch (e) {
@@ -582,6 +618,11 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
         <div className="flex items-center justify-end gap-2 pt-1">
           {stage === 'done' && result ? (
             <>
+              {canShareFiles && (
+                <Button variant="subtle" onClick={() => doShare(result.blob, result.url)}>
+                  <Share2 size={16} /> Share
+                </Button>
+              )}
               <Button variant="subtle" onClick={() => doDownload(result.url)}>
                 Download again
               </Button>
