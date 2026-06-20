@@ -62,7 +62,7 @@ export function TimelineClip({ clip, media, pxPerSec, currentTime, active, selec
   }, [media, clip.in, clip.out, count]);
 
   const handleCls = cn(
-    'absolute top-0 bottom-0 z-10 flex w-3.5 touch-none cursor-ew-resize items-center justify-center bg-brand transition-opacity lg:w-2.5',
+    'absolute top-0 bottom-0 z-10 flex w-3.5 touch-none cursor-ew-resize items-center justify-center bg-brand transition-opacity pointer-coarse:w-5 lg:w-2.5',
     active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
   );
 
@@ -180,10 +180,10 @@ export function TimelineClip({ clip, media, pxPerSec, currentTime, active, selec
       )}
 
       <div onPointerDown={(e) => onHandleDown(e, 'in')} className={cn(handleCls, 'left-0 rounded-l-md')}>
-        <div className="h-5 w-0.5 rounded bg-white" />
+        <div className="h-5 w-0.5 rounded bg-white pointer-coarse:h-7 pointer-coarse:w-1" />
       </div>
       <div onPointerDown={(e) => onHandleDown(e, 'out')} className={cn(handleCls, 'right-0 rounded-r-md')}>
-        <div className="h-5 w-0.5 rounded bg-white" />
+        <div className="h-5 w-0.5 rounded bg-white pointer-coarse:h-7 pointer-coarse:w-1" />
       </div>
     </div>
   );

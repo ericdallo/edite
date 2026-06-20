@@ -178,3 +178,19 @@ input[type='range'].edite-range::-moz-range-thumb {
   border: 2px solid var(--color-brand);
   cursor: pointer;
 }
+
+/* Coarse pointer (touch): grow the slider thumb so it's draggable by thumb, and
+   thicken the track a little. Fine-pointer (mouse) sizes above are untouched. */
+@media (pointer: coarse) {
+  input[type='range'].edite-range {
+    height: 8px;
+  }
+  input[type='range'].edite-range::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  input[type='range'].edite-range::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+}

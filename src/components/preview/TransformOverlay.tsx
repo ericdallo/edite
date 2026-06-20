@@ -141,12 +141,13 @@ export function TransformOverlay({
   };
 
   // Hit areas are 24px (comfortable on touch) with the visible 12px dot centred
-  // on the corner, so the offset is half the hit area.
+  // on the corner, so the offset is half the hit area. On a coarse pointer they
+  // grow to 32px (offset -4 = 16px) with a 16px dot for easier thumb dragging.
   const corners: { id: Mode; cls: string }[] = [
-    { id: 'nw', cls: '-left-3 -top-3 cursor-nwse-resize' },
-    { id: 'ne', cls: '-right-3 -top-3 cursor-nesw-resize' },
-    { id: 'sw', cls: '-left-3 -bottom-3 cursor-nesw-resize' },
-    { id: 'se', cls: '-right-3 -bottom-3 cursor-nwse-resize' },
+    { id: 'nw', cls: '-left-3 -top-3 pointer-coarse:-left-4 pointer-coarse:-top-4 cursor-nwse-resize' },
+    { id: 'ne', cls: '-right-3 -top-3 pointer-coarse:-right-4 pointer-coarse:-top-4 cursor-nesw-resize' },
+    { id: 'sw', cls: '-left-3 -bottom-3 pointer-coarse:-left-4 pointer-coarse:-bottom-4 cursor-nesw-resize' },
+    { id: 'se', cls: '-right-3 -bottom-3 pointer-coarse:-right-4 pointer-coarse:-bottom-4 cursor-nwse-resize' },
   ];
 
   return (
@@ -164,9 +165,9 @@ export function TransformOverlay({
             key={c.id}
             onPointerDown={begin(c.id)}
             aria-label="Resize"
-            className={cn('absolute grid h-6 w-6 touch-none place-items-center', c.cls)}
+            className={cn('absolute grid h-6 w-6 touch-none place-items-center pointer-coarse:h-8 pointer-coarse:w-8', c.cls)}
           >
-            <span className="block h-3 w-3 rounded-full border border-black/40 bg-white shadow" />
+            <span className="block h-3 w-3 rounded-full border border-black/40 bg-white shadow pointer-coarse:h-4 pointer-coarse:w-4" />
           </div>
         ))}
       </div>
