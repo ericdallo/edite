@@ -4,6 +4,7 @@ import { usePersistence } from '@/hooks/usePersistence';
 import { useProjects } from '@/hooks/useProjects';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useHistory } from '@/hooks/useHistory';
+import { useNavigationGuard } from '@/hooks/useNavigationGuard';
 import { useTheme } from '@/hooks/useTheme';
 import { Topbar } from '@/components/layout/Topbar';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -20,6 +21,7 @@ export default function App() {
   usePersistence();
   useHistory();
   useKeyboardShortcuts();
+  useNavigationGuard();
   useTheme();
   const projects = useProjects();
   const view = useEditorStore((s) => s.view);
