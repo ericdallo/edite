@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 export function MediaLibrary() {
   const media = useEditorStore((s) => s.media);
   const addClipFromMedia = useEditorStore((s) => s.addClipFromMedia);
+  const setPanelOpen = useEditorStore((s) => s.setPanelOpen);
   const { importFiles, busy, error } = useImportMedia();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -58,7 +59,12 @@ export function MediaLibrary() {
               </div>
             </div>
             <button
-              onClick={() => addClipFromMedia(m.id)}
+              onClick={() => {
+                addClipFromMedia(m.id);
+                // Close the mobile sheet so the clip landing on the timeline /
+                // preview is visible (no-op layout-wise on desktop).
+                setPanelOpen(false);
+              }}
               title="Add to a new track"
               className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
             >
