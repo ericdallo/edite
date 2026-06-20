@@ -9,7 +9,7 @@ import {
   TEXT_SIZE_MAX,
 } from '@/lib/constants';
 import { makeClip, makeMedia, makeTrack } from '@/test/factories';
-import { CAPTION_PRESETS, isCaptionClip } from '@/types/editor';
+import { CAPTION_PRESETS, DEFAULT_TEXT_STYLE, isCaptionClip } from '@/types/editor';
 
 const store = useEditorStore;
 const get = () => store.getState();
@@ -993,6 +993,33 @@ describe('custom LUTs', () => {
     get().removeLut(id);
     expect(get().customLuts).toHaveLength(0);
     expect(get().clips[0].color?.lut).toBeUndefined();
+  });
+});
+
+describe('custom fonts', () => {
+  const font = {
+    id: 'font:1',
+    label: 'My Font',
+    family: 'efont-font1, sans-serif',
+    dataUrl: 'data:font/woff2;base64,AA==',
+  };
+
+  it('adds an imported font, ignoring a duplicate id', () => {
+    get().addCustomFont(font);
+    get().addCustomFont(font);
+    expect(get().customFonts).toHaveLength(1);
+    expect(get().customFonts[0].label).toBe('My Font');
+  });
+
+  it('removing a font resets text clips using it to the default font', () => {
+    get().addCustomFont(font);
+    get().addTextClip();
+    const id = get().activeClipId!;
+    get().updateText(id, { fontFamily: font.family });
+    expect(get().clips.find((c) => c.id === id)!.text!.fontFamily).toBe(font.family);
+    get().removeFont(font.id);
+    expect(get().customFonts).toHaveLength(0);
+    expect(get().clips.find((c) => c.id === id)!.text!.fontFamily).toBe(DEFAULT_TEXT_STYLE.fontFamily);
   });
 });
 

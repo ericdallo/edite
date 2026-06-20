@@ -14,6 +14,7 @@ import {
   setProjectThumbnail,
 } from '@/lib/storage/projects';
 import { generatePoster, posterSourceFor } from '@/lib/media/poster';
+import { registerCustomFonts } from '@/lib/fonts';
 
 /** The slice of store state that maps onto a persisted snapshot. */
 type PersistableState = Pick<
@@ -28,6 +29,7 @@ type PersistableState = Pick<
   | 'muted'
   | 'exportSettings'
   | 'customLuts'
+  | 'customFonts'
 >;
 
 /** Strip runtime-only fields (url, blob) from media for persistence. */
@@ -61,6 +63,7 @@ export function snapshotFromState(s: PersistableState): ProjectSnapshot {
     muted: s.muted,
     exportSettings: s.exportSettings,
     customLuts: s.customLuts,
+    customFonts: s.customFonts,
   };
 }
 
@@ -113,6 +116,9 @@ export async function openProject(id: string): Promise<boolean> {
 
   const prev = useEditorStore.getState().media;
   const volume = useEditorStore.getState().playback.volume;
+  // Register imported fonts before hydrating so the first canvas draw and any
+  // export rasterization can resolve them (no-op when there are none).
+  await registerCustomFonts(data.customFonts ?? []);
   useEditorStore.getState().hydrate({
     projectId: data.id,
     projectName: data.name,
@@ -124,6 +130,7 @@ export async function openProject(id: string): Promise<boolean> {
     muted: data.muted,
     exportSettings: { ...DEFAULT_EXPORT_SETTINGS, ...data.exportSettings },
     customLuts: data.customLuts ?? [],
+    customFonts: data.customFonts ?? [],
     activeClipId: data.clips[0]?.id ?? null,
     selectedIds: data.clips[0] ? [data.clips[0].id] : [],
     clipboard: [],

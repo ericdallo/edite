@@ -507,6 +507,17 @@ export interface CustomLut {
   cube: string;
 }
 
+/** A user-imported font held in the project. `id` is `font:<uid>`. */
+export interface CustomFont {
+  id: string;
+  /** human-friendly name shown in the picker (derived from the file name). */
+  label: string;
+  /** CSS font-family stack stored verbatim on a clip's `text.fontFamily`. */
+  family: string;
+  /** base64 `data:` URL of the font file, used to re-register and persist it. */
+  dataUrl: string;
+}
+
 export interface ProjectSnapshot {
   id: string;
   name: string;
@@ -521,6 +532,8 @@ export interface ProjectSnapshot {
   exportSettings: ExportSettings;
   /** user-imported LUT looks referenced by clips' `color.lut`. */
   customLuts?: CustomLut[];
+  /** user-imported fonts referenced by text clips' `text.fontFamily`. */
+  customFonts?: CustomFont[];
   /** small JPEG data URL poster for the projects list (optional, best-effort). */
   thumbnail?: string;
 }
@@ -564,13 +577,29 @@ export interface FontOption {
 export const FONT_OPTIONS: FontOption[] = [
   { label: 'Inter', family: "'Inter', system-ui, sans-serif" },
   { label: 'Arial', family: 'Arial, Helvetica, sans-serif' },
+  { label: 'Helvetica', family: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
   { label: 'Verdana', family: 'Verdana, Geneva, sans-serif' },
+  { label: 'Tahoma', family: 'Tahoma, Geneva, Verdana, sans-serif' },
   { label: 'Trebuchet', family: "'Trebuchet MS', Tahoma, sans-serif" },
+  { label: 'Gill Sans', family: "'Gill Sans', 'Gill Sans MT', Calibri, sans-serif" },
+  { label: 'Futura', family: "Futura, 'Trebuchet MS', Arial, sans-serif" },
+  { label: 'Century Gothic', family: "'Century Gothic', 'Apple Gothic', sans-serif" },
+  { label: 'Optima', family: "Optima, Candara, 'Segoe UI', sans-serif" },
+  { label: 'Lucida', family: "'Lucida Sans Unicode', 'Lucida Grande', sans-serif" },
   { label: 'Impact', family: 'Impact, Haettenschweiler, sans-serif' },
   { label: 'Georgia', family: 'Georgia, Cambria, serif' },
   { label: 'Times', family: "'Times New Roman', Times, serif" },
+  { label: 'Palatino', family: "'Palatino Linotype', 'Book Antiqua', Palatino, serif" },
+  { label: 'Garamond', family: "Garamond, 'EB Garamond', 'Times New Roman', serif" },
+  { label: 'Baskerville', family: "Baskerville, 'Baskerville Old Face', Georgia, serif" },
+  { label: 'Didot', family: "Didot, 'Bodoni MT', 'Times New Roman', serif" },
+  { label: 'Rockwell', family: "Rockwell, 'Rockwell Nova', 'Courier Bold', serif" },
   { label: 'Courier', family: "'Courier New', Courier, monospace" },
+  { label: 'Consolas', family: "Consolas, 'Andale Mono', Monaco, monospace" },
   { label: 'Comic Sans', family: "'Comic Sans MS', 'Comic Sans', cursive" },
+  { label: 'Brush Script', family: "'Brush Script MT', 'Segoe Script', cursive" },
+  { label: 'Copperplate', family: "Copperplate, 'Copperplate Gothic Light', fantasy" },
+  { label: 'Papyrus', family: "Papyrus, 'Comic Sans MS', fantasy" },
 ];
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {

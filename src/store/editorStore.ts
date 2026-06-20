@@ -4,6 +4,7 @@ import {
   CAPTION_PRESETS,
   captionRect,
   type Clip,
+  type CustomFont,
   type CustomLut,
   DEFAULT_BACKGROUND,
   DEFAULT_EXPORT_SETTINGS,
@@ -172,6 +173,8 @@ export interface EditorState {
   exportSettings: ExportSettings;
   /** user-imported `.cube` LUT looks, referenced by clips' `color.lut`. */
   customLuts: CustomLut[];
+  /** user-imported fonts, referenced by text clips' `text.fontFamily`. */
+  customFonts: CustomFont[];
 
   /** primary selection (drives the transform box, trim, split); always in `selectedIds` when set. */
   activeClipId: string | null;
@@ -215,6 +218,11 @@ export interface EditorState {
   importLut: (name: string, cube: string) => string;
   /** Remove an imported LUT and clear it from any clip referencing it. */
   removeLut: (id: string) => void;
+
+  /** Add an already-registered imported font to the project. */
+  addCustomFont: (font: CustomFont) => void;
+  /** Remove an imported font and reset any text clip using it to the default font. */
+  removeFont: (id: string) => void;
 
   newProject: (args: { id?: string; name?: string }) => void;
   closeProject: () => void;
@@ -386,6 +394,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   muted: false,
   exportSettings: DEFAULT_EXPORT,
   customLuts: [],
+  customFonts: [],
   activeClipId: null,
   selectedIds: [],
   clipboard: [],
@@ -425,6 +434,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         tracks: [],
         clips: [],
         customLuts: [],
+        customFonts: [],
         aspect: s.defaultAspect,
         background: DEFAULT_BACKGROUND,
         muted: false,
@@ -454,6 +464,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         tracks: [],
         clips: [],
         customLuts: [],
+        customFonts: [],
         activeClipId: null,
         selectedIds: [],
         clipboard: [],
@@ -1125,6 +1136,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       customLuts: s.customLuts.filter((l) => l.id !== id),
       clips: s.clips.map((c) => (c.color?.lut === id ? { ...c, color: { ...c.color, lut: undefined } } : c)),
     })),
+
+  addCustomFont: (font) =>
+    set((s) => (s.customFonts.some((f) => f.id === font.id) ? {} : { customFonts: [...s.customFonts, font] })),
+
+  removeFont: (id) =>
+    set((s) => {
+      const font = s.customFonts.find((f) => f.id === id);
+      if (!font) return {};
+      return {
+        customFonts: s.customFonts.filter((f) => f.id !== id),
+        clips: s.clips.map((c) =>
+          c.text?.fontFamily === font.family
+            ? { ...c, text: { ...c.text, fontFamily: DEFAULT_TEXT_STYLE.fontFamily } }
+            : c,
+        ),
+      };
+    }),
 
   hydrate: (partial) =>
     set((s) => {

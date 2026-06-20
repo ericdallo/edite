@@ -25,6 +25,7 @@ describe('snapshotFromState', () => {
       muted: true,
       exportSettings: DEFAULT_EXPORT_SETTINGS,
       customLuts: [],
+      customFonts: [],
     });
     expect(snap.id).toBe('p1');
     expect(snap.name).toBe('My Project');
