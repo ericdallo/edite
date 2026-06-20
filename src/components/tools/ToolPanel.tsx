@@ -1,3 +1,4 @@
+import { type PointerEvent as ReactPointerEvent, useRef } from 'react';
 import { Diamond, Film, Gauge, LayoutTemplate, type LucideIcon, Shapes, Sparkles, Type, Volume2, X } from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
@@ -55,6 +56,50 @@ export function ToolPanel() {
   const panelOpen = useEditorStore((s) => s.panelOpen);
   const setPanelOpen = useEditorStore((s) => s.setPanelOpen);
   const collapsed = useEditorStore((s) => s.sidebarCollapsed);
+  const asideRef = useRef<HTMLElement>(null);
+
+  // Drag the sheet handle down to dismiss it (mobile only): the sheet follows
+  // the finger, then closes past a threshold or snaps back, restoring the
+  // class-driven transition afterwards. The desktop panel is a static column.
+  const dragSheet = (e: ReactPointerEvent) => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) return;
+    const aside = asideRef.current;
+    if (!aside) return;
+    const startY = e.clientY;
+    let dy = 0;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // ignore a pointer that's already gone
+    }
+    aside.style.transition = 'none';
+    const move = (ev: PointerEvent) => {
+      dy = Math.max(0, ev.clientY - startY);
+      aside.style.transform = dy ? `translateY(${dy}px)` : '';
+    };
+    const end = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      aside.style.transition = '';
+      if (dy > 90) {
+        // Far enough: finish the close, then hand the inline styles back to the
+        // classes so the sheet can reopen normally.
+        aside.style.transform = 'translateY(100%)';
+        setPanelOpen(false);
+        window.setTimeout(() => {
+          aside.style.transform = '';
+          aside.style.transition = '';
+        }, 220);
+      } else {
+        aside.style.transform = ''; // snap back open
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  };
+
   const meta = META[tool];
   const Icon = meta.icon;
   const subs = subtoolsFor(tool);
@@ -84,6 +129,7 @@ export function ToolPanel() {
       />
 
       <aside
+        ref={asideRef}
         className={cn(
           'order-3 flex flex-col bg-surface shadow-2xl',
           // mobile: bottom sheet
@@ -98,7 +144,14 @@ export function ToolPanel() {
           collapsed && 'lg:w-0 lg:min-w-0 lg:border-r-0 lg:opacity-0 lg:pointer-events-none',
         )}
       >
-        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line lg:hidden" />
+        {/* Grab strip: drag it down to dismiss the sheet (comfortable touch target). */}
+        <div
+          onPointerDown={dragSheet}
+          aria-hidden
+          className="flex shrink-0 touch-none cursor-grab justify-center pb-1 pt-2.5 active:cursor-grabbing lg:hidden"
+        >
+          <span className="h-1 w-10 rounded-full bg-line" />
+        </div>
 
         <div
           className={cn(
