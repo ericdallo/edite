@@ -538,7 +538,7 @@ export function Timeline() {
   const tickStep = niceStep(pxPerSec);
 
   return (
-    <div className="flex h-[220px] shrink-0 flex-col border-t border-line bg-surface/40 lg:h-[260px]">
+    <div className="flex h-full flex-col border-t border-line bg-surface/40">
       <div className="flex min-h-12 flex-wrap items-center gap-1.5 border-b border-line/60 px-2 py-1.5 lg:h-12 lg:flex-nowrap lg:gap-2 lg:px-3 lg:py-0">
         <div className="flex items-center gap-1">
           <button
