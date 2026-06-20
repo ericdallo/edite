@@ -345,8 +345,31 @@ export function Timeline() {
     let moved = false;
     let curStart = origStart;
     let toNewTrack = false;
+
+    // Touch/pen long-press opens the per-clip menu (there's no right-click on
+    // touch). It arms on press, cancels on drag or release, and when it fires it
+    // flags the gesture so the move/up below neither drag nor seek.
+    let longPressed = false;
+    let lpTimer: number | undefined;
+    const clearLp = () => {
+      if (lpTimer !== undefined) {
+        clearTimeout(lpTimer);
+        lpTimer = undefined;
+      }
+    };
+    if (e.pointerType !== 'mouse') {
+      lpTimer = window.setTimeout(() => {
+        lpTimer = undefined;
+        longPressed = true;
+        navigator.vibrate?.(8);
+        openClipMenuAt(startX, startY, clipId);
+      }, 500);
+    }
+
     const move = (ev: PointerEvent) => {
+      if (longPressed) return;
       if (!moved && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) {
+        clearLp();
         moved = true;
         if (!group) setDragClipId(clipId);
       }
@@ -370,6 +393,14 @@ export function Timeline() {
       moveClip(clipId, newStart, trackId);
     };
     const up = (ev: PointerEvent) => {
+      clearLp();
+      // The long-press already opened the menu and selected the clip: swallow
+      // this release so it doesn't seek or collapse the selection.
+      if (longPressed) {
+        setDragClipId(null);
+        setOverNewTrack(false);
+        return;
+      }
       if (!moved) {
         // a plain click on a clip already in a multi-selection collapses to just it
         if (group) setActiveClip(clipId);
@@ -430,10 +461,8 @@ export function Timeline() {
     beginDrag(e, move, () => stopEdge());
   };
 
-  const openClipMenu = (e: ReactMouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Right-clicking a clip outside the selection selects just it; otherwise act on the whole selection.
+  const openClipMenuAt = (clientX: number, clientY: number, id: string) => {
+    // Right-click or long-press a clip outside the selection selects just it; otherwise act on the whole selection.
     const already = selectedIds.includes(id);
     if (!already) setActiveClip(id);
     const ids = already ? selectedIds : [id];
@@ -501,7 +530,13 @@ export function Timeline() {
       { id: 'ripple', label: `Ripple delete${suffix}`, icon: <ChevronsLeft size={14} />, shortcut: '⇧Del', separatorBefore: true, onClick: () => rippleDeleteClips(ids) },
       { id: 'del', label: `Delete${suffix}`, icon: <Trash2 size={14} />, shortcut: 'Del', danger: true, onClick: () => deleteClips(ids) },
     ];
-    setMenu({ x: e.clientX, y: e.clientY, items });
+    setMenu({ x: clientX, y: clientY, items });
+  };
+
+  const openClipMenu = (e: ReactMouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openClipMenuAt(e.clientX, e.clientY, id);
   };
 
   const openTrackMenu = (e: ReactMouseEvent, trackId: string) => {
