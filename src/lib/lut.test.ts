@@ -1,5 +1,7 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isCustomLut, lutFileName, lutUrl, packLut, parseCube } from '@/lib/lut';
+import { isCustomLut, LUT_LOOKS, lutFileName, lutUrl, packLut, parseCube } from '@/lib/lut';
 
 // A 2^3 identity cube (red varies fastest), with comment / header lines to skip.
 const IDENTITY_2 = `# test cube
@@ -56,5 +58,20 @@ describe('lut ids', () => {
     expect(lutUrl('custom:x')).toBeNull();
     expect(isCustomLut('custom:x')).toBe(true);
     expect(isCustomLut('cinematic')).toBe(false);
+  });
+});
+
+describe('bundled look assets', () => {
+  const luts = join(process.cwd(), 'public', 'luts');
+
+  it('has a .cube and a thumbnail for every registered look', () => {
+    for (const look of LUT_LOOKS) {
+      expect(existsSync(join(luts, `${look.id}.cube`)), `${look.id}.cube missing`).toBe(true);
+      expect(existsSync(join(luts, 'thumbs', `${look.id}.png`)), `${look.id}.png missing`).toBe(true);
+    }
+  });
+
+  it('has the baseline (original) thumbnail for the None option', () => {
+    expect(existsSync(join(luts, 'thumbs', '_original.png'))).toBe(true);
   });
 });
