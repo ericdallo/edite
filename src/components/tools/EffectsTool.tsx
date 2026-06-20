@@ -11,6 +11,7 @@ import {
   ArrowUpToLine,
   Ban,
   Blend,
+  Check,
   type LucideIcon,
   Moon,
   Sparkles,
@@ -20,7 +21,6 @@ import {
 } from 'lucide-react';
 import {
   CHROMA_SWATCHES,
-  COLOR_PRESETS,
   type ChromaKey,
   type ColorAdjust,
   DEFAULT_CHROMA,
@@ -44,10 +44,10 @@ const TRANSITION_ICONS: Record<TransitionId, LucideIcon> = {
   wipeDown: ArrowDownToLine,
   circleOpen: Aperture,
 };
-import { colorEquals, isNeutralColor } from '@/lib/color';
-import { LUT_LOOKS } from '@/lib/lut';
+import { isNeutralColor } from '@/lib/color';
+import { LUT_ORIGINAL_THUMB, lutsByCategory, lutThumbUrl } from '@/lib/lut';
 import { canAddTransition, maxTransitionDuration } from '@/lib/timeline';
-import { chipClass, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
 
 /** Percent of a ×-multiplier knob (1 = 100%). */
@@ -83,6 +83,62 @@ function Adjust({
         <span className="font-mono text-ink">{fmt(value)}</span>
       </div>
       <Slider min={min} max={max} step={step} value={value} onChange={onChange} ariaLabel={label} />
+    </div>
+  );
+}
+
+/** One filter in the library: a graded sample thumbnail with a label. */
+function FilterTile({
+  label,
+  thumb,
+  selected,
+  onClick,
+  title,
+  onRemove,
+}: {
+  label: string;
+  /** thumbnail URL, or null to draw a generic swatch (custom LUTs). */
+  thumb: string | null;
+  selected: boolean;
+  onClick: () => void;
+  title?: string;
+  onRemove?: () => void;
+}) {
+  return (
+    <div className="relative">
+      <button
+        onClick={onClick}
+        title={title ?? label}
+        className={cn(
+          'group block w-full overflow-hidden rounded-lg border text-left transition-colors',
+          selected ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink-faint',
+        )}
+      >
+        <div className="relative aspect-[3/2] w-full bg-surface-3">
+          {thumb ? (
+            <img src={thumb} alt="" draggable={false} className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-brand/30 to-accent/20" />
+          )}
+          {selected && !onRemove && (
+            <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-brand text-white shadow">
+              <Check size={11} />
+            </span>
+          )}
+        </div>
+        <div className={cn('truncate px-1.5 py-1 text-[11px] font-medium', selected ? 'text-ink' : 'text-ink-muted')}>
+          {label}
+        </div>
+      </button>
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          aria-label={`Remove ${label}`}
+          className="absolute right-1 top-1 rounded bg-black/55 p-0.5 text-white/90 transition-colors hover:bg-black/75"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
     </div>
   );
 }
@@ -459,12 +515,12 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
     );
   }
 
-  // Default: 'filters' — designed LUT looks plus quick knob presets.
+  // Default: 'filters' — one unified library of thumbnailed looks + intensity.
   return (
     <div className="space-y-5">
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm text-ink-muted">Looks</span>
+          <span className="text-sm text-ink-muted">Filters</span>
           <button
             onClick={() => fileRef.current?.click()}
             className="flex items-center gap-1 text-xs text-ink-faint transition-colors hover:text-ink"
@@ -474,62 +530,57 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
           </button>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => setLut(undefined)} className={chipClass(!clip.color?.lut)}>
-            None
-          </button>
-          {LUT_LOOKS.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => setLut(l.id)}
-              title={l.category}
-              className={chipClass(clip.color?.lut === l.id)}
-            >
-              {l.label}
-            </button>
-          ))}
-          {customLuts.map((l) => (
-            <div key={l.id} className="relative">
-              <button
-                onClick={() => setLut(l.id)}
-                title={l.name}
-                className={cn(chipClass(clip.color?.lut === l.id), 'w-full truncate pr-5')}
-              >
-                {l.name}
-              </button>
-              <button
-                onClick={() => removeLut(l.id)}
-                aria-label={`Remove ${l.name}`}
-                className="absolute right-1 top-1 rounded p-0.5 text-ink-faint hover:bg-surface-3 hover:text-ink"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+          <FilterTile
+            label="None"
+            thumb={LUT_ORIGINAL_THUMB}
+            selected={!clip.color?.lut}
+            onClick={() => setLut(undefined)}
+          />
         </div>
         {lutError && <p className="mt-2 text-xs text-rose-400">{lutError}</p>}
         <input ref={fileRef} type="file" accept=".cube" onChange={onImportFile} className="hidden" />
       </div>
-      <div>
-        <div className="mb-2 text-sm text-ink-muted">Presets</div>
-        <div className="grid grid-cols-3 gap-2">
-          {COLOR_PRESETS.map((p) => {
-            const on = p.id === 'none' ? neutral : colorEquals(clip.color, p.color);
-            return (
-              <button
-                key={p.id}
-                onClick={() =>
-                  updateClips(selectedIds, {
-                    color: p.id === 'none' ? undefined : { ...p.color, lut: clip.color?.lut },
-                  })
-                }
-                className={chipClass(on)}
-              >
-                {p.label}
-              </button>
-            );
-          })}
+
+      {lutsByCategory().map((group) => (
+        <div key={group.category}>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            {group.category}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {group.looks.map((l) => (
+              <FilterTile
+                key={l.id}
+                label={l.label}
+                thumb={lutThumbUrl(l.id)}
+                selected={clip.color?.lut === l.id}
+                onClick={() => setLut(l.id)}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
+
+      {customLuts.length > 0 && (
+        <div>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            Your LUTs
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {customLuts.map((l) => (
+              <FilterTile
+                key={l.id}
+                label={l.name}
+                title={l.name}
+                thumb={null}
+                selected={clip.color?.lut === l.id}
+                onClick={() => setLut(l.id)}
+                onRemove={() => removeLut(l.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {hasLook && (
         <Adjust
           label="Intensity"

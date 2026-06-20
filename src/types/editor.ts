@@ -372,22 +372,6 @@ export interface ColorAdjust {
 
 export const NEUTRAL_COLOR: ColorAdjust = { brightness: 1, contrast: 1, saturation: 1, hue: 0 };
 
-export interface ColorPreset {
-  id: string;
-  label: string;
-  color: ColorAdjust;
-}
-
-/** One-tap filter looks, all built from the same brightness/contrast/saturation/hue knobs. */
-export const COLOR_PRESETS: ColorPreset[] = [
-  { id: 'none', label: 'None', color: NEUTRAL_COLOR },
-  { id: 'bw', label: 'B&W', color: { brightness: 1, contrast: 1.1, saturation: 0, hue: 0 } },
-  { id: 'vivid', label: 'Vivid', color: { brightness: 1.03, contrast: 1.15, saturation: 1.4, hue: 0 } },
-  { id: 'warm', label: 'Warm', color: { brightness: 1.04, contrast: 1.05, saturation: 1.18, hue: -10 } },
-  { id: 'cool', label: 'Cool', color: { brightness: 1, contrast: 1.05, saturation: 1.1, hue: 12 } },
-  { id: 'vintage', label: 'Vintage', color: { brightness: 1.08, contrast: 0.9, saturation: 0.72, hue: -6 } },
-];
-
 /**
  * Chroma key (green-screen) settings. `color` is the keyed-out color (#rrggbb);
  * `similarity` widens the matched color range; `blend` softens the alpha edge.
