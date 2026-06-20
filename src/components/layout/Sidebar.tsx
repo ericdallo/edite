@@ -29,8 +29,8 @@ export function Sidebar() {
   return (
     <nav
       className={cn(
-        // mobile: bottom tab bar
-        'order-2 flex w-full shrink-0 flex-row items-stretch justify-around gap-0.5 border-t border-line bg-surface/85 px-1 py-1 backdrop-blur',
+        // mobile: bottom tab bar (pad past the home indicator / gesture bar)
+        'order-2 flex w-full shrink-0 flex-row items-stretch justify-around gap-0.5 border-t border-line bg-surface/85 px-1 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] backdrop-blur',
         // desktop: vertical left rail
         'lg:order-1 lg:w-[60px] lg:flex-col lg:items-center lg:justify-start lg:gap-0.5 lg:overflow-hidden lg:border-r lg:border-t-0 lg:bg-surface/40 lg:px-0 lg:py-2 lg:backdrop-blur-none',
         'lg:transition-[width,opacity] lg:duration-200 lg:ease-out',

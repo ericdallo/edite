@@ -149,7 +149,7 @@ export function ToolPanel() {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] lg:pb-4">
           <ToolContent tool={tool} sub={activeSub} />
         </div>
       </aside>

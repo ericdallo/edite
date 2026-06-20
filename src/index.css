@@ -82,6 +82,20 @@ html[data-accent='amber'] {
   summary {
     cursor: pointer;
   }
+
+  /* Mobile: drop the grey tap flash and the double-tap-zoom delay on controls
+     (timeline elements opt back out with their own touch-action utility). */
+  button,
+  [role='button'],
+  a,
+  summary,
+  label {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  [role='button'] {
+    touch-action: manipulation;
+  }
 }
 
 ::selection {
