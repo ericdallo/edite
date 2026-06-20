@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Diamond, Film, Gauge, LayoutTemplate, type LucideIcon, Shapes, Sparkles, Type, Volume2 } from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
@@ -19,12 +20,23 @@ const TOOLS: ToolDef[] = [
   { id: 'audio', label: 'Audio', icon: Volume2 },
 ];
 
+/** Tools that only act on a selected clip; hidden from the rail until one is. */
+const CLIP_TOOLS = new Set<ToolId>(['animate', 'speed', 'effects']);
+
 export function Sidebar() {
   const selected = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setSelectedTool);
   const panelOpen = useEditorStore((s) => s.panelOpen);
   const setPanelOpen = useEditorStore((s) => s.setPanelOpen);
   const collapsed = useEditorStore((s) => s.sidebarCollapsed);
+  const activeClipId = useEditorStore((s) => s.activeClipId);
+
+  // Clip tools appear only with a clip selected; if the selected clip goes away
+  // while one is active, fall back to Media so the panel never shows it empty.
+  useEffect(() => {
+    if (!activeClipId && CLIP_TOOLS.has(selected)) setTool('media');
+  }, [activeClipId, selected, setTool]);
+  const tools = activeClipId ? TOOLS : TOOLS.filter((t) => !CLIP_TOOLS.has(t.id));
 
   return (
     <nav
@@ -38,7 +50,7 @@ export function Sidebar() {
         collapsed && 'lg:w-0 lg:min-w-0 lg:border-r-0 lg:opacity-0 lg:pointer-events-none',
       )}
     >
-      {TOOLS.map((t) => {
+      {tools.map((t) => {
         const Icon = t.icon;
         const active = selected === t.id;
         return (
