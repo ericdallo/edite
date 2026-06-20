@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Captions,
   ChevronDown,
@@ -33,6 +33,7 @@ import {
 } from '@/lib/captions/segments';
 import { transcribe } from '@/lib/captions/transcriber';
 import { logger } from '@/lib/log';
+import { FontField } from './FontPicker';
 
 type CaptionClip = Clip & { text: NonNullable<Clip['text']>; caption: NonNullable<Clip['caption']> };
 
@@ -292,6 +293,16 @@ function CaptionList({ captions }: { captions: CaptionClip[] }) {
   const updateText = useEditorStore((s) => s.updateText);
   const deleteClips = useEditorStore((s) => s.deleteClips);
   const mergeCaptionWithNext = useEditorStore((s) => s.mergeCaptionWithNext);
+  const currentTime = useEditorStore((s) => s.playback.currentTime);
+  const playing = useEditorStore((s) => s.playback.playing);
+
+  // The caption under the playhead, kept scrolled into view while playing.
+  const playingId =
+    captions.find((c) => currentTime >= c.start && currentTime < c.start + clipTimelineDuration(c))?.id ?? null;
+  const playingRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (playing && playingRef.current) playingRef.current.scrollIntoView({ block: 'nearest' });
+  }, [playingId, playing]);
 
   const seek = (c: CaptionClip) => {
     setActiveClip(c.id);
@@ -309,9 +320,14 @@ function CaptionList({ captions }: { captions: CaptionClip[] }) {
         {captions.map((c, i) => (
           <li
             key={c.id}
+            ref={c.id === playingId ? playingRef : undefined}
             className={cn(
               'flex items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors',
-              c.id === activeId ? 'border-brand/60 bg-brand/10' : 'border-line bg-surface-2',
+              c.id === activeId
+                ? 'border-brand/60 bg-brand/10'
+                : c.id === playingId
+                  ? 'border-brand/40 bg-brand/5'
+                  : 'border-line bg-surface-2',
             )}
           >
             <button
@@ -379,6 +395,8 @@ function CaptionStyleBar({ captions }: { captions: CaptionClip[] }) {
           </button>
         ))}
       </div>
+
+      <FontField value={base.fontFamily} onPick={(f) => styleCaptions({ fontFamily: f })} />
 
       <div className="grid grid-cols-3 gap-1.5">
         {positions.map((p) => (

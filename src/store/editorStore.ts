@@ -416,7 +416,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   captionDefaults: {
     model: defaultCaptionModel(),
     language: 'auto',
-    length: 'line',
+    length: 'short',
     ...readPref<Partial<CaptionDefaults>>(CAPTION_DEFAULTS_KEY, {}),
   },
   defaultAspect: readPref<AspectRatioId>(DEFAULT_ASPECT_KEY, 'original'),
