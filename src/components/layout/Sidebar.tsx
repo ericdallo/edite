@@ -54,14 +54,11 @@ export function Sidebar() {
               }
             }}
             className={cn(
-              'group relative flex flex-1 flex-col items-center justify-center gap-1 rounded-md py-1 transition-colors',
+              'relative flex flex-1 flex-col items-center justify-center gap-1 rounded-md py-1 transition-colors',
               'lg:h-12 lg:w-12 lg:flex-none lg:py-0',
-              active ? 'bg-surface-3 text-ink' : 'text-ink-faint hover:bg-surface-2 hover:text-ink-muted',
+              active ? 'bg-brand/15 text-brand-bright' : 'text-ink-faint hover:bg-surface-2 hover:text-ink-muted',
             )}
           >
-            {active && (
-              <span className="absolute left-1/2 top-0 h-0.5 w-7 -translate-x-1/2 rounded-b-full bg-brand lg:left-0 lg:top-1/2 lg:h-6 lg:w-0.5 lg:-translate-x-0 lg:-translate-y-1/2 lg:rounded-b-none lg:rounded-r-full" />
-            )}
             <Icon size={19} strokeWidth={active ? 2.4 : 2} />
             <span className="text-[10px] font-medium">{t.label}</span>
           </button>

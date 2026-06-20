@@ -108,7 +108,7 @@ export function ToolPanel() {
             subs.length === 0 && 'border-b border-line',
           )}
         >
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-brand-bright">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand/15 text-brand-bright">
             <Icon size={18} />
           </div>
           <div className="min-w-0 flex-1">
@@ -138,7 +138,7 @@ export function ToolPanel() {
                   onClick={() => setSubtool(s.id)}
                   className={cn(
                     'relative flex-1 whitespace-nowrap px-1 py-3 text-center text-[13px] font-medium transition-colors',
-                    on ? 'text-ink' : 'text-ink-faint hover:text-ink-muted',
+                    on ? 'text-brand-bright' : 'text-ink-faint hover:text-ink-muted',
                   )}
                 >
                   {s.label}

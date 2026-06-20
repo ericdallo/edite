@@ -40,11 +40,10 @@ export function SubtoolRail() {
             aria-label={s.label}
             aria-pressed={on}
             className={cn(
-              'group relative flex flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 transition-colors',
-              on ? 'bg-surface-3 text-ink' : 'text-ink-faint hover:bg-surface-2 hover:text-ink-muted',
+              'relative flex flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 transition-colors',
+              on ? 'bg-brand/15 text-brand-bright' : 'text-ink-faint hover:bg-surface-2 hover:text-ink-muted',
             )}
           >
-            {on && <span className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r-full bg-brand" />}
             <Icon size={18} strokeWidth={on ? 2.4 : 2} />
             <span className="text-center text-[10px] font-medium leading-tight">{s.label}</span>
           </button>
