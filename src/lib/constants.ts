@@ -40,6 +40,13 @@ export const ZOOM_MAX = 12;
 export const TEXT_SIZE_MIN = 0.02;
 export const TEXT_SIZE_MAX = 0.4;
 
+/** Text outline thickness bounds, as a fraction of the font size (0 = no outline). */
+export const TEXT_STROKE_MAX = 0.16;
+
+/** Text line-spacing (line-height multiplier) bounds. */
+export const LINE_HEIGHT_MIN = 0.8;
+export const LINE_HEIGHT_MAX = 2.5;
+
 /** Public site (served from the custom domain) and source repository. */
 export const SITE_URL = 'https://edite.video';
 export const REPO_URL = 'https://github.com/ericdallo/edite';

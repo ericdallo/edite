@@ -61,10 +61,13 @@ import {
   FREEZE_DEFAULT_DUR,
   HISTORY_LIMIT,
   IMAGE_DEFAULT_DUR,
+  LINE_HEIGHT_MAX,
+  LINE_HEIGHT_MIN,
   MIN_CLIP,
   TRANSITION_DEFAULT_DUR,
   TEXT_SIZE_MAX,
   TEXT_SIZE_MIN,
+  TEXT_STROKE_MAX,
   ZOOM_MAX,
   ZOOM_MIN,
 } from '@/lib/constants';
@@ -620,6 +623,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const text: TextStyle = { ...target.text, ...patch };
       if (patch.fontSize !== undefined) text.fontSize = clamp(patch.fontSize, TEXT_SIZE_MIN, TEXT_SIZE_MAX);
       if (patch.backgroundOpacity !== undefined) text.backgroundOpacity = clamp(patch.backgroundOpacity, 0, 1);
+      if (patch.strokeWidth !== undefined) text.strokeWidth = clamp(patch.strokeWidth, 0, TEXT_STROKE_MAX);
+      if (patch.lineHeight !== undefined) text.lineHeight = clamp(patch.lineHeight, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX);
       return { clips: state.clips.map((c) => (c.id === id ? { ...c, text } : c)) };
     }),
 
@@ -632,6 +637,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const text: TextStyle = { ...c.text, ...patch };
         if (patch.fontSize !== undefined) text.fontSize = clamp(patch.fontSize, TEXT_SIZE_MIN, TEXT_SIZE_MAX);
         if (patch.backgroundOpacity !== undefined) text.backgroundOpacity = clamp(patch.backgroundOpacity, 0, 1);
+        if (patch.strokeWidth !== undefined) text.strokeWidth = clamp(patch.strokeWidth, 0, TEXT_STROKE_MAX);
+        if (patch.lineHeight !== undefined) text.lineHeight = clamp(patch.lineHeight, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX);
         return { ...c, text, rect: rectPatch ? { ...c.rect, ...rectPatch } : c.rect };
       });
       return changed ? { clips } : {};

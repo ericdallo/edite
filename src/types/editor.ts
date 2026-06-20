@@ -76,6 +76,10 @@ export interface TextStyle {
   background: string | null;
   backgroundOpacity: number;
   shadow: boolean;
+  /** outline color drawn around the glyphs (paired with `strokeWidth`). */
+  strokeColor?: string;
+  /** outline thickness as a fraction of the font size; 0 / undefined = no outline. */
+  strokeWidth?: number;
 }
 
 /**
@@ -581,6 +585,8 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   background: null,
   backgroundOpacity: 0.5,
   shadow: true,
+  strokeColor: '#000000',
+  strokeWidth: 0,
 };
 
 /** Default text box: a centered lower third (fractions of the canvas). */

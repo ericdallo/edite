@@ -2,7 +2,13 @@ import { type ReactNode } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Plus, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { type TextAlign } from '@/types/editor';
-import { TEXT_SIZE_MAX, TEXT_SIZE_MIN } from '@/lib/constants';
+import {
+  LINE_HEIGHT_MAX,
+  LINE_HEIGHT_MIN,
+  TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN,
+  TEXT_STROKE_MAX,
+} from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
@@ -123,6 +129,21 @@ export function TextTool() {
         />
       </div>
 
+      <div>
+        <div className="mb-2 flex items-center justify-between text-xs">
+          <span className="font-medium text-ink-muted">Line spacing</span>
+          <span className="font-mono text-ink">{(text.lineHeight ?? 1.2).toFixed(2)}×</span>
+        </div>
+        <Slider
+          min={LINE_HEIGHT_MIN}
+          max={LINE_HEIGHT_MAX}
+          step={0.05}
+          value={text.lineHeight ?? 1.2}
+          onChange={(v) => updateText(clip.id, { lineHeight: v })}
+          ariaLabel="Line spacing"
+        />
+      </div>
+
       <Field label="Style">
         <div className="flex gap-2">
           <Toggle
@@ -206,6 +227,55 @@ export function TextTool() {
               value={text.backgroundOpacity}
               onChange={(v) => updateText(clip.id, { backgroundOpacity: v })}
               ariaLabel="Background opacity"
+            />
+          </div>
+        )}
+      </Field>
+
+      <Field label="Outline">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => updateText(clip.id, { strokeWidth: 0 })}
+            aria-label="No outline"
+            className={cn(
+              'grid h-7 w-7 place-items-center rounded-full border text-[10px] font-semibold',
+              (text.strokeWidth ?? 0) === 0
+                ? 'border-white text-ink ring-2 ring-brand'
+                : 'border-black/40 text-ink-faint',
+            )}
+            style={{ background: 'repeating-linear-gradient(45deg, #2c2c40 0 4px, transparent 4px 8px)' }}
+          >
+            ⃠
+          </button>
+          {COLOR_SWATCHES.map((c) => (
+            <Swatch
+              key={c}
+              color={c}
+              active={(text.strokeWidth ?? 0) > 0 && (text.strokeColor ?? '').toLowerCase() === c}
+              onClick={() =>
+                updateText(clip.id, {
+                  strokeColor: c,
+                  strokeWidth: (text.strokeWidth ?? 0) > 0 ? text.strokeWidth : 0.06,
+                })
+              }
+            />
+          ))}
+        </div>
+        {(text.strokeWidth ?? 0) > 0 && (
+          <div className="mt-3">
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="font-medium text-ink-muted">Outline width</span>
+              <span className="font-mono text-ink">
+                {Math.round(((text.strokeWidth ?? 0) / TEXT_STROKE_MAX) * 100)}%
+              </span>
+            </div>
+            <Slider
+              min={0.01}
+              max={TEXT_STROKE_MAX}
+              step={0.005}
+              value={text.strokeWidth ?? 0}
+              onChange={(v) => updateText(clip.id, { strokeWidth: v })}
+              ariaLabel="Outline width"
             />
           </div>
         )}

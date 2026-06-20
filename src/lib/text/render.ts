@@ -87,17 +87,38 @@ export function drawText(ctx: CanvasRenderingContext2D, style: TextStyle, box: D
   const totalH = lines.length * lineHeight;
   let y = Math.max(pad, (boxH - totalH) / 2);
 
+  const strokeWidth = style.strokeWidth ?? 0;
+  const hasStroke = strokeWidth > 0;
+  const setShadow = (on: boolean) => {
+    ctx.shadowColor = on ? 'rgba(0,0,0,0.55)' : 'transparent';
+    ctx.shadowBlur = on ? fontPx * 0.14 : 0;
+    ctx.shadowOffsetY = on ? fontPx * 0.06 : 0;
+  };
+
   ctx.save();
-  if (style.shadow) {
-    ctx.shadowColor = 'rgba(0,0,0,0.55)';
-    ctx.shadowBlur = fontPx * 0.14;
-    ctx.shadowOffsetY = fontPx * 0.06;
-  }
   ctx.fillStyle = style.color;
+  if (hasStroke) {
+    // Stroke is centred on the glyph path, so double the width and draw it
+    // before the fill: the fill covers the inner half, leaving a clean outline.
+    ctx.lineWidth = Math.max(1, fontPx * strokeWidth * 2);
+    ctx.strokeStyle = style.strokeColor || '#000000';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+  }
   for (const line of lines) {
     const w = ctx.measureText(line).width;
     const x = style.align === 'center' ? (boxW - w) / 2 : style.align === 'right' ? boxW - pad - w : pad;
-    ctx.fillText(line, x, y);
+    // The drop shadow sits under the outermost pass (the outline when present,
+    // otherwise the fill) so it isn't doubled.
+    if (hasStroke) {
+      setShadow(style.shadow);
+      ctx.strokeText(line, x, y);
+      setShadow(false);
+      ctx.fillText(line, x, y);
+    } else {
+      setShadow(style.shadow);
+      ctx.fillText(line, x, y);
+    }
     y += lineHeight;
   }
   ctx.restore();

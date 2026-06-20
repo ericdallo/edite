@@ -1,9 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { fontString, wrapText, type TextMetricsCtx } from '@/lib/text/render';
+import { drawText, fontString, wrapText, type TextMetricsCtx } from '@/lib/text/render';
+import { DEFAULT_TEXT_STYLE } from '@/types/editor';
 
 /** Mock context where every character is `charW` px wide. */
 function mockCtx(charW = 10): TextMetricsCtx {
   return { font: '', measureText: (s: string) => ({ width: s.length * charW }) };
+}
+
+/** A canvas 2D context that records fill/stroke text calls (the rest are no-ops). */
+function recordingCtx() {
+  const calls = { fill: [] as string[], stroke: [] as string[] };
+  const ctx = {
+    font: '',
+    textBaseline: '',
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 0,
+    lineJoin: '',
+    miterLimit: 0,
+    globalAlpha: 1,
+    shadowColor: '',
+    shadowBlur: 0,
+    shadowOffsetY: 0,
+    clearRect() {},
+    save() {},
+    restore() {},
+    fillRect() {},
+    measureText: (s: string) => ({ width: s.length * 10 }),
+    fillText: (s: string) => calls.fill.push(s),
+    strokeText: (s: string) => calls.stroke.push(s),
+  };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
 }
 
 describe('fontString', () => {
@@ -35,5 +62,23 @@ describe('wrapText', () => {
 
   it('preserves blank lines between paragraphs', () => {
     expect(wrapText(mockCtx(10), 'a\n\nb', 1000)).toEqual(['a', '', 'b']);
+  });
+});
+
+describe('drawText outline', () => {
+  const box = { boxW: 200, boxH: 100, canvasH: 100 };
+
+  it('only fills each line when there is no outline', () => {
+    const { ctx, calls } = recordingCtx();
+    drawText(ctx, { ...DEFAULT_TEXT_STYLE, content: 'a\nb', strokeWidth: 0 }, box);
+    expect(calls.fill).toEqual(['a', 'b']);
+    expect(calls.stroke).toEqual([]);
+  });
+
+  it('strokes then fills each line when an outline is set', () => {
+    const { ctx, calls } = recordingCtx();
+    drawText(ctx, { ...DEFAULT_TEXT_STYLE, content: 'a\nb', strokeWidth: 0.08, strokeColor: '#000' }, box);
+    expect(calls.stroke).toEqual(['a', 'b']);
+    expect(calls.fill).toEqual(['a', 'b']);
   });
 });
