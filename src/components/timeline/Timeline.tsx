@@ -98,6 +98,10 @@ export function Timeline() {
   const [dragClipId, setDragClipId] = useState<string | null>(null);
   const [overNewTrack, setOverNewTrack] = useState(false);
   const pendingFocus = useRef<{ time: number; offset: number } | null>(null);
+  // Latest px/sec for the touch listeners (bound once), and a flag set while a
+  // two-finger pinch is in progress so the scrub doesn't fight it.
+  const pxPerSecRef = useRef(0);
+  const pinchRef = useRef(false);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -111,6 +115,7 @@ export function Timeline() {
 
   const pxPerSec = displayDuration > 0 && viewW > 0 ? Math.max(6, (viewW / displayDuration) * zoom) : 0;
   const trackW = displayDuration * pxPerSec;
+  pxPerSecRef.current = pxPerSec;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -139,6 +144,52 @@ export function Timeline() {
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [pxPerSec, zoom, setZoom]);
+
+  // Pinch (two fingers) zooms the track view, centred on the pinch midpoint via
+  // the same pendingFocus mechanism as ctrl+wheel. Bound once with refs so a
+  // mid-gesture zoom (which re-renders) never resets the in-flight pinch.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    let startDist = 0;
+    let startZoom = 1;
+    let focusTime = 0;
+    let focusOffset = 0;
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      const pps = pxPerSecRef.current;
+      if (pps <= 0) return;
+      pinchRef.current = true;
+      startDist = dist(e.touches);
+      startZoom = useEditorStore.getState().zoom;
+      const rect = el.getBoundingClientRect();
+      focusOffset = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+      focusTime = (focusOffset + el.scrollLeft) / pps;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!pinchRef.current || e.touches.length !== 2 || startDist <= 0) return;
+      e.preventDefault(); // own the gesture: no native page zoom / scroll
+      pendingFocus.current = { time: focusTime, offset: focusOffset };
+      setZoom(clamp((startZoom * dist(e.touches)) / startDist, ZOOM_MIN, ZOOM_MAX));
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        pinchRef.current = false;
+        startDist = 0;
+      }
+    };
+    el.addEventListener('touchstart', onStart, { passive: false });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('touchcancel', onEnd);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, [setZoom]);
 
   const rowsTopOrder = [...tracks].reverse();
 
@@ -213,11 +264,14 @@ export function Timeline() {
   // a vertical drag still scrolls the tracks natively.
   const onAreaPointerDown = (e: ReactPointerEvent) => {
     if (pxPerSec <= 0) return;
+    // Ignore the second finger of a pinch so it doesn't start a rival scrub.
+    if (!e.isPrimary) return;
     const el = e.currentTarget as HTMLElement;
     const pid = e.pointerId;
     const startX = e.clientX;
     let clientX = e.clientX;
     let moved = false;
+    let pinched = false;
     setPlaying(false);
     setCurrentTime(timeFromClientX(e.clientX));
     const stopEdge = startEdgeScroll(
@@ -225,6 +279,11 @@ export function Timeline() {
       () => setCurrentTime(timeFromClientX(clientX)),
     );
     const move = (ev: PointerEvent) => {
+      // A pinch took over (a second finger landed): stop scrubbing and let it zoom.
+      if (pinchRef.current) {
+        pinched = true;
+        return;
+      }
       clientX = ev.clientX;
       if (!moved && Math.abs(ev.clientX - startX) > 3) {
         // Once the drag reads as horizontal, lock it to the scrub so it can't
@@ -245,7 +304,8 @@ export function Timeline() {
       move,
       () => {
         stopEdge();
-        if (!moved) clearSelection();
+        // A plain tap (no horizontal drag, no pinch) clears the selection.
+        if (!moved && !pinched && !pinchRef.current) clearSelection();
       },
       false,
     );
