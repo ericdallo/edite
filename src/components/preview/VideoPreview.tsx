@@ -76,8 +76,11 @@ export function VideoPreview() {
     (selectedTool === 'layout' && sub === 'transform') ||
     (selectedTool === 'animate' && activeClip != null && !activeClip.text);
   const textBox = selectedTool === 'text' && sub === 'text';
-  const showOverlay = layoutBox || (textBox && activeClip?.text != null);
-  const interactive = layoutBox || textBox;
+  // The shape tool gets the same box so a sticker/shape can be moved & resized
+  // on the canvas right after it's added.
+  const shapeBox = selectedTool === 'shape' && activeClip?.shape != null;
+  const showOverlay = layoutBox || (textBox && activeClip?.text != null) || shapeBox;
+  const interactive = layoutBox || textBox || shapeBox;
 
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [isFs, setIsFs] = useState(false);
