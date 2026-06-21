@@ -89,6 +89,12 @@ export interface TextStyle {
   strokeColor?: string;
   /** outline thickness as a fraction of the font size; 0 / undefined = no outline. */
   strokeWidth?: number;
+  /**
+   * Karaoke word-highlight color. When set on a caption clip (which carries
+   * per-word timings), spoken-so-far words are painted in this color, live in the
+   * preview and burned per-word on export. Absent = no highlight.
+   */
+  highlightColor?: string;
 }
 
 /**

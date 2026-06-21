@@ -59,12 +59,23 @@ export interface DrawBox {
   canvasH: number;
 }
 
+/** Karaoke highlight: paint the first `count` words (reading order) in `color`. */
+export interface TextHighlight {
+  count: number;
+  color: string;
+}
+
 /**
  * Draw a text overlay into `ctx` (whose canvas is `boxW`×`boxH`). The same
  * function feeds the live preview and the export rasterizer, so they match
  * exactly. Text is vertically centered and clipped to the box.
  */
-export function drawText(ctx: CanvasRenderingContext2D, style: TextStyle, box: DrawBox): void {
+export function drawText(
+  ctx: CanvasRenderingContext2D,
+  style: TextStyle,
+  box: DrawBox,
+  highlight?: TextHighlight | null,
+): void {
   const { boxW, boxH, canvasH } = box;
   ctx.clearRect(0, 0, boxW, boxH);
 
@@ -105,19 +116,38 @@ export function drawText(ctx: CanvasRenderingContext2D, style: TextStyle, box: D
     ctx.lineJoin = 'round';
     ctx.miterLimit = 2;
   }
+  // Draw one chunk (a whole line, or a single word for karaoke) with its fill
+  // colour. The drop shadow sits under the outermost pass (the outline when
+  // present, otherwise the fill) so it isn't doubled.
+  const drawChunk = (chunk: string, x: number, yy: number, fill: string) => {
+    if (hasStroke) {
+      setShadow(style.shadow);
+      ctx.strokeText(chunk, x, yy);
+      setShadow(false);
+    } else {
+      setShadow(style.shadow);
+    }
+    ctx.fillStyle = fill;
+    ctx.fillText(chunk, x, yy);
+  };
+
+  const spaceW = highlight ? ctx.measureText(' ').width : 0;
+  let wordIdx = 0;
   for (const line of lines) {
     const w = ctx.measureText(line).width;
     const x = style.align === 'center' ? (boxW - w) / 2 : style.align === 'right' ? boxW - pad - w : pad;
-    // The drop shadow sits under the outermost pass (the outline when present,
-    // otherwise the fill) so it isn't doubled.
-    if (hasStroke) {
-      setShadow(style.shadow);
-      ctx.strokeText(line, x, y);
-      setShadow(false);
-      ctx.fillText(line, x, y);
+    if (!highlight) {
+      drawChunk(line, x, y, style.color);
     } else {
-      setShadow(style.shadow);
-      ctx.fillText(line, x, y);
+      // Karaoke: paint each word in the spoken-so-far colour, advancing by the
+      // measured word + space widths so the layout matches the whole-line render.
+      let wx = x;
+      for (const word of line.split(/\s+/).filter(Boolean)) {
+        const fill = wordIdx < highlight.count ? highlight.color : style.color;
+        drawChunk(word, wx, y, fill);
+        wx += ctx.measureText(word).width + spaceW;
+        wordIdx++;
+      }
     }
     y += lineHeight;
   }

@@ -40,6 +40,8 @@ export interface ExportClip {
   text?: TextStyle;
   /** enter/exit animation for a text overlay (alpha + position over the in/out ramps). */
   textAnim?: TextAnim;
+  /** karaoke: how many leading caption words to paint in the highlight color in this segment. */
+  highlightCount?: number;
   /** vector shape spec, present when kind === 'shape' (rasterized to a PNG input). */
   shape?: ShapeStyle;
   /** source-time (s) of a held still; when set the clip is rasterized to a frozen PNG input. */

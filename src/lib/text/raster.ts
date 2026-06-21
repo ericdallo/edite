@@ -1,5 +1,5 @@
 import type { Rect, TextStyle } from '@/types/editor';
-import { drawText } from './render';
+import { drawText, type TextHighlight } from './render';
 
 /** Even pixel size, matching the export command's canvas rounding so no rescale happens. */
 const even = (n: number): number => Math.max(2, Math.round(n / 2) * 2);
@@ -14,6 +14,7 @@ export async function renderTextToBlob(
   rect: Rect,
   canvasW: number,
   canvasH: number,
+  highlight?: TextHighlight | null,
 ): Promise<Blob> {
   const w = even(rect.w * canvasW);
   const h = even(rect.h * canvasH);
@@ -29,7 +30,7 @@ export async function renderTextToBlob(
     // the Font Loading API is optional; web-safe fonts are always available
   }
 
-  drawText(ctx, style, { boxW: w, boxH: h, canvasH });
+  drawText(ctx, style, { boxW: w, boxH: h, canvasH }, highlight);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(

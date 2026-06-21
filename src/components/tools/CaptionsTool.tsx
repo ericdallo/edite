@@ -445,6 +445,48 @@ function CaptionStyleBar({ captions }: { captions: CaptionClip[] }) {
           ariaLabel="Caption size"
         />
       </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-medium text-ink-muted">Word highlight</span>
+          <button
+            role="switch"
+            aria-checked={!!base.highlightColor}
+            aria-label="Toggle word highlight"
+            onClick={() => styleCaptions({ highlightColor: base.highlightColor ? undefined : '#fbbf24' })}
+            className={cn(
+              'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+              base.highlightColor ? 'bg-brand' : 'bg-surface-3',
+            )}
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all',
+                base.highlightColor ? 'left-[22px]' : 'left-0.5',
+              )}
+            />
+          </button>
+        </div>
+        {base.highlightColor && (
+          <div className="flex flex-wrap items-center gap-2">
+            {COLOR_SWATCHES.map((c) => (
+              <button
+                key={c}
+                onClick={() => styleCaptions({ highlightColor: c })}
+                aria-label={`Highlight color ${c}`}
+                className={cn(
+                  'h-6 w-6 rounded-full border transition-transform hover:scale-110',
+                  base.highlightColor?.toLowerCase() === c ? 'border-white ring-2 ring-brand' : 'border-black/40',
+                )}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+        )}
+        <p className="mt-1.5 text-[11px] leading-relaxed text-ink-faint">
+          Lights up each word as it&rsquo;s spoken. Needs word timings from transcription.
+        </p>
+      </div>
     </div>
   );
 }

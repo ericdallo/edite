@@ -245,4 +245,44 @@ describe('buildExportPlan', () => {
     const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1' })], [media], false, 'nope');
     expect(plan.clips).toHaveLength(1);
   });
+
+  it('expands a karaoke caption into per-word highlight segments', () => {
+    const track = makeTrack({ id: 't1' });
+    const clip = makeClip({
+      trackId: 't1',
+      mediaId: '',
+      start: 2,
+      in: 0,
+      out: 3,
+      speed: 1,
+      text: { ...DEFAULT_TEXT_STYLE, content: 'a b', highlightColor: '#ff0' },
+      caption: {
+        words: [
+          { text: 'a', start: 0, end: 0.5 },
+          { text: 'b', start: 1, end: 1.5 },
+        ],
+      },
+    });
+    const plan = buildExportPlan([track], [clip], []);
+    // boundaries 0,1,3 -> two segments highlighting 1 then 2 words
+    expect(plan.clips).toHaveLength(2);
+    expect(plan.clips.every((c) => c.kind === 'text')).toBe(true);
+    expect(plan.clips.map((c) => c.highlightCount)).toEqual([1, 2]);
+    expect(plan.clips[0].start).toBeCloseTo(2, 5);
+    expect(plan.clips[1].start).toBeCloseTo(3, 5);
+  });
+
+  it('keeps a caption without a highlight color as a single clip', () => {
+    const track = makeTrack({ id: 't1' });
+    const clip = makeClip({
+      trackId: 't1',
+      mediaId: '',
+      start: 0,
+      in: 0,
+      out: 3,
+      text: { ...DEFAULT_TEXT_STYLE, content: 'a b' },
+      caption: { words: [{ text: 'a', start: 0, end: 0.5 }] },
+    });
+    expect(buildExportPlan([track], [clip], []).clips).toHaveLength(1);
+  });
 });

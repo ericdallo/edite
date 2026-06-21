@@ -82,3 +82,53 @@ describe('drawText outline', () => {
     expect(calls.fill).toEqual(['a', 'b']);
   });
 });
+
+describe('drawText karaoke highlight', () => {
+  const box = { boxW: 300, boxH: 100, canvasH: 100 };
+
+  /** A recording context that captures the fillStyle in effect at each fillText. */
+  function colorCtx() {
+    const calls: { text: string; fill: string }[] = [];
+    const ctx = {
+      font: '',
+      textBaseline: '',
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 0,
+      lineJoin: '',
+      miterLimit: 0,
+      globalAlpha: 1,
+      shadowColor: '',
+      shadowBlur: 0,
+      shadowOffsetY: 0,
+      clearRect() {},
+      save() {},
+      restore() {},
+      fillRect() {},
+      measureText: (s: string) => ({ width: s.length * 10 }),
+      fillText(s: string) {
+        calls.push({ text: s, fill: this.fillStyle as string });
+      },
+      strokeText() {},
+    };
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
+  }
+
+  it('paints the first N words in the highlight color, the rest in the base color', () => {
+    const { ctx, calls } = colorCtx();
+    drawText(
+      ctx,
+      { ...DEFAULT_TEXT_STYLE, content: 'one two three', color: '#ffffff' },
+      box,
+      { count: 2, color: '#ff0000' },
+    );
+    expect(calls.map((c) => c.text)).toEqual(['one', 'two', 'three']);
+    expect(calls.map((c) => c.fill)).toEqual(['#ff0000', '#ff0000', '#ffffff']);
+  });
+
+  it('renders whole lines (no per-word split) when there is no highlight', () => {
+    const { ctx, calls } = colorCtx();
+    drawText(ctx, { ...DEFAULT_TEXT_STYLE, content: 'one two three' }, box);
+    expect(calls.map((c) => c.text)).toEqual(['one two three']);
+  });
+});

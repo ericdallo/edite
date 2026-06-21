@@ -124,7 +124,12 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
       throwIfAborted();
       const c = clips[k];
       if (c.kind === 'text' && c.text) {
-        const blob = await renderTextToBlob(c.text, c.rect, req.params.canvasW, req.params.canvasH);
+        // Karaoke segments burn a per-word highlight; plain text passes null.
+        const hl =
+          c.highlightCount != null && c.text.highlightColor
+            ? { count: c.highlightCount, color: c.text.highlightColor }
+            : null;
+        const blob = await renderTextToBlob(c.text, c.rect, req.params.canvasW, req.params.canvasH, hl);
         const name = `txt_${k}.png`;
         await ffmpeg.writeFile(name, await fetchFile(blob));
         inputNames.push(name);

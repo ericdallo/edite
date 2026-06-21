@@ -1,5 +1,5 @@
 import type { Clip, MediaItem, Track } from '@/types/editor';
-import { clipTransformAt, projectDuration, speedSlices, transitionFades } from '@/lib/timeline';
+import { clipTimelineDuration, clipTransformAt, projectDuration, speedSlices, transitionFades } from '@/lib/timeline';
 import type { ExportClip } from './command';
 
 export interface ExportPlan {
@@ -43,28 +43,42 @@ export function buildExportPlan(
   // single timeline clip can expand into several inputs (e.g. a speed curve).
   const built = ordered.flatMap(({ clip, track }): { ec: ExportClip; mediaId: string }[] => {
     if (clip.text) {
+      const base = {
+        kind: 'text' as const,
+        speed: 1,
+        rect: clip.rect,
+        opacity: clip.opacity,
+        hasAudio: false,
+        muted: true,
+        flipH: false,
+        flipV: false,
+        rotation: 0,
+        volume: 1,
+        fadeIn: 0,
+        fadeOut: 0,
+        text: clip.text,
+        blendMode: clip.blendMode,
+      };
+      // Karaoke: a caption with per-word timings + a highlight colour burns one
+      // PNG variant per word-progress state, each shown over its word's window.
+      const words = clip.caption?.words;
+      if (clip.text.highlightColor && words && words.length > 0) {
+        const dur = clipTimelineDuration(clip);
+        const clampT = (v: number) => Math.min(Math.max(v, 0), dur);
+        const bounds = [...new Set([0, ...words.map((w) => clampT(w.start)), dur])].sort((a, b) => a - b);
+        const segs: { ec: ExportClip; mediaId: string }[] = [];
+        for (let i = 0; i < bounds.length - 1; i++) {
+          const a = bounds[i];
+          const b = bounds[i + 1];
+          if (b - a < 0.02) continue;
+          const count = words.filter((w) => w.start <= a + 1e-3).length;
+          segs.push({ ec: { ...base, start: clip.start + a, in: 0, out: b - a, highlightCount: count }, mediaId: '' });
+        }
+        if (segs.length > 0) return segs;
+      }
       return [
         {
-          ec: {
-            kind: 'text',
-            start: clip.start,
-            in: clip.in,
-            out: clip.out,
-            speed: 1,
-            rect: clip.rect,
-            opacity: clip.opacity,
-            hasAudio: false,
-            muted: true,
-            flipH: false,
-            flipV: false,
-            rotation: 0,
-            volume: 1,
-            fadeIn: 0,
-            fadeOut: 0,
-            text: clip.text,
-            textAnim: clip.textAnim,
-            blendMode: clip.blendMode,
-          },
+          ec: { ...base, start: clip.start, in: clip.in, out: clip.out, textAnim: clip.textAnim },
           mediaId: '',
         },
       ];

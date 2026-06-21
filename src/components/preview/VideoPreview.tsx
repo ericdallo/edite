@@ -356,9 +356,23 @@ export function VideoPreview() {
                       .join(' ') || undefined,
                 }
               : style;
+            // Karaoke: highlight the words spoken so far (caption clips only).
+            const hl =
+              clip.text.highlightColor && clip.caption?.words?.length
+                ? {
+                    count: clip.caption.words.filter((w) => w.start <= currentTime - clip.start).length,
+                    color: clip.text.highlightColor,
+                  }
+                : null;
             return (
               <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={tstyle}>
-                <TextLayer text={clip.text} boxW={rect.w * box.w} boxH={rect.h * box.h} canvasH={box.h} />
+                <TextLayer
+                  text={clip.text}
+                  boxW={rect.w * box.w}
+                  boxH={rect.h * box.h}
+                  canvasH={box.h}
+                  highlight={hl}
+                />
               </div>
             );
           }
