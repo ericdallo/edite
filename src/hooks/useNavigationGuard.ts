@@ -2,13 +2,14 @@ import { useEffect } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 
 /**
- * Makes the browser Back button / gesture undo instead of leaving the editor
- * (a common Android frustration).
+ * Keeps the browser Back button / gesture inside the app instead of leaving the
+ * site (a common Android frustration).
  *
- * While there are edits to undo we keep one extra "buffer" entry on the history
- * stack. Pressing Back pops that buffer and fires popstate, where we run undo
- * and — as long as more steps remain — re-arm the buffer. Once the undo stack
- * is empty the buffer isn't replaced, so the next Back leaves the page as usual.
+ * While the editor is open we keep one extra "buffer" entry on the history
+ * stack. Pressing Back consumes it and fires popstate, where we either undo the
+ * last edit (and re-arm) or — once there's nothing left to undo — fall back to
+ * the projects list. Only from the projects list does Back finally leave the
+ * page, so an accidental Back never drops you straight out of an edit.
  */
 export function useNavigationGuard(): void {
   useEffect(() => {
@@ -27,18 +28,29 @@ export function useNavigationGuard(): void {
       // The buffer entry was consumed by this Back press.
       armed = false;
       const s = useEditorStore.getState();
-      // Nothing to undo (or not in the editor): let the navigation proceed.
-      if (s.view !== 'editor' || s.past.length === 0) return;
-      s.undo();
-      // Re-arm only while more undo steps remain, so Back walks the edit stack
-      // and then exits.
-      if (useEditorStore.getState().past.length > 0) arm();
+      // Already on the projects list (or elsewhere): let the navigation proceed.
+      if (s.view !== 'editor') return;
+      if (s.past.length > 0) {
+        s.undo(); // walk the edit history one step (sync re-arms below)
+      } else {
+        s.setView('projects'); // nothing to undo: fall back to the project list
+      }
     };
 
-    // Keep a buffer armed whenever there's undo history worth protecting.
+    // Protect the editor whenever it's open; spend the buffer if we leave it any
+    // other way (e.g. the "All projects" menu) so a single Back then exits.
     const sync = () => {
       const s = useEditorStore.getState();
-      if (s.view === 'editor' && s.past.length > 0) arm();
+      if (s.view === 'editor') {
+        arm();
+      } else if (armed) {
+        armed = false;
+        try {
+          history.back();
+        } catch {
+          // ignore: nothing to step back through.
+        }
+      }
     };
     const unsubscribe = useEditorStore.subscribe(sync);
     sync();
