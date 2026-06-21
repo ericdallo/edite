@@ -298,7 +298,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // export reproduces the preview's object-cover exactly. Position is animated
     // on the overlay below. Both encode the same piecewise-linear function the
     // preview reads from clipTransformAt.
-    const kf = c.keyframes && c.keyframes.length >= 2 ? keyframeExport(c.keyframes, W, H, c.start) : null;
+    const kf = c.keyframes && c.keyframes.length >= 2 ? keyframeExport(c.keyframes, W, H, c.start, c.opacity) : null;
     const cover = kf
       ? `scale=${kf.refW}:${kf.refH}:force_original_aspect_ratio=increase,crop=${kf.refW}:${kf.refH},setsar=1,scale=w='${kf.w}':h='${kf.h}':eval=frame`
       : `scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1`;
@@ -322,7 +322,13 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const mask = c.mask
       ? `,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*${maskAlphaExpr(c.mask)}'`
       : '';
-    const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
+    // Keyframed opacity animates the alpha via a geq (the `T` time expression);
+    // otherwise the static colorchannelmixer node (or nothing) is emitted.
+    const op = kf?.opacity
+      ? `,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(${kf.opacity})'`
+      : c.opacity < 0.999
+        ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}`
+        : '';
     // Transition INTO this clip, by family: dissolve ramps alpha over the whole
     // overlap; fade reveals it in the second half (a color dip below covers the
     // first); wipe / iris reveal it behind a moving geq alpha mask; slides move

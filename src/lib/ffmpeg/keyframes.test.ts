@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { keyframeExport, pwLinearExpr } from '@/lib/ffmpeg/keyframes';
+import { FULL_RECT } from '@/types/editor';
 
 describe('pwLinearExpr', () => {
   it('is a constant for a single point', () => {
     expect(pwLinearExpr([{ t: 0, v: 5 }])).toBe('5');
+  });
+
+  it('uses a custom time variable when asked (geq uses uppercase T)', () => {
+    expect(pwLinearExpr([{ t: 0, v: 1 }, { t: 2, v: 0 }], 'T')).toBe(
+      'if(lt(T,0),1,if(lt(T,2),(1+(-1)*(T-0)/2),0))',
+    );
   });
 
   it('builds a clamped linear ramp between two points', () => {
@@ -52,5 +59,21 @@ describe('keyframeExport', () => {
       0,
     );
     expect(kf.x).toBe('if(lt(t,0),0,if(lt(t,4),(0+(50)*(t-0)/4),50))');
+  });
+
+  it('emits an opacity T-expression only when a keyframe pins opacity', () => {
+    const animated = keyframeExport(
+      [
+        { at: 0, rect: FULL_RECT, opacity: 1 },
+        { at: 2, rect: FULL_RECT, opacity: 0 },
+      ],
+      1920,
+      1080,
+      0,
+      1,
+    );
+    expect(animated.opacity).toContain('lt(T,');
+    const plain = keyframeExport([{ at: 0, rect: FULL_RECT }, { at: 2, rect: FULL_RECT }], 1920, 1080, 0, 1);
+    expect(plain.opacity).toBeUndefined();
   });
 });

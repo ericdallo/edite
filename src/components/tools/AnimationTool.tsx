@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, Diamond, Trash2 } from 'lucide-react';
 import { type Clip, DEFAULT_TEXT_ANIM, TEXT_ANIMS, type TextAnim } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
-import { keyframeDelta } from '@/lib/timeline';
+import { clipTransformAt, keyframeDelta } from '@/lib/timeline';
 import { chipClass, cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
 
@@ -89,6 +89,7 @@ export function AnimationTool() {
   const addKeyframeAtPlayhead = useEditorStore((s) => s.addKeyframeAtPlayhead);
   const removeKeyframe = useEditorStore((s) => s.removeKeyframe);
   const clearKeyframes = useEditorStore((s) => s.clearKeyframes);
+  const setKeyframeOpacity = useEditorStore((s) => s.setKeyframeOpacity);
   const clip = clips.find((c) => c.id === activeId);
 
   if (!clip) {
@@ -103,6 +104,7 @@ export function AnimationTool() {
   }
 
   const keyframes = clip.keyframes ?? [];
+  const playheadOpacity = clipTransformAt(clip, currentTime).opacity;
   const localPlayhead = currentTime - clip.start;
   const atPlayhead = keyframes.some((k) => Math.abs(k.at - localPlayhead) < EPS);
   const prevKf = [...keyframes].reverse().find((k) => k.at < localPlayhead - EPS);
@@ -259,6 +261,26 @@ export function AnimationTool() {
             Add a second keyframe further along the timeline to see the motion.
           </p>
         )}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-line bg-surface-2/40 p-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-medium text-ink-muted">
+            Opacity <span className="text-ink-faint">· at playhead</span>
+          </div>
+          <span className="font-mono text-xs text-ink">{Math.round(playheadOpacity * 100)}%</span>
+        </div>
+        <Slider
+          min={0}
+          max={1}
+          step={0.01}
+          value={playheadOpacity}
+          onChange={(v) => setKeyframeOpacity(clip.id, v)}
+          ariaLabel="Opacity keyframe at playhead"
+        />
+        <p className="text-[11px] leading-relaxed text-ink-faint">
+          Pins opacity here as a keyframe. Set a different value further along to fade in or out.
+        </p>
       </div>
     </div>
   );

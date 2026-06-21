@@ -282,6 +282,8 @@ export interface EditorState {
   addKeyframeAtPlayhead: (id: string) => void;
   /** Add or replace the keyframe at clip-local time `at` with `rect` (used by the canvas box). */
   upsertKeyframe: (id: string, at: number, rect: Rect) => void;
+  /** Pin the clip's opacity (0..1) at the playhead as a keyframe (creates one if needed). */
+  setKeyframeOpacity: (id: string, opacity: number) => void;
   removeKeyframe: (id: string, index: number) => void;
   clearKeyframes: (id: string) => void;
 
@@ -359,6 +361,7 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
           .map((k) => ({
             at: Math.max(0, k.at),
             rect: { x: k.rect.x, y: k.rect.y, w: Math.max(0.01, k.rect.w), h: Math.max(0.01, k.rect.h) },
+            ...(k.opacity != null ? { opacity: clamp(k.opacity, 0, 1) } : {}),
           }))
           .sort((a, b) => a.at - b.at)
       : undefined;
@@ -386,10 +389,13 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
 const KF_EPS = 0.02;
 
 /** Insert or replace the keyframe at `at`, returning a new list sorted by time. */
-function upsertKeyframeList(list: Keyframe[] | undefined, at: number, rect: Rect): Keyframe[] {
+function upsertKeyframeList(list: Keyframe[] | undefined, at: number, rect: Rect, opacity?: number): Keyframe[] {
   const a = Math.max(0, at);
+  const existing = (list ?? []).find((k) => Math.abs(k.at - a) <= KF_EPS);
   const next = (list ?? []).filter((k) => Math.abs(k.at - a) > KF_EPS);
-  next.push({ at: a, rect: { ...rect } });
+  // Preserve a keyframe's pinned opacity when only its rect is being re-set.
+  const op = opacity ?? existing?.opacity;
+  next.push({ at: a, rect: { ...rect }, ...(op != null ? { opacity: op } : {}) });
   return next.sort((x, y) => x.at - y.at);
 }
 
@@ -1040,6 +1046,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!clip || clip.text) return;
     const a = clamp(at, 0, clipTimelineDuration(clip));
     get().updateClip(id, { keyframes: upsertKeyframeList(clip.keyframes, a, rect) });
+  },
+
+  setKeyframeOpacity: (id, opacity) => {
+    const s = get();
+    const clip = s.clips.find((c) => c.id === id);
+    if (!clip || clip.text) return;
+    const at = clamp(s.playback.currentTime - clip.start, 0, clipTimelineDuration(clip));
+    const rect = clipTransformAt(clip, s.playback.currentTime).rect;
+    get().updateClip(id, { keyframes: upsertKeyframeList(clip.keyframes, at, rect, clamp(opacity, 0, 1)) });
   },
 
   removeKeyframe: (id, index) => {

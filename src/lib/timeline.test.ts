@@ -372,6 +372,25 @@ describe('clipTransformAt', () => {
     // within the second segment (local 4 of [2,6]): halfway from 0.2 -> 0.6
     expect(clipTransformAt(clip, 4).rect.x).toBeCloseTo(0.4, 5);
   });
+
+  it('returns the static opacity with no keyframes', () => {
+    expect(clipTransformAt(makeClip({ opacity: 0.5 }), 3).opacity).toBe(0.5);
+  });
+
+  it('interpolates keyframed opacity, falling back to the clip opacity when unset', () => {
+    const clip = makeClip({
+      start: 0,
+      opacity: 1,
+      keyframes: [
+        { at: 0, rect: base, opacity: 1 },
+        { at: 2, rect: base }, // no explicit opacity -> falls back to clip.opacity (1)
+        { at: 4, rect: base, opacity: 0 },
+      ],
+    });
+    expect(clipTransformAt(clip, 0).opacity).toBeCloseTo(1, 5);
+    expect(clipTransformAt(clip, 3).opacity).toBeCloseTo(0.5, 5); // halfway 1 -> 0 over [2,4]
+    expect(clipTransformAt(clip, 4).opacity).toBeCloseTo(0, 5);
+  });
 });
 
 describe('keyframeDelta', () => {

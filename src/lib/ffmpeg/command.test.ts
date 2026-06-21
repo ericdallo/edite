@@ -5,7 +5,7 @@ import {
   type BuiltCommand,
   type MultiExportParams,
 } from '@/lib/ffmpeg/command';
-import { DEFAULT_TEXT_STYLE, type TextAnim } from '@/types/editor';
+import { DEFAULT_TEXT_STYLE, FULL_RECT, type TextAnim } from '@/types/editor';
 import { makeExportClip } from '@/test/factories';
 import type { ExportClip } from '@/lib/ffmpeg/command';
 
@@ -543,6 +543,39 @@ describe('blurred background', () => {
   it('blurs the synthetic background layer and nothing otherwise', () => {
     expect(graphOf(build([makeExportClip({ bgBlur: true })]))).toContain('gblur=sigma=');
     expect(graphOf(build([makeExportClip()]))).not.toContain('gblur');
+  });
+});
+
+describe('buildExportCommand opacity keyframes', () => {
+  it('animates opacity via a geq alpha when keyframes pin it', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({
+          keyframes: [
+            { at: 0, rect: FULL_RECT, opacity: 1 },
+            { at: 2, rect: FULL_RECT, opacity: 0 },
+          ],
+        }),
+      ]),
+    );
+    expect(g).toContain("a='alpha(X,Y)*(");
+    expect(g).toContain('lt(T,');
+  });
+
+  it('keeps the static opacity node for plain position/scale keyframes', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({
+          opacity: 0.5,
+          keyframes: [
+            { at: 0, rect: { x: 0, y: 0, w: 0.5, h: 0.5 } },
+            { at: 2, rect: FULL_RECT },
+          ],
+        }),
+      ]),
+    );
+    expect(g).toContain('colorchannelmixer=aa=0.500');
+    expect(g).not.toContain("a='alpha(X,Y)*(if");
   });
 });
 

@@ -315,8 +315,9 @@ export function VideoPreview() {
           // A transition into this clip ramps its opacity (dissolve) and, for fade
           // types, dips through a color rendered just beneath it.
           const tr = transitionRenderAt(clip, currentTime);
-          // Animated placement from the clip's keyframes (the static rect when none).
-          const rect = clipTransformAt(clip, currentTime).rect;
+          // Animated placement + opacity from the clip's keyframes (static when none).
+          const xf = clipTransformAt(clip, currentTime);
+          const rect = xf.rect;
           // Slides translate the incoming clip in; wipes/iris reveal it behind a
           // clip-path. These mirror what the export encodes.
           const slide =
@@ -331,7 +332,7 @@ export function VideoPreview() {
             top: `${rect.y * 100}%`,
             width: `${rect.w * 100}%`,
             height: `${rect.h * 100}%`,
-            opacity: active ? clip.opacity * tr.clipMul : 0,
+            opacity: active ? xf.opacity * tr.clipMul : 0,
             zIndex: active ? 1 : 0,
             transform: slide,
             clipPath: tr.clipPath ?? undefined,

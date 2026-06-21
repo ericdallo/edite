@@ -1078,3 +1078,16 @@ describe('track ordering, rename and lock', () => {
     expect(get().tracks.find((t) => t.id === 't1')?.locked).toBe(false);
   });
 });
+
+describe('setKeyframeOpacity', () => {
+  beforeEach(seed);
+
+  it('pins opacity at the playhead as a keyframe (and survives clamping)', () => {
+    get().setCurrentTime(2);
+    get().setKeyframeOpacity('c1', 0.4);
+    const k = get().clips.find((c) => c.id === 'c1')!.keyframes!;
+    expect(k).toHaveLength(1);
+    expect(k[0].at).toBeCloseTo(2, 5);
+    expect(k[0].opacity).toBeCloseTo(0.4, 5);
+  });
+});

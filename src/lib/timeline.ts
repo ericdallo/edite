@@ -30,6 +30,8 @@ function lerpRect(a: Rect, b: Rect, f: number): Rect {
 
 export interface ClipTransform {
   rect: Rect;
+  /** animated opacity (0..1) at the sampled time, or the clip's static opacity. */
+  opacity: number;
 }
 
 /**
@@ -42,19 +44,24 @@ export interface ClipTransform {
  */
 export function clipTransformAt(clip: Clip, t: number): ClipTransform {
   const kfs = clip.keyframes;
-  if (!kfs || kfs.length < 2) return { rect: clip.rect };
+  const baseOp = clip.opacity;
+  if (!kfs || kfs.length < 2) return { rect: clip.rect, opacity: baseOp };
+  // Each keyframe's opacity falls back to the clip's static opacity when unset.
+  const op = (k: { opacity?: number }) => k.opacity ?? baseOp;
   const local = t - clip.start;
-  if (local <= kfs[0].at) return { rect: { ...kfs[0].rect } };
+  if (local <= kfs[0].at) return { rect: { ...kfs[0].rect }, opacity: op(kfs[0]) };
   for (let i = 1; i < kfs.length; i++) {
     const a = kfs[i - 1];
     const b = kfs[i];
     if (local <= b.at) {
       const span = b.at - a.at;
-      if (span <= 1e-9) return { rect: { ...b.rect } };
-      return { rect: lerpRect(a.rect, b.rect, (local - a.at) / span) };
+      if (span <= 1e-9) return { rect: { ...b.rect }, opacity: op(b) };
+      const f = (local - a.at) / span;
+      return { rect: lerpRect(a.rect, b.rect, f), opacity: op(a) + (op(b) - op(a)) * f };
     }
   }
-  return { rect: { ...kfs[kfs.length - 1].rect } };
+  const last = kfs[kfs.length - 1];
+  return { rect: { ...last.rect }, opacity: op(last) };
 }
 
 /** What a keyframe changes relative to the previous one, for UI labelling. */

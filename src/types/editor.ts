@@ -32,6 +32,8 @@ export function isFullRect(r?: Rect | null): boolean {
 export interface Keyframe {
   at: number;
   rect: Rect;
+  /** Animated opacity (0..1) at this keyframe; absent = the clip's static opacity. */
+  opacity?: number;
 }
 
 export type MediaKind = 'video' | 'image' | 'audio';
