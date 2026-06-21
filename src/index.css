@@ -150,6 +150,28 @@ html[data-reduce-motion='true'] .edite-pop {
   }
 }
 
+/* Decorative playhead sweeping across the empty-state hero's timeline.
+   Disabled for reduced-motion (app preference or OS setting), like above. */
+.edite-playhead {
+  animation: playheadSweep 7s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+html[data-reduce-motion='true'] .edite-playhead {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .edite-playhead {
+    animation: none;
+  }
+}
+@keyframes playheadSweep {
+  from {
+    left: 16%;
+  }
+  to {
+    left: 82%;
+  }
+}
+
 input[type='range'].edite-range {
   -webkit-appearance: none;
   appearance: none;
