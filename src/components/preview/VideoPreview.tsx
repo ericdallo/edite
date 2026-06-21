@@ -223,6 +223,20 @@ export function VideoPreview() {
 
   // Keep each <video>/<audio> in sync with the master clock.
   useEffect(() => {
+    // Browsers (mobile especially) can only decode/play a handful of videos at
+    // once — often just one — so overlapping video tracks beyond the first would
+    // freeze on a stale frame. Elect one primary video, the bottom-most active
+    // one, to play natively; the rest are frame-stepped below (paused + seeked
+    // each tick) so they advance instead of sticking. Audio is never decoder-
+    // limited, so it always plays natively.
+    let primaryVideoId: string | null = null;
+    for (const { clip, track } of layers) {
+      const m = media.find((x) => x.id === clip.mediaId);
+      if (m?.kind === 'video' && !clip.audioOnly && isClipActiveAt(clip, currentTime) && !track.hidden) {
+        primaryVideoId = clip.id;
+        break;
+      }
+    }
     for (const { clip, track } of layers) {
       const m = media.find((x) => x.id === clip.mediaId);
       // Videos and audio (standalone or detached) drive a media element; images don't.
@@ -255,10 +269,19 @@ export function VideoPreview() {
       el.playbackRate = clamp(clipSpeedAt(clip, currentTime), 0.0625, 16);
       if (active) {
         const want = clipSourceAt(clip, currentTime);
-        const tol = playing ? 0.34 : 0.05;
-        if (Math.abs(el.currentTime - want) > tol) el.currentTime = want;
-        if (playing && el.paused) el.play().catch(() => undefined);
-        if (!playing && !el.paused) el.pause();
+        // A secondary (non-primary) video during playback can't hold a decoder, so
+        // frame-step it instead of play()ing: pause and seek to the wanted source
+        // frame each tick so it advances (choppily) rather than freezing.
+        const frameStep = playing && m.kind === 'video' && !clip.audioOnly && clip.id !== primaryVideoId;
+        if (frameStep) {
+          if (!el.paused) el.pause();
+          if (Math.abs(el.currentTime - want) > 0.04) el.currentTime = want;
+        } else {
+          const tol = playing ? 0.34 : 0.05;
+          if (Math.abs(el.currentTime - want) > tol) el.currentTime = want;
+          if (playing && el.paused) el.play().catch(() => undefined);
+          if (!playing && !el.paused) el.pause();
+        }
       } else {
         if (!el.paused) el.pause();
         // Park inactive clips on the frame nearest the playhead (their in-point
