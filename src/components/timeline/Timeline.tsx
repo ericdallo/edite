@@ -6,6 +6,8 @@ import {
   useState,
 } from 'react';
 import {
+  ArrowDownToLine,
+  ArrowUpToLine,
   AudioLines,
   ChevronsLeft,
   Clipboard,
@@ -14,9 +16,12 @@ import {
   Diamond,
   Eye,
   EyeOff,
+  Lock,
+  LockOpen,
   Magnet,
   Merge,
   MousePointerClick,
+  Pencil,
   Plus,
   Scissors,
   Snowflake,
@@ -81,6 +86,9 @@ export function Timeline() {
   const pruneEmptyTracks = useEditorStore((s) => s.pruneEmptyTracks);
   const setTrackMuted = useEditorStore((s) => s.setTrackMuted);
   const setTrackHidden = useEditorStore((s) => s.setTrackHidden);
+  const setTrackLocked = useEditorStore((s) => s.setTrackLocked);
+  const renameTrack = useEditorStore((s) => s.renameTrack);
+  const moveTrack = useEditorStore((s) => s.moveTrack);
 
   const displayDuration = Math.max(projectDuration(clips), 8);
   const hasSelection = selectedIds.length > 0;
@@ -98,6 +106,9 @@ export function Timeline() {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [dragClipId, setDragClipId] = useState<string | null>(null);
   const [overNewTrack, setOverNewTrack] = useState(false);
+  const [renamingTrackId, setRenamingTrackId] = useState<string | null>(null);
+  // Set on Escape so the input's blur (fired as it unmounts) cancels instead of commits.
+  const renameCancel = useRef(false);
   const pendingFocus = useRef<{ time: number; offset: number } | null>(null);
   // Latest px/sec for the touch listeners (bound once), and a flag set while a
   // two-finger pinch is in progress so the scrub doesn't fight it.
@@ -387,9 +398,12 @@ export function Timeline() {
       const rows = rowsRef.current?.getBoundingClientRect();
       toNewTrack = !!rows && ev.clientY > rows.bottom - 4;
       setOverNewTrack(toNewTrack);
+      const dropTarget = trackFromClientY(ev.clientY);
+      // Never drop onto a locked track; keep the clip on its own track instead.
+      const lockedTarget = dropTarget != null && tracks.find((t) => t.id === dropTarget)?.locked;
       const trackId = toNewTrack
         ? useEditorStore.getState().clips.find((c) => c.id === clipId)?.trackId ?? clip.trackId
-        : trackFromClientY(ev.clientY) ?? clip.trackId;
+        : (lockedTarget ? clip.trackId : dropTarget) ?? clip.trackId;
       moveClip(clipId, newStart, trackId);
     };
     const up = (ev: PointerEvent) => {
@@ -550,9 +564,14 @@ export function Timeline() {
       const m = media.find((x) => x.id === c.mediaId);
       return m?.kind === 'audio' || (m?.kind === 'video' && m.hasAudio);
     });
+    const idx = tracks.findIndex((t) => t.id === trackId);
     const items: MenuItem[] = [
-      { id: 'paste', label: 'Paste here', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0, onClick: () => pasteClips(at) },
-      { id: 'select', label: 'Select clips', icon: <MousePointerClick size={14} />, disabled: trackClipIds.length === 0, onClick: () => selectClips(trackClipIds) },
+      { id: 'paste', label: 'Paste here', icon: <Clipboard size={14} />, shortcut: '⌘V', disabled: clipboard.length === 0 || track.locked, onClick: () => pasteClips(at) },
+      { id: 'select', label: 'Select clips', icon: <MousePointerClick size={14} />, disabled: trackClipIds.length === 0 || track.locked, onClick: () => selectClips(trackClipIds) },
+      { id: 'rename', label: 'Rename track', icon: <Pencil size={14} />, separatorBefore: true, onClick: () => setRenamingTrackId(trackId) },
+      { id: 'tup', label: 'Move up', icon: <ArrowUpToLine size={14} />, disabled: idx <= 0, onClick: () => moveTrack(trackId, 'up') },
+      { id: 'tdown', label: 'Move down', icon: <ArrowDownToLine size={14} />, disabled: idx < 0 || idx >= tracks.length - 1, onClick: () => moveTrack(trackId, 'down') },
+      { id: 'tlock', label: track.locked ? 'Unlock track' : 'Lock track', icon: track.locked ? <LockOpen size={14} /> : <Lock size={14} />, onClick: () => setTrackLocked(trackId, !track.locked) },
       ...((trackHasAudio
         ? [
             {
@@ -688,45 +707,87 @@ export function Timeline() {
             {rowsTopOrder.map((track) => (
               <div
                 key={track.id}
-                className="relative border-b border-line/40"
+                className={cn('relative border-b border-line/40', track.locked && 'bg-surface-2/30')}
                 style={{ height: ROW_H }}
                 onContextMenu={(e) => openTrackMenu(e, track.id)}
               >
-                {(track.hidden || track.muted) && (
-                  <div className="pointer-events-none absolute left-1.5 top-1.5 z-10 flex gap-1">
-                    {track.hidden && (
-                      <span className="grid h-5 w-5 place-items-center rounded bg-black/50 text-ink-muted">
-                        <EyeOff size={12} />
-                      </span>
-                    )}
-                    {track.muted && (
-                      <span className="grid h-5 w-5 place-items-center rounded bg-black/50 text-danger">
-                        <VolumeX size={12} />
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1">
+                  {renamingTrackId === track.id ? (
+                    <input
+                      autoFocus
+                      defaultValue={track.name}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onBlur={(e) => {
+                        if (renameCancel.current) renameCancel.current = false;
+                        else renameTrack(track.id, e.target.value.trim() || track.name);
+                        setRenamingTrackId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                        else if (e.key === 'Escape') {
+                          renameCancel.current = true;
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      className="h-5 w-28 rounded bg-surface px-1 text-[10px] text-ink outline-none ring-1 ring-brand"
+                    />
+                  ) : (
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onDoubleClick={() => setRenamingTrackId(track.id)}
+                      title="Double-click to rename"
+                      className="max-w-[8rem] truncate rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-ink-muted hover:text-ink"
+                    >
+                      {track.name}
+                    </button>
+                  )}
+                  {track.locked && (
+                    <span className="grid h-5 w-5 place-items-center rounded bg-black/50 text-ink-muted">
+                      <Lock size={12} />
+                    </span>
+                  )}
+                  {track.hidden && (
+                    <span className="grid h-5 w-5 place-items-center rounded bg-black/50 text-ink-muted">
+                      <EyeOff size={12} />
+                    </span>
+                  )}
+                  {track.muted && (
+                    <span className="grid h-5 w-5 place-items-center rounded bg-black/50 text-danger">
+                      <VolumeX size={12} />
+                    </span>
+                  )}
+                </div>
                 {clips
                   .filter((c) => c.trackId === track.id)
-                  .map((clip) => (
-                    <TimelineClip
-                      key={clip.id}
-                      clip={clip}
-                      media={media.find((m) => m.id === clip.mediaId)}
-                      pxPerSec={pxPerSec}
-                      currentTime={currentTime}
-                      active={clip.id === activeId}
-                      selected={selectedIds.includes(clip.id)}
-                      onBodyDown={(e) => onClipBodyDown(e, clip.id)}
-                      onHandleDown={(e, edge) => onHandleDown(e, clip.id, edge)}
-                      onContext={(e) => openClipMenu(e, clip.id)}
-                      onKeyframeClick={(at) => {
-                        setActiveClip(clip.id);
-                        setPlaying(false);
-                        setCurrentTime(clip.start + at);
-                      }}
-                    />
-                  ))}
+                  .map((clip) => {
+                    const node = (
+                      <TimelineClip
+                        key={clip.id}
+                        clip={clip}
+                        media={media.find((m) => m.id === clip.mediaId)}
+                        pxPerSec={pxPerSec}
+                        currentTime={currentTime}
+                        active={clip.id === activeId}
+                        selected={selectedIds.includes(clip.id)}
+                        onBodyDown={(e) => onClipBodyDown(e, clip.id)}
+                        onHandleDown={(e, edge) => onHandleDown(e, clip.id, edge)}
+                        onContext={(e) => openClipMenu(e, clip.id)}
+                        onKeyframeClick={(at) => {
+                          setActiveClip(clip.id);
+                          setPlaying(false);
+                          setCurrentTime(clip.start + at);
+                        }}
+                      />
+                    );
+                    // A locked track's clips can't be grabbed, trimmed or selected.
+                    return track.locked ? (
+                      <div key={clip.id} className="pointer-events-none opacity-60">
+                        {node}
+                      </div>
+                    ) : (
+                      node
+                    );
+                  })}
               </div>
             ))}
           </div>

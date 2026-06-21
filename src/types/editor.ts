@@ -60,6 +60,8 @@ export interface Track {
   name: string;
   hidden: boolean;
   muted: boolean;
+  /** When locked, the track's clips can't be selected, moved, trimmed or edited. */
+  locked?: boolean;
 }
 
 export type TextAlign = 'left' | 'center' | 'right';

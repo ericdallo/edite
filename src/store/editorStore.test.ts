@@ -1035,3 +1035,39 @@ describe('addShapeClip', () => {
     expect(s.activeClipId).toBe(s.clips[0].id);
   });
 });
+
+describe('track ordering, rename and lock', () => {
+  beforeEach(() => {
+    store.setState({
+      media: [makeMedia({ id: 'm1', kind: 'video', duration: 10 })],
+      tracks: [makeTrack({ id: 't1', name: 'A' }), makeTrack({ id: 't2', name: 'B' })],
+      clips: [
+        makeClip({ id: 'c1', mediaId: 'm1', trackId: 't1' }),
+        makeClip({ id: 'c2', mediaId: 'm1', trackId: 't2' }),
+      ],
+    });
+  });
+
+  it('moves a track up and down and clamps at the ends', () => {
+    get().moveTrack('t2', 'up');
+    expect(get().tracks.map((t) => t.id)).toEqual(['t2', 't1']);
+    get().moveTrack('t2', 'up'); // already first: no-op
+    expect(get().tracks.map((t) => t.id)).toEqual(['t2', 't1']);
+    get().moveTrack('t2', 'down');
+    expect(get().tracks.map((t) => t.id)).toEqual(['t1', 't2']);
+  });
+
+  it('renames a track', () => {
+    get().renameTrack('t1', 'Intro');
+    expect(get().tracks.find((t) => t.id === 't1')?.name).toBe('Intro');
+  });
+
+  it('locks a track and drops its clips from the selection', () => {
+    get().selectClips(['c1', 'c2']);
+    get().setTrackLocked('t1', true);
+    expect(get().tracks.find((t) => t.id === 't1')?.locked).toBe(true);
+    expect(get().selectedIds).toEqual(['c2']);
+    get().setTrackLocked('t1', false);
+    expect(get().tracks.find((t) => t.id === 't1')?.locked).toBe(false);
+  });
+});

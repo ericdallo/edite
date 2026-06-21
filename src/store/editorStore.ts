@@ -254,6 +254,10 @@ export interface EditorState {
   pruneEmptyTracks: () => void;
   setTrackMuted: (id: string, muted: boolean) => void;
   setTrackHidden: (id: string, hidden: boolean) => void;
+  setTrackLocked: (id: string, locked: boolean) => void;
+  renameTrack: (id: string, name: string) => void;
+  /** Reorder a track one row up or down, which also re-stacks the composite. */
+  moveTrack: (id: string, dir: 'up' | 'down') => void;
 
   updateClip: (id: string, patch: Partial<Clip>) => void;
   updateClips: (ids: string[], patch: Partial<Clip>) => void;
@@ -724,6 +728,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({ tracks: s.tracks.map((t) => (t.id === id ? { ...t, muted } : t)) })),
   setTrackHidden: (id, hidden) =>
     set((s) => ({ tracks: s.tracks.map((t) => (t.id === id ? { ...t, hidden } : t)) })),
+  setTrackLocked: (id, locked) =>
+    set((s) => {
+      const tracks = s.tracks.map((t) => (t.id === id ? { ...t, locked } : t));
+      if (!locked) return { tracks };
+      // Locking drops its clips from the selection so they can't be keyboard-edited.
+      const lockedIds = new Set(s.clips.filter((c) => c.trackId === id).map((c) => c.id));
+      return {
+        tracks,
+        selectedIds: s.selectedIds.filter((cid) => !lockedIds.has(cid)),
+        activeClipId: s.activeClipId && lockedIds.has(s.activeClipId) ? null : s.activeClipId,
+      };
+    }),
+  renameTrack: (id, name) =>
+    set((s) => ({ tracks: s.tracks.map((t) => (t.id === id ? { ...t, name } : t)) })),
+  moveTrack: (id, dir) =>
+    set((s) => {
+      const i = s.tracks.findIndex((t) => t.id === id);
+      if (i < 0) return {};
+      const j = dir === 'up' ? i - 1 : i + 1;
+      if (j < 0 || j >= s.tracks.length) return {};
+      const tracks = s.tracks.slice();
+      [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+      return { tracks };
+    }),
 
   updateClip: (id, patch) =>
     set((state) => ({
