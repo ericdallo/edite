@@ -133,6 +133,7 @@ export function buildExportPlan(
           chromaKey: clip.chromaKey,
           effects: clip.effects,
           mask: clip.mask,
+          crop: clip.crop,
           blendMode: clip.blendMode,
           // The transition (dissolve/dip) attaches to the first segment.
           transition: i === 0 ? clip.transition : undefined,
@@ -167,6 +168,7 @@ export function buildExportPlan(
           chromaKey: clip.chromaKey,
           effects: clip.effects,
           mask: clip.mask,
+          crop: clip.crop,
           blendMode: clip.blendMode,
           transition: clip.transition,
           keyframes: clip.keyframes,

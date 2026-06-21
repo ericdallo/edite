@@ -148,6 +148,13 @@ describe('buildExportCommand video graph', () => {
     expect(g).toContain('hypot(X-0.50000*W');
     expect(graphOf(build([makeExportClip()]))).not.toContain("a='alpha(X,Y)*(1-clip");
   });
+
+  it('crops the source before the cover scale for a cropped clip', () => {
+    const g = graphOf(build([makeExportClip({ crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.6 } })]));
+    expect(g).toContain('crop=iw*0.500:ih*0.600:iw*0.100:ih*0.200');
+    expect(g.indexOf('crop=iw*')).toBeLessThan(g.indexOf('force_original_aspect_ratio'));
+    expect(graphOf(build([makeExportClip()]))).not.toContain('crop=iw*');
+  });
 });
 
 describe('buildExportCommand grade intensity', () => {

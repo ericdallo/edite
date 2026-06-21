@@ -1,5 +1,5 @@
 import { isAudioFormat, TEXT_ANIM_OFFSET, textAnimUnit } from '@/types/editor';
-import type { BlendMode, ChromaKey, ClipMask, ColorAdjust, ExportFormat, ExportQuality, Keyframe, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId, VideoEffects } from '@/types/editor';
+import type { BlendMode, ChromaKey, ClipMask, ColorAdjust, ExportFormat, ExportQuality, Keyframe, Rect, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId, VideoEffects } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { ffmpegEffectsFilter } from '@/lib/effects';
 import { maskAlphaExpr } from '@/lib/mask';
@@ -52,6 +52,8 @@ export interface ExportClip {
   effects?: VideoEffects;
   /** shape mask cutting the clip (geq alpha over the clip frame). */
   mask?: ClipMask;
+  /** source crop (fractions 0..1) applied before the cover scale. */
+  crop?: Rect;
   /** blend mode against the layers below (absent = normal `overlay`). */
   blendMode?: BlendMode;
   /** synthetic blurred-cover background layer (base clip scaled to fill + `gblur`). */
@@ -368,13 +370,18 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // whole canvas (rect is full) and softened; it composites first (bottom) so
     // fitted clips and their bars sit over it.
     const blur = c.bgBlur ? `,gblur=sigma=${Math.max(6, Math.round(Math.min(W, H) / 50))}` : '';
+    // Source crop: keep a sub-rectangle of the media (in source pixels) before
+    // orientation and the cover scale, matching the preview's crop positioning.
+    const crop = c.crop
+      ? `crop=iw*${fmt(c.crop.w)}:ih*${fmt(c.crop.h)}:iw*${fmt(c.crop.x)}:ih*${fmt(c.crop.y)},`
+      : '';
     if (c.kind === 'image' || c.kind === 'text' || c.kind === 'shape') {
       const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
-      emit(`${pts}${orient}${cover}${blur}`);
+      emit(`${pts}${crop}${orient}${cover}${blur}`);
     } else {
       const base = Math.abs(c.speed - 1) > 1e-3 ? `(PTS-STARTPTS)/${c.speed}` : 'PTS-STARTPTS';
       const rev = c.reversed ? 'reverse,' : '';
-      emit(`trim=${fmt(c.in)}:${fmt(c.out)},${rev}setpts=${base}${delay},${orient}${cover}${blur}`);
+      emit(`trim=${fmt(c.in)}:${fmt(c.out)},${rev}setpts=${base}${delay},${crop}${orient}${cover}${blur}`);
     }
     // A fade-to-color transition: a solid dip between the previous clip (already
     // in the accumulator) and this one, peaking opaque at the overlap midpoint.

@@ -17,6 +17,11 @@ export interface Rect {
 
 export const FULL_RECT: Rect = { x: 0, y: 0, w: 1, h: 1 };
 
+/** True when a rect covers the whole frame (no crop / full placement). */
+export function isFullRect(r?: Rect | null): boolean {
+  return !r || (r.x <= 1e-4 && r.y <= 1e-4 && r.w >= 1 - 1e-4 && r.h >= 1 - 1e-4);
+}
+
 /**
  * A transform keyframe: the clip's placement `rect` at a moment `at` (timeline
  * seconds from the clip's start). A clip's keyframes are interpolated
@@ -140,6 +145,8 @@ export interface Clip {
   effects?: VideoEffects;
   /** Shape mask cutting the clip to a linear / circle / rectangle; absent = none. */
   mask?: ClipMask;
+  /** Source crop: the sub-rectangle of the media (fractions 0..1) kept before the cover scale; absent = full frame. */
+  crop?: Rect;
   /** Blend mode against the layers below this overlay clip (absent = normal). */
   blendMode?: BlendMode;
   /**

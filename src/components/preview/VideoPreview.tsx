@@ -16,6 +16,7 @@ import {
 import { cssColorFilter, needsGradeShader } from '@/lib/color';
 import { cssEffectsFilter, hasShaderEffects } from '@/lib/effects';
 import { maskCssStyle } from '@/lib/mask';
+import { cropMediaStyle } from '@/lib/crop';
 import { cssBlendMode } from '@/lib/blend';
 import { clamp, cn } from '@/lib/utils';
 import { resolveSubtool } from '@/components/tools/subtools';
@@ -377,6 +378,23 @@ export function VideoPreview() {
             );
           }
           const orient = orientMediaStyle(clip, rect.w * box.w, rect.h * box.h);
+          // A source crop positions the media element to show only the kept
+          // region, cover-filling the box (and folds in orientation), exactly like
+          // the export's `crop` before the cover scale. Supersedes the plain orient
+          // sizing; uncropped clips keep the cheap object-cover path unchanged.
+          const cropStyle = clip.crop
+            ? cropMediaStyle(
+                clip.crop,
+                rect.w * box.w,
+                rect.h * box.h,
+                m.width,
+                m.height,
+                clip.rotation,
+                clip.flipH,
+                clip.flipV,
+              )
+            : undefined;
+          const geom = cropStyle ?? orient;
           // A clip with chroma, any deeper-grade field, or a shader effect
           // (pixelate/RGB-split/grain) renders through the WebGL clip shader
           // (which owns its color); legacy-only grades keep the cheap CSS-filter
@@ -388,10 +406,10 @@ export function VideoPreview() {
           const blurCss = cssEffectsFilter(clip.effects, Math.min(rect.w * box.w, rect.h * box.h));
           const colorCss = gl ? undefined : cssColorFilter(clip.color);
           const filter = [colorCss, blurCss].filter(Boolean).join(' ') || undefined;
-          // Compose orientation transform with the color/blur filter on one element.
+          // Compose the geometry (crop or orientation) with the color/blur filter.
           const mediaStyle: CSSProperties | undefined =
-            orient || filter ? { ...(orient ?? {}), filter } : undefined;
-          const mediaCls = cn('object-cover', orient ? '' : 'h-full w-full');
+            geom || filter ? { ...(geom ?? {}), filter } : undefined;
+          const mediaCls = cropStyle ? '' : cn('object-cover', orient ? '' : 'h-full w-full');
           const registerVideo = (el: HTMLVideoElement | null) => {
             if (el) mediaEls.current.set(clip.id, el);
             else mediaEls.current.delete(clip.id);

@@ -63,6 +63,18 @@ export function TransformTool() {
 
   const count = selectedIds.length;
   const isMedia = !clip.text && !clip.shape;
+  const crop = clip.crop ?? FULL_RECT;
+  const setCrop = (patch: Partial<Rect>) =>
+    updateClips(selectedIds, { crop: { ...crop, ...patch } });
+  const cropRow = (label: string, value: number, min: number, max: number, onChange: (v: number) => void) => (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-sm">
+        <span className="text-ink-muted">{label}</span>
+        <span className="font-mono text-ink">{Math.round(value * 100)}%</span>
+      </div>
+      <Slider min={min} max={max} step={0.01} value={value} onChange={onChange} ariaLabel={`Crop ${label}`} />
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -111,6 +123,31 @@ export function TransformTool() {
               <RotateCw size={16} />
             </OrientButton>
           </div>
+        </div>
+      )}
+
+      {isMedia && (
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-ink-muted">Crop</span>
+            {clip.crop && (
+              <button
+                onClick={() => updateClips(selectedIds, { crop: undefined })}
+                className="text-xs text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          <div className="space-y-3">
+            {cropRow('Left', crop.x, 0, 0.9, (v) => setCrop({ x: v, w: Math.min(crop.w, 1 - v) }))}
+            {cropRow('Top', crop.y, 0, 0.9, (v) => setCrop({ y: v, h: Math.min(crop.h, 1 - v) }))}
+            {cropRow('Width', crop.w, 0.1, 1 - crop.x, (v) => setCrop({ w: v }))}
+            {cropRow('Height', crop.h, 0.1, 1 - crop.y, (v) => setCrop({ h: v }))}
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+            Trims the source frame; the kept area fills the clip box.
+          </p>
         </div>
       )}
 
