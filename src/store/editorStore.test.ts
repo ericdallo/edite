@@ -210,6 +210,13 @@ describe('moveClip', () => {
     expect(get().clips[0].trackId).toBe('t1');
     expect(get().clips[0].start).toBe(3);
   });
+
+  it('relocates a clip onto another existing track', () => {
+    store.setState({ tracks: [makeTrack({ id: 't1' }), makeTrack({ id: 't2' })] });
+    get().moveClip('c1', 2, 't2');
+    expect(get().clips[0].trackId).toBe('t2');
+    expect(get().clips[0].start).toBe(2);
+  });
 });
 
 describe('moveClipToNewTrack', () => {

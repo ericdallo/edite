@@ -110,6 +110,8 @@ export function Timeline() {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [dragClipId, setDragClipId] = useState<string | null>(null);
   const [overNewTrack, setOverNewTrack] = useState(false);
+  // The existing track a dragged clip would drop onto (for the row highlight).
+  const [dropTrackId, setDropTrackId] = useState<string | null>(null);
   const [renamingTrackId, setRenamingTrackId] = useState<string | null>(null);
   // Set on Escape so the input's blur (fired as it unmounts) cancels instead of commits.
   const renameCancel = useRef(false);
@@ -408,6 +410,8 @@ export function Timeline() {
       const trackId = toNewTrack
         ? useEditorStore.getState().clips.find((c) => c.id === clipId)?.trackId ?? clip.trackId
         : (lockedTarget ? clip.trackId : dropTarget) ?? clip.trackId;
+      // Highlight the target row when relocating onto a different existing track.
+      setDropTrackId(!toNewTrack && !lockedTarget && dropTarget && dropTarget !== clip.trackId ? dropTarget : null);
       moveClip(clipId, newStart, trackId);
     };
     const up = (ev: PointerEvent) => {
@@ -417,6 +421,7 @@ export function Timeline() {
       if (longPressed) {
         setDragClipId(null);
         setOverNewTrack(false);
+        setDropTrackId(null);
         return;
       }
       if (!moved) {
@@ -431,6 +436,7 @@ export function Timeline() {
       if (moved) pruneEmptyTracks();
       setDragClipId(null);
       setOverNewTrack(false);
+      setDropTrackId(null);
     };
     beginDrag(e, move, up);
   };
@@ -720,7 +726,11 @@ export function Timeline() {
             {rowsTopOrder.map((track) => (
               <div
                 key={track.id}
-                className={cn('relative border-b border-line/40', track.locked && 'bg-surface-2/30')}
+                className={cn(
+                  'relative border-b border-line/40',
+                  track.locked && 'bg-surface-2/30',
+                  dropTrackId === track.id && 'bg-brand/10 ring-2 ring-inset ring-brand/60',
+                )}
                 style={{ height: ROW_H }}
                 onContextMenu={(e) => openTrackMenu(e, track.id)}
               >
