@@ -3,8 +3,7 @@ import { useEditorStore } from '@/store/editorStore';
 
 /**
  * Makes the browser Back button / gesture undo instead of leaving the editor
- * (a common Android frustration), and warns before the page actually unloads
- * with work in progress.
+ * (a common Android frustration).
  *
  * While there are edits to undo we keep one extra "buffer" entry on the history
  * stack. Pressing Back pops that buffer and fires popstate, where we run undo
@@ -36,13 +35,6 @@ export function useNavigationGuard(): void {
       if (useEditorStore.getState().past.length > 0) arm();
     };
 
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      const s = useEditorStore.getState();
-      if (s.media.length === 0 && s.clips.length === 0) return;
-      e.preventDefault();
-      e.returnValue = ''; // some browsers need a returnValue set to show the prompt
-    };
-
     // Keep a buffer armed whenever there's undo history worth protecting.
     const sync = () => {
       const s = useEditorStore.getState();
@@ -52,10 +44,8 @@ export function useNavigationGuard(): void {
     sync();
 
     window.addEventListener('popstate', onPopState);
-    window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
       window.removeEventListener('popstate', onPopState);
-      window.removeEventListener('beforeunload', onBeforeUnload);
       unsubscribe();
     };
   }, []);
