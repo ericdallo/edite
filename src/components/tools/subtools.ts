@@ -14,6 +14,7 @@ import {
   Spline,
   Type,
   Volume2,
+  Wand2,
 } from 'lucide-react';
 import type { ToolId } from '@/store/editorStore';
 
@@ -48,6 +49,7 @@ export const SUBTOOLS: Partial<Record<ToolId, SubtoolDef[]>> = {
   effects: [
     { id: 'filters', label: 'Filters', icon: Palette, desc: 'One-tap colour looks' },
     { id: 'adjust', label: 'Adjust', icon: SlidersHorizontal, desc: 'Light, colour & effects grade' },
+    { id: 'effects', label: 'Effects', icon: Wand2, desc: 'Blur, pixelate, RGB split & grain' },
     { id: 'blend', label: 'Blend', icon: Layers, desc: 'Mix this clip with the layers below' },
     { id: 'transition', label: 'Transition', icon: Blend, desc: 'Cross-fade from the previous clip' },
     { id: 'background', label: 'Remove BG', icon: Eraser, desc: 'Knock out a solid background' },

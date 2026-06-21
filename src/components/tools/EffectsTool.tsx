@@ -28,6 +28,7 @@ import {
   NEUTRAL_COLOR,
   TRANSITIONS,
   type TransitionId,
+  type VideoEffects,
 } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 
@@ -46,6 +47,7 @@ const TRANSITION_ICONS: Record<TransitionId, LucideIcon> = {
   circleOpen: Aperture,
 };
 import { isNeutralColor } from '@/lib/color';
+import { isNeutralEffects } from '@/lib/effects';
 import { LUT_ORIGINAL_THUMB, lutsByCategory, lutThumbUrl } from '@/lib/lut';
 import { renderCustomLutThumb } from '@/lib/lutThumb';
 import { canAddTransition, maxTransitionDuration } from '@/lib/timeline';
@@ -213,6 +215,8 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
   // of the current intensity (so pulling intensity to 0 doesn't hide the slider).
   const hasLook = clip.color != null && !isNeutralColor({ ...clip.color, intensity: 1 });
   const set = (patch: Partial<ColorAdjust>) => updateClips(selectedIds, { color: { ...color, ...patch } });
+  const effects: VideoEffects = clip.effects ?? {};
+  const setFx = (patch: Partial<VideoEffects>) => updateClips(selectedIds, { effects: { ...effects, ...patch } });
   const setLut = (id?: string) => {
     const next = { ...color, lut: id };
     updateClips(selectedIds, { color: id == null && isNeutralColor(next) ? undefined : next });
@@ -541,6 +545,66 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
           />
         </div>
         {resetColor}
+        {scopeNote}
+      </div>
+    );
+  }
+
+  if (sub === 'effects') {
+    const fx: Required<VideoEffects> = {
+      blur: effects.blur ?? 0,
+      pixelate: effects.pixelate ?? 0,
+      rgbSplit: effects.rgbSplit ?? 0,
+      grain: effects.grain ?? 0,
+    };
+    return (
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <Adjust
+            label="Blur"
+            value={fx.blur}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(v) => setFx({ blur: v })}
+            fmt={amt}
+          />
+          <Adjust
+            label="Pixelate"
+            value={fx.pixelate}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(v) => setFx({ pixelate: v })}
+            fmt={amt}
+          />
+          <Adjust
+            label="RGB split"
+            value={fx.rgbSplit}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(v) => setFx({ rgbSplit: v })}
+            fmt={amt}
+          />
+          <Adjust
+            label="Grain"
+            value={fx.grain}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(v) => setFx({ grain: v })}
+            fmt={amt}
+          />
+        </div>
+        {!isNeutralEffects(clip.effects) && (
+          <button
+            onClick={() => updateClips(selectedIds, { effects: undefined })}
+            className="text-xs text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+          >
+            Reset effects
+          </button>
+        )}
         {scopeNote}
       </div>
     );

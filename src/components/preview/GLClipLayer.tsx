@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useRef } from 'react';
-import type { ChromaKey, ColorAdjust } from '@/types/editor';
+import type { ChromaKey, ColorAdjust, VideoEffects } from '@/types/editor';
 import { gradeUniforms } from '@/lib/color';
+import { effectUniforms } from '@/lib/effects';
 import { lutUrl, packLut, parseCube } from '@/lib/lut';
 import { hexToRgb01 } from '@/lib/chroma';
 
@@ -28,6 +29,10 @@ uniform float u_vig;    // vignette 0..1
 uniform float u_sharpen;
 uniform float u_intensity; // grade strength 0..1
 uniform vec2 u_texel;   // 1/width, 1/height
+uniform float u_pixelate; // mosaic strength 0..1 (block derived from texture size)
+uniform float u_rgbsplit; // channel sample offset in UV
+uniform float u_grain;    // grain amplitude (±) on 0..1 color
+uniform float u_seed;     // per-frame grain seed
 uniform float u_chroma; // 1 = key enabled
 uniform vec3 u_key;
 uniform float u_sim;
@@ -62,6 +67,12 @@ vec2 rgb2uv(vec3 c) {
   return vec2(u, v);
 }
 
+// Cheap hash noise for film grain; the seed shifts it every frame so the grain
+// shimmers like the export's temporal noise filter (a look-alike, not a bit-match).
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(12.9898, 78.233)) + u_seed) * 43758.5453);
+}
+
 // SVG/CSS hue-rotate matrix (column-major for GLSL's mat3 * vec3).
 mat3 hueMat(float a) {
   float c = cos(a);
@@ -81,17 +92,36 @@ float tone(float x) {
 }
 
 void main() {
-  vec4 src = texture2D(u_tex, v_uv);
+  // Static effects that resample the source come first (mosaic block snap, then
+  // a per-channel split), mirroring ffmpeg's pixelize/rgbashift; the grade then
+  // runs on the sampled colour and grain is added after the key (see below).
+  vec2 uv = v_uv;
+  if (u_pixelate > 0.0) {
+    vec2 texSize = vec2(1.0 / u_texel.x, 1.0 / u_texel.y);
+    float block = max(1.0, u_pixelate * 0.12 * min(texSize.x, texSize.y));
+    vec2 cell = block * u_texel;
+    uv = (floor(uv / cell) + 0.5) * cell;
+  }
+  vec4 src;
+  if (u_rgbsplit > 0.0) {
+    vec2 o = vec2(u_rgbsplit, 0.0);
+    float r = texture2D(u_tex, uv + o).r;
+    vec4 mid = texture2D(u_tex, uv);
+    float b = texture2D(u_tex, uv - o).b;
+    src = vec4(r, mid.g, b, mid.a);
+  } else {
+    src = texture2D(u_tex, uv);
+  }
   vec3 rgb = src.rgb;
 
   // Unsharp detail from the raw neighbourhood, re-added after grading.
   vec3 detail = vec3(0.0);
   if (u_sharpen > 0.0) {
     vec3 blur = (
-      texture2D(u_tex, v_uv + vec2(u_texel.x, 0.0)).rgb +
-      texture2D(u_tex, v_uv - vec2(u_texel.x, 0.0)).rgb +
-      texture2D(u_tex, v_uv + vec2(0.0, u_texel.y)).rgb +
-      texture2D(u_tex, v_uv - vec2(0.0, u_texel.y)).rgb) * 0.25;
+      texture2D(u_tex, uv + vec2(u_texel.x, 0.0)).rgb +
+      texture2D(u_tex, uv - vec2(u_texel.x, 0.0)).rgb +
+      texture2D(u_tex, uv + vec2(0.0, u_texel.y)).rgb +
+      texture2D(u_tex, uv - vec2(0.0, u_texel.y)).rgb) * 0.25;
     detail = rgb - blur;
   }
 
@@ -118,6 +148,13 @@ void main() {
     float d = length(rgb2uv(rgb) - rgb2uv(u_key));
     a *= smoothstep(u_sim, u_sim + max(u_blend, 0.0001), d);
   }
+  // Grain last (after the key, matching ffmpeg's color->chroma->noise order) so
+  // it speckles the output without biasing the key decision.
+  if (u_grain > 0.0) {
+    vec2 texSize = vec2(1.0 / u_texel.x, 1.0 / u_texel.y);
+    float n = hash(floor(uv * texSize));
+    rgb = clamp(rgb + (n - 0.5) * 2.0 * u_grain, 0.0, 1.0);
+  }
   gl_FragColor = vec4(rgb * a, a);
 }`;
 
@@ -137,6 +174,7 @@ export function GLClipLayer({
   getSource,
   grade,
   chroma,
+  effects,
   lut,
   cube,
   className,
@@ -145,6 +183,8 @@ export function GLClipLayer({
   getSource: () => HTMLVideoElement | HTMLImageElement | null;
   grade?: ColorAdjust | null;
   chroma?: ChromaKey | null;
+  /** static effects rendered in-shader (pixelate / RGB-split / grain); blur is CSS. */
+  effects?: VideoEffects | null;
   /** LUT look id to apply (bundled or `custom:`), or null for none. */
   lut?: string | null;
   /** raw `.cube` text for a custom LUT, when its bytes aren't fetchable by URL. */
@@ -156,11 +196,13 @@ export function GLClipLayer({
   const getSourceRef = useRef(getSource);
   const gradeRef = useRef(grade);
   const chromaRef = useRef(chroma);
+  const effectsRef = useRef(effects);
   const lutRef = useRef(lut);
   const cubeRef = useRef(cube);
   getSourceRef.current = getSource;
   gradeRef.current = grade;
   chromaRef.current = chroma;
+  effectsRef.current = effects;
   lutRef.current = lut;
   cubeRef.current = cube;
 
@@ -259,6 +301,10 @@ export function GLClipLayer({
     const uBlend = u('u_blend');
     const uLutSize = u('u_lutSize');
     const uHasLut = u('u_hasLut');
+    const uPixelate = u('u_pixelate');
+    const uRgbsplit = u('u_rgbsplit');
+    const uGrain = u('u_grain');
+    const uSeed = u('u_seed');
     gl.uniform1i(u('u_tex'), 0);
     gl.uniform1i(u('u_lut'), 1);
     gl.clearColor(0, 0, 0, 0);
@@ -320,6 +366,12 @@ export function GLClipLayer({
           gl.uniform1f(uSharpen, g.sharpen);
           gl.uniform1f(uIntensity, g.intensity);
           gl.uniform2f(uTexel, 1 / canvas.width, 1 / canvas.height);
+          const fx = effectUniforms(effectsRef.current);
+          gl.uniform1f(uPixelate, fx.pixelate);
+          gl.uniform1f(uRgbsplit, fx.rgbSplit);
+          gl.uniform1f(uGrain, fx.grain);
+          // Reseed the grain each frame so it shimmers; 0 when grain is off.
+          gl.uniform1f(uSeed, fx.grain > 0 ? Math.random() * 100 : 0);
           const ck = chromaRef.current;
           if (ck) {
             const [r, gg, b] = hexToRgb01(ck.color);

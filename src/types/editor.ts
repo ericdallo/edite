@@ -136,6 +136,8 @@ export interface Clip {
   color?: ColorAdjust;
   /** Chroma key (green-screen removal); when set the key color becomes transparent. */
   chromaKey?: ChromaKey;
+  /** Static video effects (blur, pixelate, RGB-split, grain); absent = none. */
+  effects?: VideoEffects;
   /** Blend mode against the layers below this overlay clip (absent = normal). */
   blendMode?: BlendMode;
   /**
@@ -373,6 +375,24 @@ export interface ColorAdjust {
 }
 
 export const NEUTRAL_COLOR: ColorAdjust = { brightness: 1, contrast: 1, saturation: 1, hue: 0 };
+
+/**
+ * Static video effects layered on top of the color grade. Each is 0 = off ..
+ * 100, sized relative to the clip's frame so the look is resolution-independent.
+ * `blur` previews as CSS `blur()`; the other three preview through the WebGL
+ * clip shader. All four map to a matched ffmpeg node on export (`gblur`,
+ * `pixelize`, `rgbashift`, `noise`), applied after the grade and chroma key.
+ */
+export interface VideoEffects {
+  /** Gaussian blur, 0 (off) .. 100. */
+  blur?: number;
+  /** Pixelate / mosaic block size, 0 (off) .. 100. */
+  pixelate?: number;
+  /** RGB split / chromatic aberration, 0 (off) .. 100. */
+  rgbSplit?: number;
+  /** Film grain, 0 (off) .. 100. */
+  grain?: number;
+}
 
 /**
  * Chroma key (green-screen) settings. `color` is the keyed-out color (#rrggbb);

@@ -121,6 +121,24 @@ describe('buildExportCommand video graph', () => {
     expect(g).toContain('chromakey=0x00ff00:0.300:0.100');
     expect(graphOf(build([makeExportClip()]))).not.toContain('chromakey');
   });
+
+  it('injects the static-effects nodes for an affected clip and nothing for a plain one', () => {
+    const g = graphOf(build([makeExportClip({ effects: { blur: 100, pixelate: 100, rgbSplit: 100, grain: 100 } })]));
+    expect(g).toContain('pixelize=');
+    expect(g).toContain('rgbashift=');
+    expect(g).toContain('noise=alls=');
+    expect(g).toContain('gblur=sigma=');
+    expect(graphOf(build([makeExportClip()]))).not.toContain('pixelize=');
+  });
+
+  it('orders the effects after the colour grade', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({ color: { brightness: 1.2, contrast: 1, saturation: 1, hue: 0 }, effects: { grain: 50 } }),
+      ]),
+    );
+    expect(g.indexOf('eq=brightness')).toBeLessThan(g.indexOf('noise=alls='));
+  });
 });
 
 describe('buildExportCommand grade intensity', () => {

@@ -1,6 +1,7 @@
 import { isAudioFormat, TEXT_ANIM_OFFSET, textAnimUnit } from '@/types/editor';
-import type { BlendMode, ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId } from '@/types/editor';
+import type { BlendMode, ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId, VideoEffects } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
+import { ffmpegEffectsFilter } from '@/lib/effects';
 import { lutFileName } from '@/lib/lut';
 import { ffmpegChromaFilter } from '@/lib/chroma';
 import { ffmpegBlendMode } from '@/lib/blend';
@@ -46,6 +47,8 @@ export interface ExportClip {
   color?: ColorAdjust;
   /** chroma key (green-screen removal), rendered as a chromakey filter. */
   chromaKey?: ChromaKey;
+  /** static effects (blur/pixelate/RGB-split/grain), applied after grade + key. */
+  effects?: VideoEffects;
   /** blend mode against the layers below (absent = normal `overlay`). */
   blendMode?: BlendMode;
   /** synthetic blurred-cover background layer (base clip scaled to fill + `gblur`). */
@@ -286,6 +289,10 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     const blendGrade = colorF !== '' && intensity < 1 - 1e-3;
     const chromaF = ffmpegChromaFilter(c.chromaKey);
     const chroma = chromaF ? `,${chromaF}` : '';
+    // Static effects ride after the grade + key, sized off the clip's frame so
+    // the block/shift/blur scale with the clip exactly like the preview shader.
+    const effF = ffmpegEffectsFilter(c.effects, rw, rh);
+    const fx = effF ? `,${effF}` : '';
     const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
     // Transition INTO this clip, by family: dissolve ramps alpha over the whole
     // overlap; fade reveals it in the second half (a color dip below covers the
@@ -335,7 +342,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
         }
       }
     }
-    const tail = `${chroma}${op}${trans}${taFade}`;
+    const tail = `${chroma}${fx}${op}${trans}${taFade}`;
     // Emit the clip's video chain from its pre-color `head`. Without an intensity
     // dial it's one linear statement (unchanged); with one, the grade runs on a
     // split branch and is blended over the original at the chosen strength.

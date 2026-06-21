@@ -14,6 +14,7 @@ import {
   transitionRenderAt,
 } from '@/lib/timeline';
 import { cssColorFilter, needsGradeShader } from '@/lib/color';
+import { cssEffectsFilter, hasShaderEffects } from '@/lib/effects';
 import { cssBlendMode } from '@/lib/blend';
 import { clamp, cn } from '@/lib/utils';
 import { resolveSubtool } from '@/components/tools/subtools';
@@ -375,12 +376,18 @@ export function VideoPreview() {
             );
           }
           const orient = orientMediaStyle(clip, rect.w * box.w, rect.h * box.h);
-          // A clip with chroma or any deeper-grade field renders through the WebGL
-          // grade shader (which owns its color); legacy-only grades keep the cheap
-          // CSS-filter path with no WebGL overhead.
-          const gl = (m.kind === 'video' && clip.chromaKey != null) || needsGradeShader(clip.color);
-          const filter = gl ? undefined : cssColorFilter(clip.color);
-          // Compose orientation transform with the color filter on one element.
+          // A clip with chroma, any deeper-grade field, or a shader effect
+          // (pixelate/RGB-split/grain) renders through the WebGL clip shader
+          // (which owns its color); legacy-only grades keep the cheap CSS-filter
+          // path with no WebGL overhead. Blur is always a CSS `filter` either way.
+          const gl =
+            (m.kind === 'video' && clip.chromaKey != null) ||
+            needsGradeShader(clip.color) ||
+            hasShaderEffects(clip.effects);
+          const blurCss = cssEffectsFilter(clip.effects, Math.min(rect.w * box.w, rect.h * box.h));
+          const colorCss = gl ? undefined : cssColorFilter(clip.color);
+          const filter = [colorCss, blurCss].filter(Boolean).join(' ') || undefined;
+          // Compose orientation transform with the color/blur filter on one element.
           const mediaStyle: CSSProperties | undefined =
             orient || filter ? { ...(orient ?? {}), filter } : undefined;
           const mediaCls = cn('object-cover', orient ? '' : 'h-full w-full');
@@ -423,6 +430,7 @@ export function VideoPreview() {
                     }
                     grade={clip.color}
                     chroma={m.kind === 'video' ? clip.chromaKey : null}
+                    effects={clip.effects}
                     lut={clip.color?.lut}
                     cube={customLuts.find((l) => l.id === clip.color?.lut)?.cube ?? null}
                     className={mediaCls}
