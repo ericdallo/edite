@@ -9,6 +9,7 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   AudioLines,
+  Camera,
   ChevronsLeft,
   Clipboard,
   Copy,
@@ -16,6 +17,7 @@ import {
   Diamond,
   Eye,
   EyeOff,
+  Loader2,
   Lock,
   LockOpen,
   Magnet,
@@ -35,6 +37,7 @@ import { MIN_CLIP, ZOOM_MAX, ZOOM_MIN } from '@/lib/constants';
 import { clamp, cn, formatClock } from '@/lib/utils';
 import { ContextMenu, type ContextMenuState, type MenuItem } from '@/components/ui/ContextMenu';
 import { PlaybackControls } from '@/components/preview/PlaybackControls';
+import { useSnapshot } from '@/hooks/useSnapshot';
 import { TimelineClip } from './TimelineClip';
 import { Playhead } from './Playhead';
 import { ZoomControls } from './ZoomControls';
@@ -89,6 +92,7 @@ export function Timeline() {
   const setTrackLocked = useEditorStore((s) => s.setTrackLocked);
   const renameTrack = useEditorStore((s) => s.renameTrack);
   const moveTrack = useEditorStore((s) => s.moveTrack);
+  const { snapshot, busy: snapping } = useSnapshot();
 
   const displayDuration = Math.max(projectDuration(clips), 8);
   const hasSelection = selectedIds.length > 0;
@@ -663,6 +667,15 @@ export function Timeline() {
         </div>
 
         <div className="ml-auto flex items-center gap-1 lg:ml-0">
+          <button
+            onClick={() => !snapping && snapshot()}
+            disabled={snapping || clips.length === 0}
+            title="Save a PNG of the current frame"
+            aria-label="Snapshot current frame"
+            className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+          >
+            {snapping ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+          </button>
           <button
             onClick={toggleSnap}
             title={snap ? 'Snapping on' : 'Snapping off'}

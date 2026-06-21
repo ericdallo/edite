@@ -49,6 +49,7 @@ const SHARE_MIME: Record<ExportFormat, string> = {
   gif: 'image/gif',
   mp3: 'audio/mpeg',
   wav: 'audio/wav',
+  png: 'image/png',
 };
 
 function Status({

@@ -530,7 +530,7 @@ export const BLEND_MODES: BlendModeOption[] = [
   { id: 'darken', label: 'Darken' },
 ];
 
-export type ExportFormat = 'mp4' | 'webm' | 'gif' | 'mp3' | 'wav';
+export type ExportFormat = 'mp4' | 'webm' | 'gif' | 'mp3' | 'wav' | 'png';
 export type ExportQuality = 'high' | 'medium' | 'low';
 
 /** Audio-only output formats (no video track is rendered). */

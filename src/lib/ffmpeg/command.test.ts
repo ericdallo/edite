@@ -545,3 +545,24 @@ describe('blurred background', () => {
     expect(graphOf(build([makeExportClip()]))).not.toContain('gblur');
   });
 });
+
+describe('buildExportCommand snapshot (png)', () => {
+  it('renders one rgb frame at the snapshot time as a png, no audio', () => {
+    const cmd = build([makeExportClip()], { format: 'png', snapshotTime: 2 });
+    expect(cmd.outputName).toBe('output.png');
+    expect(cmd.mime).toBe('image/png');
+    expect(graphOf(cmd)).toContain('format=rgb24[vout]');
+    const a = cmd.args;
+    expect(a).toContain('-update');
+    expect(a).toContain('-an');
+    expect(a[a.indexOf('-frames:v') + 1]).toBe('1');
+    expect(a[a.indexOf('-ss') + 1]).toBe('2.000');
+    expect(a[a.indexOf('-map') + 1]).toBe('[vout]');
+    expect(a[a.length - 1]).toBe('output.png');
+  });
+
+  it('clamps the snapshot time into the project duration', () => {
+    const cmd = build([makeExportClip()], { format: 'png', snapshotTime: 999, duration: 6 });
+    expect(cmd.args[cmd.args.indexOf('-ss') + 1]).toBe('5.999');
+  });
+});

@@ -80,6 +80,8 @@ export interface MultiExportParams {
   globalMuted: boolean;
   /** output canvas background color (hex, e.g. #000000) */
   background: string;
+  /** for the `png` format: timeline time (s) of the single composited frame to grab. */
+  snapshotTime?: number;
 }
 
 export interface BuiltCommand {
@@ -94,6 +96,7 @@ const MIME: Record<ExportFormat, string> = {
   gif: 'image/gif',
   mp3: 'audio/mpeg',
   wav: 'audio/wav',
+  png: 'image/png',
 };
 
 function fmt(n: number): string {
@@ -451,8 +454,32 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     graph.push(
       `[${acc}]split[gsrc][gen];[gen]palettegen=stats_mode=diff[pal];[gsrc][pal]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle[vout]`,
     );
+  } else if (p.format === 'png') {
+    graph.push(`[${acc}]format=rgb24[vout]`);
   } else {
     graph.push(`[${acc}]${p.format === 'mp4' ? 'format=yuv420p' : 'null'}[vout]`);
+  }
+
+  // A snapshot grabs a single composited frame at the playhead: seek the filtered
+  // stream to that time and write one PNG (no audio, no further encoding pass).
+  if (p.format === 'png') {
+    const t = Math.max(0, Math.min(p.snapshotTime ?? 0, Math.max(0, duration - 1e-3)));
+    const args = [
+      ...inputArgs,
+      '-filter_complex',
+      graph.join(';'),
+      '-map',
+      '[vout]',
+      '-ss',
+      fmt(t),
+      '-frames:v',
+      '1',
+      '-update',
+      '1',
+      '-an',
+      'output.png',
+    ];
+    return { args, outputName: 'output.png', mime: MIME.png };
   }
 
   const useAudio = !p.globalMuted && p.format !== 'gif';
