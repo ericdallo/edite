@@ -5,6 +5,7 @@ import {
   ASPECT_RATIOS,
   AUDIO_BITRATES,
   BACKGROUND_BLUR,
+  backgroundImageId,
   canvasSize,
   EXPORT_PRESETS,
   type ExportFormat,
@@ -212,7 +213,13 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
       if (controller.signal.aborted) throw new ExportCancelledError();
       setStage('processing');
 
-      const plan = buildExportPlan(tracks, clips, media, background === BACKGROUND_BLUR);
+      const plan = buildExportPlan(
+        tracks,
+        clips,
+        media,
+        background === BACKGROUND_BLUR,
+        backgroundImageId(background),
+      );
       const params: MultiExportParams = {
         canvasW,
         canvasH,

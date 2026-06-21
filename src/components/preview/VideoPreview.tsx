@@ -1,7 +1,7 @@
 import { type CSSProperties, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize, Minimize } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
-import { BACKGROUND_BLUR, type Clip, resolveAspectRatio } from '@/types/editor';
+import { BACKGROUND_BLUR, backgroundImageId, type Clip, resolveAspectRatio } from '@/types/editor';
 import {
   audioFadeGain,
   clipSourceAt,
@@ -142,6 +142,8 @@ export function VideoPreview() {
   );
 
   const blurBg = background === BACKGROUND_BLUR;
+  const imageBgId = backgroundImageId(background);
+  const imageBgUrl = imageBgId ? media.find((m) => m.id === imageBgId)?.url : undefined;
   // For a blurred background, the bottom-most video/image clip drives the backdrop.
   const bgBaseLayer = useMemo(
     () =>
@@ -275,9 +277,18 @@ export function VideoPreview() {
     >
       <div
         className="relative overflow-hidden rounded-xl shadow-2xl ring-1 ring-line"
-        style={{ width: box.w || '60%', height: box.h || '60%', backgroundColor: blurBg ? '#000000' : background }}
+        style={{
+          width: box.w || '60%',
+          height: box.h || '60%',
+          backgroundColor: blurBg || imageBgId ? '#000000' : background,
+        }}
         onClick={() => !interactive && setPlaying(!playing)}
       >
+        {imageBgUrl && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+            <img src={imageBgUrl} alt="" className="h-full w-full object-cover" />
+          </div>
+        )}
         {blurBg &&
           bgBaseLayer &&
           (() => {

@@ -1,6 +1,16 @@
-import { Aperture } from 'lucide-react';
-import { ASPECT_RATIOS, BACKGROUND_BLUR, BACKGROUND_SWATCHES, resolveAspectRatio } from '@/types/editor';
+import { type ChangeEvent, useRef } from 'react';
+import { Aperture, ImagePlus } from 'lucide-react';
+import {
+  ASPECT_RATIOS,
+  BACKGROUND_BLUR,
+  BACKGROUND_IMAGE_PREFIX,
+  BACKGROUND_SWATCHES,
+  backgroundImageId,
+  isImageBackground,
+  resolveAspectRatio,
+} from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
+import { useImportMedia } from '@/hooks/useImportMedia';
 import { cn } from '@/lib/utils';
 
 function RatioGlyph({ ratio }: { ratio: number }) {
@@ -19,9 +29,24 @@ export function AspectRatioTool({ sub = 'canvas' }: { sub?: string }) {
   const background = useEditorStore((s) => s.background);
   const setAspect = useEditorStore((s) => s.setAspect);
   const setBackground = useEditorStore((s) => s.setBackground);
+  const { importFiles } = useImportMedia();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onPickImageFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    e.target.value = '';
+    if (!files || files.length === 0) return;
+    const before = new Set(useEditorStore.getState().media.map((m) => m.id));
+    await importFiles(files, { addToTimeline: false });
+    const added = useEditorStore.getState().media.find((m) => !before.has(m.id) && m.kind === 'image');
+    if (added) setBackground(`${BACKGROUND_IMAGE_PREFIX}${added.id}`);
+  };
 
   if (sub === 'background') {
     const isBlur = background === BACKGROUND_BLUR;
+    const isImg = isImageBackground(background);
+    const bgImageId = backgroundImageId(background);
+    const imageMedia = media.filter((m) => m.kind === 'image');
     return (
       <div className="space-y-4">
         <div className="text-xs font-medium text-ink-muted">Background</div>
@@ -40,6 +65,31 @@ export function AspectRatioTool({ sub = 'canvas' }: { sub?: string }) {
             <div className="truncate text-[11px] text-ink-faint">Fill the bars with a soft blur of your clip</div>
           </div>
         </button>
+        <div className="pt-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint">Image</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {imageMedia.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setBackground(`${BACKGROUND_IMAGE_PREFIX}${m.id}`)}
+              aria-label={`Background image ${m.fileName}`}
+              className={cn(
+                'h-12 w-12 overflow-hidden rounded-lg border transition-transform hover:scale-105',
+                isImg && bgImageId === m.id ? 'border-brand ring-2 ring-brand' : 'border-line',
+              )}
+            >
+              <img src={m.url} alt="" className="h-full w-full object-cover" />
+            </button>
+          ))}
+          <button
+            onClick={() => fileRef.current?.click()}
+            title="Import an image"
+            aria-label="Import a background image"
+            className="grid h-12 w-12 place-items-center rounded-lg border border-dashed border-line text-ink-faint transition-colors hover:border-ink-faint hover:text-ink"
+          >
+            <ImagePlus size={16} />
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickImageFile} />
+        </div>
         <div className="pt-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint">Solid color</div>
         <div className="flex flex-wrap items-center gap-2">
           {BACKGROUND_SWATCHES.map((c) => (
@@ -61,7 +111,7 @@ export function AspectRatioTool({ sub = 'canvas' }: { sub?: string }) {
             />
             <input
               type="color"
-              value={isBlur ? '#000000' : background}
+              value={isBlur || isImg ? '#000000' : background}
               onChange={(e) => setBackground(e.target.value)}
               className="absolute inset-0 cursor-pointer opacity-0"
               aria-label="Custom background color"

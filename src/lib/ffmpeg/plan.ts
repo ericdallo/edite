@@ -1,5 +1,5 @@
 import type { Clip, MediaItem, Track } from '@/types/editor';
-import { clipTransformAt, speedSlices, transitionFades } from '@/lib/timeline';
+import { clipTransformAt, projectDuration, speedSlices, transitionFades } from '@/lib/timeline';
 import type { ExportClip } from './command';
 
 export interface ExportPlan {
@@ -21,6 +21,7 @@ export function buildExportPlan(
   clips: Clip[],
   media: MediaItem[],
   blurBackground = false,
+  backgroundImageId?: string,
 ): ExportPlan {
   const mediaById = new Map(media.map((m) => [m.id, m]));
 
@@ -209,6 +210,36 @@ export function buildExportPlan(
           bgBlur: true,
         },
         mediaId: base.clip.mediaId,
+      });
+    }
+  }
+
+  // Image background fill: prepend a synthetic bottom layer that is the chosen
+  // image scaled to cover the whole canvas, visible for the whole timeline, so
+  // the bars behind reframed clips show the picture instead of a flat color.
+  if (backgroundImageId && !blurBackground) {
+    const bm = mediaById.get(backgroundImageId);
+    const dur = projectDuration(clips);
+    if (bm && bm.kind === 'image' && dur > 0) {
+      built.unshift({
+        ec: {
+          kind: 'image',
+          start: 0,
+          in: 0,
+          out: dur,
+          speed: 1,
+          rect: { x: 0, y: 0, w: 1, h: 1 },
+          opacity: 1,
+          hasAudio: false,
+          muted: true,
+          flipH: false,
+          flipV: false,
+          rotation: 0,
+          volume: 1,
+          fadeIn: 0,
+          fadeOut: 0,
+        },
+        mediaId: backgroundImageId,
       });
     }
   }

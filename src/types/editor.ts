@@ -636,6 +636,19 @@ export const DEFAULT_BACKGROUND = '#000000';
  *  of the base clip (the popular vertical-reframe look) instead of a solid color. */
 export const BACKGROUND_BLUR = 'blur';
 
+/** `background` prefix for an image fill: `image:<mediaId>` of an imported image. */
+export const BACKGROUND_IMAGE_PREFIX = 'image:';
+
+/** True when the background is an image fill (`image:<mediaId>`). */
+export function isImageBackground(bg: string): boolean {
+  return bg.startsWith(BACKGROUND_IMAGE_PREFIX);
+}
+
+/** The media id of an image background, or undefined for color / blur. */
+export function backgroundImageId(bg: string): string | undefined {
+  return bg.startsWith(BACKGROUND_IMAGE_PREFIX) ? bg.slice(BACKGROUND_IMAGE_PREFIX.length) : undefined;
+}
+
 export const BACKGROUND_SWATCHES = [
   '#000000',
   '#ffffff',

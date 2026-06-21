@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { BACKGROUND_BLUR, canvasSize, resolveAspectRatio } from '@/types/editor';
+import { BACKGROUND_BLUR, backgroundImageId, canvasSize, resolveAspectRatio } from '@/types/editor';
 import { projectDuration } from '@/lib/timeline';
 import { buildExportPlan } from '@/lib/ffmpeg/plan';
 import { runExport, type MultiExportParams } from '@/lib/ffmpeg/operations';
@@ -39,7 +39,13 @@ export function useSnapshot(): UseSnapshot {
         resolveAspectRatio(aspect, media),
         exportSettings.resolution,
       );
-      const plan = buildExportPlan(tracks, clips, media, background === BACKGROUND_BLUR);
+      const plan = buildExportPlan(
+        tracks,
+        clips,
+        media,
+        background === BACKGROUND_BLUR,
+        backgroundImageId(background),
+      );
       const params: MultiExportParams = {
         canvasW,
         canvasH,

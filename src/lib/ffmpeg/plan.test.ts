@@ -224,4 +224,25 @@ describe('buildExportPlan', () => {
     const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1' })], [media]);
     expect(plan.clips.some((c) => c.bgBlur)).toBe(false);
   });
+
+  it('prepends a cover image-fill layer for an image background', () => {
+    const track = makeTrack({ id: 't1' });
+    const vid = makeMedia({ id: 'm1', kind: 'video', duration: 8 });
+    const bg = makeMedia({ id: 'bg1', kind: 'image' });
+    const clip = makeClip({ trackId: 't1', mediaId: 'm1', start: 0, in: 0, out: 8 });
+    const plan = buildExportPlan([track], [clip], [vid, bg], false, 'bg1');
+    expect(plan.clips).toHaveLength(2);
+    expect(plan.clips[0].kind).toBe('image');
+    expect(plan.clips[0].rect).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+    expect(plan.clips[0].out).toBeCloseTo(8, 5);
+    expect(plan.clipMediaIds[0]).toBe('bg1');
+    expect(plan.media.some((m) => m.id === 'bg1')).toBe(true);
+  });
+
+  it('ignores a missing or non-image background id', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1', kind: 'video' });
+    const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1' })], [media], false, 'nope');
+    expect(plan.clips).toHaveLength(1);
+  });
 });
