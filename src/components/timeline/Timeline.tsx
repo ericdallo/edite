@@ -254,23 +254,37 @@ export function Timeline() {
     window.addEventListener('pointercancel', onUp);
   };
 
-  // Scroll the timeline view while a drag holds near its left/right edge, so a
-  // zoomed-in timeline stays reachable on touch. Returns a stop function.
-  const startEdgeScroll = (getClientX: () => number, onScroll: () => void) => {
+  // Scroll the timeline view while a drag holds near an edge, so a zoomed-in or
+  // tall timeline stays reachable on touch. Vertical scroll is opt-in (pass
+  // getClientY) and lets a clip drag reach the "drop to add track" zone at the
+  // very bottom regardless of how many tracks there are. Returns a stop function.
+  const startEdgeScroll = (getClientX: () => number, onScroll: () => void, getClientY?: () => number) => {
     let raf = 0;
     const tick = () => {
       const sc = scrollRef.current;
       if (sc) {
         const r = sc.getBoundingClientRect();
         const edge = 36;
+        let scrolled = false;
         const x = getClientX();
         let dx = 0;
         if (x > r.right - edge) dx = Math.min(24, x - (r.right - edge));
         else if (x < r.left + edge) dx = -Math.min(24, r.left + edge - x);
         if (dx !== 0 && sc.scrollWidth > sc.clientWidth) {
           sc.scrollLeft += dx;
-          onScroll();
+          scrolled = true;
         }
+        if (getClientY) {
+          const y = getClientY();
+          let dy = 0;
+          if (y > r.bottom - edge) dy = Math.min(24, y - (r.bottom - edge));
+          else if (y < r.top + edge) dy = -Math.min(24, r.top + edge - y);
+          if (dy !== 0 && sc.scrollHeight > sc.clientHeight) {
+            sc.scrollTop += dy;
+            scrolled = true;
+          }
+        }
+        if (scrolled) onScroll();
       }
       raf = requestAnimationFrame(tick);
     };
@@ -294,13 +308,17 @@ export function Timeline() {
     let moved = false;
     let pinched = false;
     setPlaying(false);
-    setCurrentTime(timeFromClientX(e.clientX));
+    // Don't seek on press: a two-finger pinch lands one finger first, and seeking
+    // here would jump the playhead before the pinch is recognised. Seek on the
+    // first real drag move, or on a plain tap (in up), instead.
     const stopEdge = startEdgeScroll(
       () => clientX,
-      () => setCurrentTime(timeFromClientX(clientX)),
+      () => {
+        if (!pinchRef.current && moved) setCurrentTime(timeFromClientX(clientX));
+      },
     );
     const move = (ev: PointerEvent) => {
-      // A pinch took over (a second finger landed): stop scrubbing and let it zoom.
+      // A pinch took over (a second finger landed): never scrub, just let it zoom.
       if (pinchRef.current) {
         pinched = true;
         return;
@@ -316,17 +334,20 @@ export function Timeline() {
           // ignore
         }
       }
-      setCurrentTime(timeFromClientX(ev.clientX));
+      if (moved) setCurrentTime(timeFromClientX(ev.clientX));
     };
     // Don't capture: with touch-action pan-y on the content, a vertical drag
     // still scrolls the tracks natively, while a horizontal drag scrubs here.
     beginDrag(
       e,
       move,
-      () => {
+      (ev) => {
         stopEdge();
-        // A plain tap (no horizontal drag, no pinch) clears the selection.
-        if (!moved && !pinched && !pinchRef.current) clearSelection();
+        // A plain tap (no drag, no pinch) seeks there and clears the selection.
+        if (!moved && !pinched && !pinchRef.current) {
+          setCurrentTime(timeFromClientX(ev.clientX));
+          clearSelection();
+        }
       },
       false,
     );
@@ -362,6 +383,11 @@ export function Timeline() {
     let moved = false;
     let curStart = origStart;
     let toNewTrack = false;
+    let lastX = startX;
+    let lastY = startY;
+    // Set once a two-finger pinch hijacks this touch: the drag is reverted and
+    // the release becomes a no-op so the gesture only zooms.
+    let pinchAborted = false;
 
     // Touch/pen long-press opens the per-clip menu (there's no right-click on
     // touch). It arms on press, cancels on drag or release, and when it fires it
@@ -377,34 +403,30 @@ export function Timeline() {
     if (e.pointerType !== 'mouse') {
       lpTimer = window.setTimeout(() => {
         lpTimer = undefined;
+        if (pinchRef.current) return; // a pinch is underway: don't pop the menu
         longPressed = true;
         navigator.vibrate?.(8);
         openClipMenuAt(startX, startY, clipId);
       }, 500);
     }
 
-    const move = (ev: PointerEvent) => {
-      if (longPressed) return;
-      if (!moved && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) {
-        clearLp();
-        moved = true;
-        if (!group) setDragClipId(clipId);
-      }
-      if (!moved) return;
+    // Apply the drag from the latest pointer position. Shared by pointermove and
+    // the edge auto-scroll so holding near an edge keeps relocating / dropping.
+    const applyDrag = () => {
       if (group) {
         // translate the whole selection, clamped so the earliest clip stays >= 0
-        const delta = Math.max((ev.clientX - startX) / pxPerSec, -minOrigin);
+        const delta = Math.max((lastX - startX) / pxPerSec, -minOrigin);
         setClipStarts(groupOrigins.map((o) => ({ id: o.id, start: o.start + delta })));
         return;
       }
-      let newStart = Math.max(0, origStart + (ev.clientX - startX) / pxPerSec);
+      let newStart = Math.max(0, origStart + (lastX - startX) / pxPerSec);
       if (snap) newStart = snapStart(newStart, dur, targets, 8 / pxPerSec);
       curStart = newStart;
       // dropping below the last row creates a new track
       const rows = rowsRef.current?.getBoundingClientRect();
-      toNewTrack = !!rows && ev.clientY > rows.bottom - 4;
+      toNewTrack = !!rows && lastY > rows.bottom - 4;
       setOverNewTrack(toNewTrack);
-      const dropTarget = trackFromClientY(ev.clientY);
+      const dropTarget = trackFromClientY(lastY);
       // Never drop onto a locked track; keep the clip on its own track instead.
       const lockedTarget = dropTarget != null && tracks.find((t) => t.id === dropTarget)?.locked;
       const trackId = toNewTrack
@@ -414,11 +436,51 @@ export function Timeline() {
       setDropTrackId(!toNewTrack && !lockedTarget && dropTarget && dropTarget !== clip.trackId ? dropTarget : null);
       moveClip(clipId, newStart, trackId);
     };
+
+    // Auto-scroll near the edges so a zoomed/tall timeline stays reachable; the
+    // vertical axis (single-clip drags) lets the bottom new-track zone be hit.
+    const stopEdge = startEdgeScroll(
+      () => lastX,
+      () => {
+        if (moved && !pinchRef.current) applyDrag();
+      },
+      group ? undefined : () => lastY,
+    );
+
+    const move = (ev: PointerEvent) => {
+      if (longPressed) return;
+      // A pinch took over: revert any movement and let the gesture only zoom.
+      if (pinchRef.current) {
+        if (!pinchAborted) {
+          pinchAborted = true;
+          clearLp();
+          if (moved) {
+            if (group) setClipStarts(groupOrigins.map((o) => ({ id: o.id, start: o.start })));
+            else moveClip(clipId, origStart, clip.trackId);
+            setDragClipId(null);
+            setOverNewTrack(false);
+            setDropTrackId(null);
+            moved = false;
+          }
+        }
+        return;
+      }
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      if (!moved && (Math.abs(ev.clientX - startX) > 4 || Math.abs(ev.clientY - startY) > 4)) {
+        clearLp();
+        moved = true;
+        if (!group) setDragClipId(clipId);
+      }
+      if (!moved) return;
+      applyDrag();
+    };
     const up = (ev: PointerEvent) => {
       clearLp();
-      // The long-press already opened the menu and selected the clip: swallow
-      // this release so it doesn't seek or collapse the selection.
-      if (longPressed) {
+      stopEdge();
+      // The long-press menu, or a pinch, already owns this touch: swallow the
+      // release so it doesn't seek, relocate or collapse the selection.
+      if (longPressed || pinchAborted || pinchRef.current) {
         setDragClipId(null);
         setOverNewTrack(false);
         setDropTrackId(null);
@@ -723,7 +785,14 @@ export function Timeline() {
                 Add media to create a track.
               </div>
             )}
-            {rowsTopOrder.map((track) => (
+            {rowsTopOrder.map((track) => {
+              // Whether the track carries sound, so we only offer a mute toggle then.
+              const trackHasAudio = clips.some((c) => {
+                if (c.trackId !== track.id) return false;
+                const m = media.find((x) => x.id === c.mediaId);
+                return m?.kind === 'audio' || (m?.kind === 'video' && m.hasAudio);
+              });
+              return (
               <div
                 key={track.id}
                 className={cn(
@@ -769,15 +838,32 @@ export function Timeline() {
                       <Lock size={12} />
                     </span>
                   )}
-                  {track.hidden && (
-                    <span className="grid h-5 w-5 place-items-center rounded bg-black/50 text-ink-muted">
-                      <EyeOff size={12} />
-                    </span>
-                  )}
-                  {track.muted && (
-                    <span className="grid h-5 w-5 place-items-center rounded bg-black/50 text-danger">
-                      <VolumeX size={12} />
-                    </span>
+                  {/* Quick hide/mute toggles: the track context menu isn't reachable on touch. */}
+                  <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => setTrackHidden(track.id, !track.hidden)}
+                    title={track.hidden ? 'Show track' : 'Hide track'}
+                    aria-label={track.hidden ? 'Show track' : 'Hide track'}
+                    className={cn(
+                      'grid h-5 w-5 place-items-center rounded bg-black/50 transition-colors',
+                      track.hidden ? 'text-ink-muted' : 'text-ink-faint hover:text-ink',
+                    )}
+                  >
+                    {track.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+                  </button>
+                  {trackHasAudio && (
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => setTrackMuted(track.id, !track.muted)}
+                      title={track.muted ? 'Unmute track' : 'Mute track'}
+                      aria-label={track.muted ? 'Unmute track' : 'Mute track'}
+                      className={cn(
+                        'grid h-5 w-5 place-items-center rounded bg-black/50 transition-colors',
+                        track.muted ? 'text-danger' : 'text-ink-faint hover:text-ink',
+                      )}
+                    >
+                      {track.muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                    </button>
                   )}
                 </div>
                 {clips
@@ -812,7 +898,8 @@ export function Timeline() {
                     );
                   })}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {dragClipId && (
