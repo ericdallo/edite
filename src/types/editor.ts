@@ -559,6 +559,10 @@ export const SPEED_PRESETS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 /** Output canvas background, shown behind clips that don't fill the frame. */
 export const DEFAULT_BACKGROUND = '#000000';
 
+/** Sentinel `background` value: fill the canvas with a blurred, cover-scaled copy
+ *  of the base clip (the popular vertical-reframe look) instead of a solid color. */
+export const BACKGROUND_BLUR = 'blur';
+
 export const BACKGROUND_SWATCHES = [
   '#000000',
   '#ffffff',

@@ -48,6 +48,8 @@ export interface ExportClip {
   chromaKey?: ChromaKey;
   /** blend mode against the layers below (absent = normal `overlay`). */
   blendMode?: BlendMode;
+  /** synthetic blurred-cover background layer (base clip scaled to fill + `gblur`). */
+  bgBlur?: boolean;
   /** transition INTO this clip (cross-dissolve / color dip) over its leading overlap. */
   transition?: Transition;
   /** position + scale keyframes; when 2+ the clip is animated via `t` expressions. */
@@ -347,13 +349,17 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
       graph.push(`[sb${k}][gd${k}]blend=all_expr='A*${fmt(1 - intensity)}+B*${fmt(intensity)}'[bl${k}]`);
       graph.push(tail ? `[bl${k}]${tail}[c${k}]` : `[bl${k}]null[c${k}]`);
     };
+    // The synthetic blurred-background layer is the base clip scaled to cover the
+    // whole canvas (rect is full) and softened; it composites first (bottom) so
+    // fitted clips and their bars sit over it.
+    const blur = c.bgBlur ? `,gblur=sigma=${Math.max(6, Math.round(Math.min(W, H) / 50))}` : '';
     if (c.kind === 'image' || c.kind === 'text' || c.kind === 'shape') {
       const pts = delay ? `setpts=PTS-STARTPTS${delay},` : '';
-      emit(`${pts}${orient}${cover}`);
+      emit(`${pts}${orient}${cover}${blur}`);
     } else {
       const base = Math.abs(c.speed - 1) > 1e-3 ? `(PTS-STARTPTS)/${c.speed}` : 'PTS-STARTPTS';
       const rev = c.reversed ? 'reverse,' : '';
-      emit(`trim=${fmt(c.in)}:${fmt(c.out)},${rev}setpts=${base}${delay},${orient}${cover}`);
+      emit(`trim=${fmt(c.in)}:${fmt(c.out)},${rev}setpts=${base}${delay},${orient}${cover}${blur}`);
     }
     // A fade-to-color transition: a solid dip between the previous clip (already
     // in the accumulator) and this one, peaking opaque at the overlap midpoint.

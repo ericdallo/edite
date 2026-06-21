@@ -16,7 +16,12 @@ export interface ExportPlan {
  * visible tracks, ordered bottom track -> top track and, within a track, by
  * start time. Hidden tracks/clips and clips whose media is gone are dropped.
  */
-export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem[]): ExportPlan {
+export function buildExportPlan(
+  tracks: Track[],
+  clips: Clip[],
+  media: MediaItem[],
+  blurBackground = false,
+): ExportPlan {
   const mediaById = new Map(media.map((m) => [m.id, m]));
 
   const ordered = tracks
@@ -166,6 +171,41 @@ export function buildExportPlan(tracks: Track[], clips: Clip[], media: MediaItem
       },
     ];
   });
+
+  // Blurred background fill: prepend a synthetic bottom layer — the base (first
+  // visible video/image) clip scaled to cover the whole canvas and blurred — so
+  // the bars behind a reframed clip show its own soft blur instead of a color.
+  if (blurBackground) {
+    const base = ordered.find(({ clip }) => {
+      const bm = mediaById.get(clip.mediaId);
+      return !!bm && (bm.kind === 'video' || bm.kind === 'image');
+    });
+    if (base) {
+      const bm = mediaById.get(base.clip.mediaId)!;
+      built.unshift({
+        ec: {
+          kind: bm.kind === 'image' ? 'image' : 'video',
+          start: base.clip.start,
+          in: base.clip.in,
+          out: base.clip.out,
+          speed: base.clip.speed,
+          rect: { x: 0, y: 0, w: 1, h: 1 },
+          opacity: 1,
+          hasAudio: false,
+          muted: true,
+          flipH: false,
+          flipV: false,
+          rotation: 0,
+          reversed: base.clip.reversed,
+          volume: 1,
+          fadeIn: 0,
+          fadeOut: 0,
+          bgBlur: true,
+        },
+        mediaId: base.clip.mediaId,
+      });
+    }
+  }
 
   const exportClips = built.map((b) => b.ec);
   // '' marks text clips so operations rasterizes a PNG instead of loading media.

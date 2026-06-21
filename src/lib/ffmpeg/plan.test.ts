@@ -207,4 +207,21 @@ describe('buildExportPlan', () => {
     expect(plan.media).toHaveLength(1);
     expect(plan.media[0].id).toBe('m1');
   });
+
+  it('prepends a blurred background layer when asked', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1', kind: 'video', duration: 8 });
+    const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1' })], [media], true);
+    expect(plan.clips).toHaveLength(2);
+    expect(plan.clips[0].bgBlur).toBe(true);
+    expect(plan.clips[0].rect).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+    expect(plan.clipMediaIds[0]).toBe('m1');
+  });
+
+  it('adds no background layer by default', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1', kind: 'video' });
+    const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1' })], [media]);
+    expect(plan.clips.some((c) => c.bgBlur)).toBe(false);
+  });
 });

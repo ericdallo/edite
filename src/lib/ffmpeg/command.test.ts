@@ -504,3 +504,10 @@ describe('blend modes', () => {
     expect(g).toContain('overlay=');
   });
 });
+
+describe('blurred background', () => {
+  it('blurs the synthetic background layer and nothing otherwise', () => {
+    expect(graphOf(build([makeExportClip({ bgBlur: true })]))).toContain('gblur=sigma=');
+    expect(graphOf(build([makeExportClip()]))).not.toContain('gblur');
+  });
+});

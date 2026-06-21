@@ -1,7 +1,7 @@
 import { type CSSProperties, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize, Minimize } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
-import { type Clip, resolveAspectRatio } from '@/types/editor';
+import { BACKGROUND_BLUR, type Clip, resolveAspectRatio } from '@/types/editor';
 import {
   audioFadeGain,
   clipSourceAt,
@@ -49,6 +49,8 @@ export function VideoPreview() {
   const mediaEls = useRef<Map<string, HTMLMediaElement>>(new Map());
   // Hidden <img> sources for GL-graded image clips, read by their grade layer.
   const imgEls = useRef<Map<string, HTMLImageElement>>(new Map());
+  // The blurred-background backdrop <video> (when background is 'blur').
+  const bgEl = useRef<HTMLVideoElement | null>(null);
 
   const media = useEditorStore((s) => s.media);
   const customLuts = useEditorStore((s) => s.customLuts);
@@ -135,6 +137,45 @@ export function VideoPreview() {
       ),
     [tracks, clips],
   );
+
+  const blurBg = background === BACKGROUND_BLUR;
+  // For a blurred background, the bottom-most video/image clip drives the backdrop.
+  const bgBaseLayer = useMemo(
+    () =>
+      blurBg
+        ? (layers.find(({ clip }) => {
+            const bm = media.find((x) => x.id === clip.mediaId);
+            return !!bm && (bm.kind === 'video' || bm.kind === 'image');
+          }) ?? null)
+        : null,
+    [blurBg, layers, media],
+  );
+
+  // Drive the blurred backdrop video off the same clock as its base clip.
+  useEffect(() => {
+    const el = bgEl.current;
+    if (!el || !bgBaseLayer) return;
+    const clip = bgBaseLayer.clip;
+    const bm = media.find((x) => x.id === clip.mediaId);
+    if (!bm || bm.kind !== 'video') return;
+    el.muted = true;
+    const active = isClipActiveAt(clip, currentTime) && !bgBaseLayer.track.hidden;
+    if (clip.freeze != null) {
+      if (!el.paused) el.pause();
+      if (Math.abs(el.currentTime - clip.freeze) > 0.05) el.currentTime = clip.freeze;
+      return;
+    }
+    el.playbackRate = clamp(clipSpeedAt(clip, currentTime), 0.0625, 16);
+    if (active) {
+      const want = clipSourceAt(clip, currentTime);
+      const tol = playing ? 0.34 : 0.05;
+      if (Math.abs(el.currentTime - want) > tol) el.currentTime = want;
+      if (playing && el.paused) el.play().catch(() => undefined);
+      if (!playing && !el.paused) el.pause();
+    } else if (!el.paused) {
+      el.pause();
+    }
+  }, [bgBaseLayer, media, currentTime, playing]);
 
   // Effective audio fades (folding transitions) so cross-faded clips ramp in the
   // preview the same way the export's afade does.
@@ -231,9 +272,30 @@ export function VideoPreview() {
     >
       <div
         className="relative overflow-hidden rounded-xl shadow-2xl ring-1 ring-line"
-        style={{ width: box.w || '60%', height: box.h || '60%', backgroundColor: background }}
+        style={{ width: box.w || '60%', height: box.h || '60%', backgroundColor: blurBg ? '#000000' : background }}
         onClick={() => !interactive && setPlaying(!playing)}
       >
+        {blurBg &&
+          bgBaseLayer &&
+          (() => {
+            const bm = media.find((x) => x.id === bgBaseLayer.clip.mediaId);
+            if (!bm) return null;
+            const on = isClipActiveAt(bgBaseLayer.clip, currentTime) && !bgBaseLayer.track.hidden;
+            const bstyle: CSSProperties = {
+              filter: `blur(${Math.max(8, Math.round(box.w * 0.045))}px)`,
+              transform: 'scale(1.12)',
+              opacity: on ? 1 : 0,
+            };
+            return (
+              <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+                {bm.kind === 'video' ? (
+                  <video ref={bgEl} src={bm.url} className="h-full w-full object-cover" style={bstyle} playsInline muted preload="auto" />
+                ) : (
+                  <img src={bm.url} alt="" className="h-full w-full object-cover" style={bstyle} />
+                )}
+              </div>
+            );
+          })()}
         {layers.map(({ clip, track }) => {
           const active = isClipActiveAt(clip, currentTime) && !track.hidden;
           // A transition into this clip ramps its opacity (dissolve) and, for fade

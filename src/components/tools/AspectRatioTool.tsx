@@ -1,4 +1,5 @@
-import { ASPECT_RATIOS, BACKGROUND_SWATCHES, resolveAspectRatio } from '@/types/editor';
+import { Aperture } from 'lucide-react';
+import { ASPECT_RATIOS, BACKGROUND_BLUR, BACKGROUND_SWATCHES, resolveAspectRatio } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { cn } from '@/lib/utils';
 
@@ -20,9 +21,26 @@ export function AspectRatioTool({ sub = 'canvas' }: { sub?: string }) {
   const setBackground = useEditorStore((s) => s.setBackground);
 
   if (sub === 'background') {
+    const isBlur = background === BACKGROUND_BLUR;
     return (
       <div className="space-y-4">
         <div className="text-xs font-medium text-ink-muted">Background</div>
+        <button
+          onClick={() => setBackground(BACKGROUND_BLUR)}
+          className={cn(
+            'flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors',
+            isBlur ? 'border-brand bg-brand/10' : 'border-line bg-surface-2 hover:bg-surface-3',
+          )}
+        >
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand/50 to-accent/40">
+            <Aperture size={16} className="text-white" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-ink">Blurred video</div>
+            <div className="truncate text-[11px] text-ink-faint">Fill the bars with a soft blur of your clip</div>
+          </div>
+        </button>
+        <div className="pt-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint">Solid color</div>
         <div className="flex flex-wrap items-center gap-2">
           {BACKGROUND_SWATCHES.map((c) => (
             <button
@@ -31,7 +49,7 @@ export function AspectRatioTool({ sub = 'canvas' }: { sub?: string }) {
               aria-label={`Background ${c}`}
               className={cn(
                 'h-7 w-7 rounded-full border transition-transform hover:scale-110',
-                background.toLowerCase() === c ? 'border-white ring-2 ring-brand' : 'border-black/40',
+                !isBlur && background.toLowerCase() === c ? 'border-white ring-2 ring-brand' : 'border-black/40',
               )}
               style={{ background: c }}
             />
@@ -43,7 +61,7 @@ export function AspectRatioTool({ sub = 'canvas' }: { sub?: string }) {
             />
             <input
               type="color"
-              value={background}
+              value={isBlur ? '#000000' : background}
               onChange={(e) => setBackground(e.target.value)}
               className="absolute inset-0 cursor-pointer opacity-0"
               aria-label="Custom background color"
