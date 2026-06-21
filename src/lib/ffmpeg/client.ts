@@ -1,6 +1,7 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
 import { logger } from '@/lib/log';
+import { multiThreadAvailable } from './core-select';
 
 export type LogHandler = (message: string) => void;
 
@@ -8,9 +9,10 @@ let instance: FFmpeg | null = null;
 let loadPromise: Promise<FFmpeg> | null = null;
 const logHandlers = new Set<LogHandler>();
 
-// Single-thread core, served same-origin from /public/ffmpeg (copied in by
-// scripts/copy-ffmpeg.mjs). No SharedArrayBuffer / COOP / COEP required, so it
-// runs on GitHub Pages out of the box.
+// Cores are served same-origin from /public (copied in by scripts/copy-ffmpeg.mjs).
+// The multi-thread core (ffmpeg-mt, faster export) needs SharedArrayBuffer, which
+// requires cross-origin isolation; when that's unavailable we fall back to the
+// single-thread core (ffmpeg), so it still runs on GitHub Pages out of the box.
 const BASE = import.meta.env.BASE_URL;
 
 export function onFFmpegLog(handler: LogHandler): () => void {
@@ -49,12 +51,15 @@ export async function getFFmpeg(): Promise<FFmpeg> {
         logger.ffmpeg(message);
         for (const handler of logHandlers) handler(message);
       });
-      logger.info('loading ffmpeg core…');
-      const [coreURL, wasmURL] = await Promise.all([
-        toBlobURL(`${BASE}ffmpeg/ffmpeg-core.js`, 'text/javascript'),
-        toBlobURL(`${BASE}ffmpeg/ffmpeg-core.wasm`, 'application/wasm'),
+      const mt = multiThreadAvailable();
+      const dir = mt ? 'ffmpeg-mt' : 'ffmpeg';
+      logger.info(`loading ffmpeg ${mt ? 'multi' : 'single'}-thread core…`);
+      const [coreURL, wasmURL, workerURL] = await Promise.all([
+        toBlobURL(`${BASE}${dir}/ffmpeg-core.js`, 'text/javascript'),
+        toBlobURL(`${BASE}${dir}/ffmpeg-core.wasm`, 'application/wasm'),
+        mt ? toBlobURL(`${BASE}${dir}/ffmpeg-core.worker.js`, 'text/javascript') : Promise.resolve(undefined),
       ]);
-      await ffmpeg.load({ coreURL, wasmURL });
+      await ffmpeg.load(workerURL ? { coreURL, wasmURL, workerURL } : { coreURL, wasmURL });
       logger.info('ffmpeg core loaded');
       instance = ffmpeg;
       return ffmpeg;
