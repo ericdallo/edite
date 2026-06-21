@@ -37,6 +37,7 @@ import {
 import { clamp } from '@/lib/utils';
 import { clampColor } from '@/lib/color';
 import { clampEffects, isNeutralEffects } from '@/lib/effects';
+import { clampMask } from '@/lib/mask';
 import { parseCube } from '@/lib/lut';
 import { uid } from '@/lib/ids';
 import {
@@ -333,6 +334,7 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
   // Effects: clamp amounts, and drop the set entirely once everything is at 0 so
   // a reset clip stays clean (and old projects without effects are unaffected).
   const effects = c.effects && !isNeutralEffects(c.effects) ? clampEffects(c.effects) : undefined;
+  const mask = c.mask ? clampMask(c.mask) : undefined;
   const chromaKey = c.chromaKey
     ? {
         color: c.chromaKey.color,
@@ -366,6 +368,7 @@ function clampClip(c: Clip, media: MediaItem | undefined): Clip {
     fadeOut: clamp(c.fadeOut ?? 0, 0, fadeCap),
     color,
     effects,
+    mask,
     chromaKey,
     transition,
     keyframes,

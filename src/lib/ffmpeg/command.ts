@@ -1,7 +1,8 @@
 import { isAudioFormat, TEXT_ANIM_OFFSET, textAnimUnit } from '@/types/editor';
-import type { BlendMode, ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId, VideoEffects } from '@/types/editor';
+import type { BlendMode, ChromaKey, ClipMask, ColorAdjust, ExportFormat, ExportQuality, Keyframe, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId, VideoEffects } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { ffmpegEffectsFilter } from '@/lib/effects';
+import { maskAlphaExpr } from '@/lib/mask';
 import { lutFileName } from '@/lib/lut';
 import { ffmpegChromaFilter } from '@/lib/chroma';
 import { ffmpegBlendMode } from '@/lib/blend';
@@ -49,6 +50,8 @@ export interface ExportClip {
   chromaKey?: ChromaKey;
   /** static effects (blur/pixelate/RGB-split/grain), applied after grade + key. */
   effects?: VideoEffects;
+  /** shape mask cutting the clip (geq alpha over the clip frame). */
+  mask?: ClipMask;
   /** blend mode against the layers below (absent = normal `overlay`). */
   blendMode?: BlendMode;
   /** synthetic blurred-cover background layer (base clip scaled to fill + `gblur`). */
@@ -293,6 +296,11 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     // the block/shift/blur scale with the clip exactly like the preview shader.
     const effF = ffmpegEffectsFilter(c.effects, rw, rh);
     const fx = effF ? `,${effF}` : '';
+    // Shape mask: a geq that multiplies the clip's alpha by the mask shape (the
+    // same engine wipes/iris use), mirroring the preview's CSS mask.
+    const mask = c.mask
+      ? `,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*${maskAlphaExpr(c.mask)}'`
+      : '';
     const op = c.opacity < 0.999 ? `,format=rgba,colorchannelmixer=aa=${c.opacity.toFixed(3)}` : '';
     // Transition INTO this clip, by family: dissolve ramps alpha over the whole
     // overlap; fade reveals it in the second half (a color dip below covers the
@@ -342,7 +350,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
         }
       }
     }
-    const tail = `${chroma}${fx}${op}${trans}${taFade}`;
+    const tail = `${chroma}${fx}${mask}${op}${trans}${taFade}`;
     // Emit the clip's video chain from its pre-color `head`. Without an intensity
     // dial it's one linear statement (unchanged); with one, the grade runs on a
     // split branch and is blended over the original at the chosen strength.

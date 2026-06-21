@@ -23,8 +23,11 @@ import {
   BLEND_MODES,
   CHROMA_SWATCHES,
   type ChromaKey,
+  type ClipMask,
   type ColorAdjust,
   DEFAULT_CHROMA,
+  DEFAULT_MASK,
+  MASK_SHAPES,
   NEUTRAL_COLOR,
   TRANSITIONS,
   type TransitionId,
@@ -606,6 +609,114 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
           </button>
         )}
         {scopeNote}
+      </div>
+    );
+  }
+
+  if (sub === 'mask') {
+    const mask = clip.mask;
+    const setMask = (patch: Partial<ClipMask>) =>
+      updateClips(selectedIds, { mask: { ...(mask ?? DEFAULT_MASK), ...patch } });
+    const btn = (on: boolean) =>
+      cn(
+        'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
+        on
+          ? 'border-brand bg-brand/10 text-ink'
+          : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+      );
+    return (
+      <div className="space-y-4">
+        <div className="text-sm text-ink-muted">Shape mask</div>
+        <div className="grid grid-cols-4 gap-2">
+          <button
+            onClick={() => updateClips(selectedIds, { mask: undefined })}
+            className={cn(btn(mask == null), 'flex items-center justify-center gap-1.5')}
+          >
+            <Ban size={14} className="shrink-0" />
+            None
+          </button>
+          {MASK_SHAPES.map((s) => (
+            <button key={s.id} onClick={() => setMask({ shape: s.id })} className={btn(mask?.shape === s.id)}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+        {mask && (
+          <div className="space-y-4">
+            {mask.shape === 'linear' ? (
+              <Adjust
+                label="Angle"
+                value={mask.angle}
+                min={0}
+                max={360}
+                step={1}
+                onChange={(v) => setMask({ angle: v })}
+                fmt={deg}
+              />
+            ) : (
+              <Adjust
+                label="Size"
+                value={mask.size}
+                min={0.05}
+                max={1}
+                step={0.01}
+                onChange={(v) => setMask({ size: v })}
+                fmt={pct}
+              />
+            )}
+            <Adjust
+              label="Feather"
+              value={mask.feather}
+              min={0}
+              max={100}
+              step={1}
+              onChange={(v) => setMask({ feather: v })}
+              fmt={amt}
+            />
+            <Adjust
+              label="Position X"
+              value={mask.x}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => setMask({ x: v })}
+              fmt={pct}
+            />
+            <Adjust
+              label="Position Y"
+              value={mask.y}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(v) => setMask({ y: v })}
+              fmt={pct}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-muted">Invert</span>
+              <button
+                role="switch"
+                aria-checked={mask.invert}
+                aria-label="Invert mask"
+                onClick={() => setMask({ invert: !mask.invert })}
+                className={cn(
+                  'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+                  mask.invert ? 'bg-brand' : 'bg-surface-3',
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all',
+                    mask.invert ? 'left-[22px]' : 'left-0.5',
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+        )}
+        <p className="text-xs leading-relaxed text-ink-faint">
+          Keeps the clip inside the shape and reveals the track below outside it.
+          {count > 1 ? ` Applies to all ${count} selected clips.` : ''}
+        </p>
       </div>
     );
   }

@@ -139,6 +139,15 @@ describe('buildExportCommand video graph', () => {
     );
     expect(g.indexOf('eq=brightness')).toBeLessThan(g.indexOf('noise=alls='));
   });
+
+  it('multiplies the clip alpha by a geq mask for a masked clip', () => {
+    const g = graphOf(
+      build([makeExportClip({ mask: { shape: 'circle', x: 0.5, y: 0.5, size: 0.4, angle: 0, feather: 12, invert: false } })]),
+    );
+    expect(g).toContain("a='alpha(X,Y)*");
+    expect(g).toContain('hypot(X-0.50000*W');
+    expect(graphOf(build([makeExportClip()]))).not.toContain("a='alpha(X,Y)*(1-clip");
+  });
 });
 
 describe('buildExportCommand grade intensity', () => {

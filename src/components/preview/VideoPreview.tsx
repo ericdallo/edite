@@ -15,6 +15,7 @@ import {
 } from '@/lib/timeline';
 import { cssColorFilter, needsGradeShader } from '@/lib/color';
 import { cssEffectsFilter, hasShaderEffects } from '@/lib/effects';
+import { maskCssStyle } from '@/lib/mask';
 import { cssBlendMode } from '@/lib/blend';
 import { clamp, cn } from '@/lib/utils';
 import { resolveSubtool } from '@/components/tools/subtools';
@@ -399,8 +400,15 @@ export function VideoPreview() {
             if (el) imgEls.current.set(clip.id, el);
             else imgEls.current.delete(clip.id);
           };
+          // Shape mask: a CSS mask on the clip's box, matched to the export geq.
+          // It rides on the wrapper (clip-box coords) so it composes with the
+          // grade/effects layer and matches the post-cover frame the export masks.
+          const maskStyle = clip.mask ? maskCssStyle(clip.mask, rect.w * box.w, rect.h * box.h) : undefined;
           const wrapper = (
-            <div className="pointer-events-none absolute overflow-hidden" style={style}>
+            <div
+              className="pointer-events-none absolute overflow-hidden"
+              style={maskStyle ? { ...style, ...maskStyle } : style}
+            >
               {gl ? (
                 <>
                   {/* Hidden source: still decoded (and, for video, seeked/played by

@@ -138,6 +138,8 @@ export interface Clip {
   chromaKey?: ChromaKey;
   /** Static video effects (blur, pixelate, RGB-split, grain); absent = none. */
   effects?: VideoEffects;
+  /** Shape mask cutting the clip to a linear / circle / rectangle; absent = none. */
+  mask?: ClipMask;
   /** Blend mode against the layers below this overlay clip (absent = normal). */
   blendMode?: BlendMode;
   /**
@@ -393,6 +395,48 @@ export interface VideoEffects {
   /** Film grain, 0 (off) .. 100. */
   grain?: number;
 }
+
+/** Mask shapes a clip can be cut to (linear edge, ellipse, rectangle). */
+export type MaskShape = 'linear' | 'circle' | 'rectangle';
+
+export interface MaskShapeOption {
+  id: MaskShape;
+  label: string;
+}
+
+export const MASK_SHAPES: MaskShapeOption[] = [
+  { id: 'linear', label: 'Linear' },
+  { id: 'circle', label: 'Circle' },
+  { id: 'rectangle', label: 'Rectangle' },
+];
+
+/**
+ * A shape mask cut into a clip: keeps the pixels inside the shape and hides the
+ * rest (or the reverse, when `invert`). `x`/`y` are the centre as a fraction of
+ * the clip box; `size` is the radius (circle) / half-extent (rectangle) as a
+ * fraction of the box; `angle` aims the linear edge (degrees); `feather` softens
+ * the edge (0..100). Previews as a CSS mask and exports as a matched `geq` alpha,
+ * reusing the alpha-mask engine that powers wipe / iris transitions.
+ */
+export interface ClipMask {
+  shape: MaskShape;
+  x: number;
+  y: number;
+  size: number;
+  angle: number;
+  feather: number;
+  invert: boolean;
+}
+
+export const DEFAULT_MASK: ClipMask = {
+  shape: 'circle',
+  x: 0.5,
+  y: 0.5,
+  size: 0.4,
+  angle: 0,
+  feather: 12,
+  invert: false,
+};
 
 /**
  * Chroma key (green-screen) settings. `color` is the keyed-out color (#rrggbb);
