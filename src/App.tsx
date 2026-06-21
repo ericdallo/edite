@@ -26,11 +26,7 @@ export default function App() {
   const projects = useProjects();
   const view = useEditorStore((s) => s.view);
   const hasContent = useEditorStore((s) => s.media.length > 0 || s.clips.length > 0);
-  const selectedTool = useEditorStore((s) => s.selectedTool);
   const [exportOpen, setExportOpen] = useState(false);
-  // Show the panel for the Text tool even on an empty project, so the first
-  // text overlay can be added without any media.
-  const showPanel = hasContent || selectedTool === 'text';
 
   if (view === 'projects') {
     return (
@@ -44,19 +40,13 @@ export default function App() {
     <div className="flex h-dvh flex-col overflow-hidden">
       <Topbar projects={projects} onExport={() => setExportOpen(true)} />
       <EditorLayout
-        rail={<Sidebar />}
-        subrail={showPanel ? <SubtoolRail /> : null}
-        panel={showPanel ? <ToolPanel /> : null}
+        // Empty project: no editor chrome at all — just the hero. The rail,
+        // tools and timeline only appear once there's media to work on.
+        rail={hasContent ? <Sidebar /> : null}
+        subrail={hasContent ? <SubtoolRail /> : null}
+        panel={hasContent ? <ToolPanel /> : null}
         stage={hasContent ? <VideoPreview /> : <Dropzone />}
-        timeline={
-          hasContent ? (
-            <Timeline />
-          ) : (
-            <div className="h-[120px] shrink-0 border-t border-line bg-surface/40">
-              <Dropzone compact />
-            </div>
-          )
-        }
+        timeline={hasContent ? <Timeline /> : null}
       />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
     </div>

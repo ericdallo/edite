@@ -12,6 +12,7 @@ export interface EditorLayoutProps {
   subrail: ReactNode;
   panel: ReactNode;
   stage: ReactNode;
+  /** The tracks area. Pass null (empty state) to let the stage fill the column. */
   timeline: ReactNode;
 }
 
@@ -22,7 +23,7 @@ export function EditorLayout({ rail, subrail, panel, stage, timeline }: EditorLa
   // tools we dock the preview into the space above the sheet so edits (layout,
   // effects, opacity…) stay visible while you drag a slider. The media browser
   // keeps the tall sheet — it has nothing to preview. Desktop is untouched.
-  const previewAbove = panelOpen && tool !== 'media';
+  const previewAbove = panel != null && panelOpen && tool !== 'media';
 
   // Desktop-only: a saved timeline height (px) feeds the --tl-h var the lg height
   // below reads, so users can trade space between the preview and the tracks.
@@ -63,29 +64,34 @@ export function EditorLayout({ rail, subrail, panel, stage, timeline }: EditorLa
   return (
     <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
       <div className="relative order-1 flex min-w-0 flex-1 flex-col lg:order-4">
-        <SidebarToggle />
+        {/* The collapse handle only makes sense when there's a rail to collapse. */}
+        {rail && <SidebarToggle />}
         <div className="relative min-h-0 flex-1">{stage}</div>
-        <div
-          ref={wrapRef}
-          style={tlStyle}
-          className={cn(
-            'relative h-[220px] shrink-0 lg:h-[var(--tl-h,260px)] lg:max-h-[80dvh]',
-            previewAbove ? 'hidden lg:block' : 'block',
-          )}
-        >
-          {/* Drag the seam to trade space between the preview and the tracks. */}
+        {/* Empty state passes no timeline: the stage then fills the whole column
+            (no reserved strip), so the hero isn't crowded on either platform. */}
+        {timeline && (
           <div
-            onPointerDown={startResize}
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Resize timeline"
-            title="Drag to resize"
-            className="group absolute inset-x-0 top-0 z-20 hidden h-2 -translate-y-1/2 cursor-row-resize touch-none lg:block"
+            ref={wrapRef}
+            style={tlStyle}
+            className={cn(
+              'relative h-[220px] shrink-0 lg:h-[var(--tl-h,260px)] lg:max-h-[80dvh]',
+              previewAbove ? 'hidden lg:block' : 'block',
+            )}
           >
-            <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-transparent transition-colors group-hover:bg-brand/50" />
+            {/* Drag the seam to trade space between the preview and the tracks. */}
+            <div
+              onPointerDown={startResize}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize timeline"
+              title="Drag to resize"
+              className="group absolute inset-x-0 top-0 z-20 hidden h-2 -translate-y-1/2 cursor-row-resize touch-none lg:block"
+            >
+              <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-transparent transition-colors group-hover:bg-brand/50" />
+            </div>
+            {timeline}
           </div>
-          {timeline}
-        </div>
+        )}
         {/* Reserves the lower viewport for the sheet so the preview shrinks to
             sit above it. Height must match the sheet's in ToolPanel. */}
         <div aria-hidden className={cn('shrink-0 lg:hidden', previewAbove ? 'h-[52dvh]' : 'hidden')} />
