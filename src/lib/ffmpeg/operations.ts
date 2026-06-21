@@ -32,6 +32,8 @@ export interface ExportRequest {
   clipMediaIds: string[];
   /** raw `.cube` text for any imported (custom:) LUTs referenced by the clips. */
   luts?: { id: string; cube: string }[];
+  /** repeat the rendered output N times (lossless concat); 1 or absent = once. */
+  loop?: number;
   onProgress?: (ratio: number) => void;
   /** abort to cancel: terminates the ffmpeg worker mid-render */
   signal?: AbortSignal;
@@ -88,6 +90,7 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
   const logLines: string[] = [];
   let offLog: (() => void) | undefined;
   let built: BuiltCommand | undefined;
+  let loopedName: string | undefined;
   const handler = ({ progress }: { progress: number }) => {
     req.onProgress?.(Math.max(0, Math.min(1, progress)));
   };
@@ -181,7 +184,20 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
     throwIfAborted();
     await ffmpeg.exec(built.args);
     throwIfAborted();
-    const data = await ffmpeg.readFile(built.outputName);
+
+    // Loop pass: repeat the rendered output N times losslessly (demuxer concat).
+    // Skipped for GIF (it already loops on playback) and PNG (a still frame).
+    let finalName = built.outputName;
+    const loop = Math.max(1, Math.floor(req.loop ?? 1));
+    if (loop > 1 && req.params.format !== 'gif' && req.params.format !== 'png') {
+      loopedName = `looped.${req.params.format}`;
+      logger.info(`looping output ${loop}x`);
+      await ffmpeg.exec(['-stream_loop', String(loop - 1), '-i', built.outputName, '-c', 'copy', loopedName]);
+      throwIfAborted();
+      finalName = loopedName;
+    }
+
+    const data = await ffmpeg.readFile(finalName);
     const bytes = data as Uint8Array;
     const out = new Uint8Array(bytes.byteLength);
     out.set(bytes);
@@ -209,6 +225,7 @@ export async function runExport(req: ExportRequest): Promise<Blob> {
       for (const name of textNames) await ffmpeg.deleteFile(name).catch(() => undefined);
       for (const name of lutNames) await ffmpeg.deleteFile(name).catch(() => undefined);
       if (built) await ffmpeg.deleteFile(built.outputName).catch(() => undefined);
+      if (loopedName) await ffmpeg.deleteFile(loopedName).catch(() => undefined);
     }
   }
 }

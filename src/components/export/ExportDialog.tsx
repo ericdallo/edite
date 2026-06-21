@@ -114,6 +114,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [nameInput, setNameInput] = useState('');
   const [rangeOn, setRangeOn] = useState(false);
   const [range, setRange] = useState({ start: 0, end: 0 });
+  const [loop, setLoop] = useState(1);
   const abortRef = useRef<AbortController | null>(null);
 
   // Whether this device can share files (mobile Safari/Chrome). Probed once with
@@ -147,6 +148,9 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const effStart = rangeOn ? clamp(range.start, 0, Math.max(0, duration - 0.1)) : 0;
   const effEnd = rangeOn ? clamp(range.end, effStart + 0.1, duration) : duration;
   const outDuration = Math.max(0, effEnd - effStart);
+  // GIF already loops on playback, so the loop pass only applies to A/V files.
+  const effLoop = isGif ? 1 : Math.max(1, loop);
+  const totalDuration = outDuration * effLoop;
   const audioOn = audio && !isGif;
   const baseName = (nameInput.trim() || projectName || 'edite').replace(/[^\w.-]+/g, '_');
   const fileName = `${baseName}.${format}`;
@@ -164,7 +168,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
     width: canvasW,
     height: canvasH,
     fps,
-    duration: outDuration,
+    duration: totalDuration,
     format,
     quality,
     audio: audioOn,
@@ -247,6 +251,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
         media: plan.media,
         clipMediaIds: plan.clipMediaIds,
         luts: customLuts.map((l) => ({ id: l.id, cube: l.cube })),
+        loop: effLoop,
         signal: controller.signal,
         onProgress: setProgress,
       });
@@ -605,6 +610,28 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
           )}
         </Section>
 
+        {!isGif && (
+          <Section label="Loop">
+            <div className="grid grid-cols-5 gap-2">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  disabled={busy}
+                  onClick={() => setLoop(n)}
+                  className={cn(chip(effLoop === n), 'px-1 py-2 text-sm font-medium')}
+                >
+                  {n}×
+                </button>
+              ))}
+            </div>
+            {effLoop > 1 && (
+              <p className="mt-2 text-[11px] text-ink-faint">
+                Repeats the export {effLoop}× back-to-back ({formatTime(totalDuration)} total).
+              </p>
+            )}
+          </Section>
+        )}
+
         <Section label="File name">
           <div className="flex items-center rounded-xl border border-line bg-surface-2 px-3 focus-within:border-brand">
             <input
@@ -623,7 +650,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
           <div className="flex items-center justify-between">
             <div className="text-ink-muted">Output</div>
             <div className="flex items-center gap-2.5 font-mono text-xs text-ink">
-              <span>{formatTime(outDuration)}</span>
+              <span>{formatTime(totalDuration)}</span>
               {isAudio ? (
                 <>
                   <span className="text-ink-faint">·</span>
