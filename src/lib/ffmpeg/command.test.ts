@@ -546,6 +546,25 @@ describe('blurred background', () => {
   });
 });
 
+describe('buildExportCommand range', () => {
+  it('output-seeks and limits the duration to a sub-range', () => {
+    const a = build([makeExportClip()], { duration: 10, range: { start: 2, end: 7 } }).args;
+    expect(a[a.indexOf('-ss') + 1]).toBe('2.000');
+    expect(a[a.indexOf('-t') + 1]).toBe('5.000');
+  });
+
+  it('emits the plain full -t (no seek) without a range', () => {
+    const a = build([makeExportClip()], { duration: 10 }).args;
+    expect(a).not.toContain('-ss');
+    expect(a[a.indexOf('-t') + 1]).toBe('10.000');
+  });
+
+  it('ignores a range that already spans the whole timeline', () => {
+    const a = build([makeExportClip()], { duration: 10, range: { start: 0, end: 10 } }).args;
+    expect(a).not.toContain('-ss');
+  });
+});
+
 describe('buildExportCommand snapshot (png)', () => {
   it('renders one rgb frame at the snapshot time as a png, no audio', () => {
     const cmd = build([makeExportClip()], { format: 'png', snapshotTime: 2 });

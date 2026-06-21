@@ -82,6 +82,8 @@ export interface MultiExportParams {
   background: string;
   /** for the `png` format: timeline time (s) of the single composited frame to grab. */
   snapshotTime?: number;
+  /** optional output sub-range (timeline seconds); absent = the whole timeline. */
+  range?: { start: number; end: number };
 }
 
 export interface BuiltCommand {
@@ -152,6 +154,20 @@ function videoCrf(quality: ExportQuality, format: ExportFormat): string {
 
 function timelineLen(c: ExportClip): number {
   return Math.max(0, (c.out - c.in) / Math.max(0.0001, c.speed));
+}
+
+/**
+ * Output time bounds: a sub-range (`-ss start -t len`, output-seeking the
+ * composited stream) when `range` trims the timeline, else the whole `-t`
+ * duration. A full range emits exactly the original `-t duration` so untrimmed
+ * exports are byte-identical.
+ */
+function rangeArgs(p: MultiExportParams, duration: number): string[] {
+  const r = p.range;
+  if (r && r.end > r.start + 1e-3 && (r.start > 1e-3 || r.end < duration - 1e-3)) {
+    return ['-ss', fmt(Math.max(0, r.start)), '-t', fmt(r.end - r.start)];
+  }
+  return ['-t', fmt(duration)];
 }
 
 /** ffmpeg color literal from a #rrggbb hex (falls back to black). */
@@ -236,7 +252,7 @@ function buildAudioOnlyCommand(inputNames: string[], p: MultiExportParams): Buil
 
   const args: string[] = [...inputArgs];
   if (withAudio) args.push('-filter_complex', graph.join(';'), '-map', '[aout]');
-  args.push('-t', fmt(p.duration), '-vn');
+  args.push(...rangeArgs(p, p.duration), '-vn');
 
   if (p.format === 'mp3') args.push('-c:a', 'libmp3lame', '-b:a', `${Math.max(32, Math.round(p.audioBitrate || 192))}k`);
   else args.push('-c:a', 'pcm_s16le');
@@ -487,7 +503,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
 
   const args: string[] = [...inputArgs, '-filter_complex', graph.join(';'), '-map', '[vout]'];
   if (withAudio) args.push('-map', '[aout]');
-  args.push('-t', fmt(duration));
+  args.push(...rangeArgs(p, duration));
 
   const crf = videoCrf(p.quality, p.format);
   const abr = `${Math.max(32, Math.round(p.audioBitrate || 160))}k`;

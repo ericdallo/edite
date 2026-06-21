@@ -26,6 +26,7 @@ import { logger } from '@/lib/log';
 import { clamp, cn, formatBytes, formatClock, formatTime } from '@/lib/utils';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
+import { Slider } from '@/components/ui/Slider';
 
 type Stage = 'idle' | 'loading' | 'processing' | 'done' | 'error';
 
@@ -111,6 +112,8 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [result, setResult] = useState<{ url: string; size: number; blob: Blob } | null>(null);
   const [advanced, setAdvanced] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  const [rangeOn, setRangeOn] = useState(false);
+  const [range, setRange] = useState({ start: 0, end: 0 });
   const abortRef = useRef<AbortController | null>(null);
 
   // Whether this device can share files (mobile Safari/Chrome). Probed once with
@@ -140,6 +143,10 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const isGif = format === 'gif';
   const { width: canvasW, height: canvasH } = canvasSize(resolveAspectRatio(aspect, media), resolution);
   const duration = projectDuration(clips);
+  // Optional export sub-range; clamped so start < end and both stay in the timeline.
+  const effStart = rangeOn ? clamp(range.start, 0, Math.max(0, duration - 0.1)) : 0;
+  const effEnd = rangeOn ? clamp(range.end, effStart + 0.1, duration) : duration;
+  const outDuration = Math.max(0, effEnd - effStart);
   const audioOn = audio && !isGif;
   const baseName = (nameInput.trim() || projectName || 'edite').replace(/[^\w.-]+/g, '_');
   const fileName = `${baseName}.${format}`;
@@ -157,7 +164,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
     width: canvasW,
     height: canvasH,
     fps,
-    duration,
+    duration: outDuration,
     format,
     quality,
     audio: audioOn,
@@ -232,6 +239,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
         videoBitrate,
         globalMuted: !audio,
         background,
+        range: rangeOn ? { start: effStart, end: effEnd } : undefined,
       };
 
       const out = await runExport({
@@ -537,6 +545,66 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
           </>
         )}
 
+        <Section
+          label="Range"
+          aside={
+            <button
+              disabled={busy || duration <= 0.2}
+              onClick={() => {
+                if (!rangeOn) setRange({ start: 0, end: duration });
+                setRangeOn((v) => !v);
+              }}
+              className={cn(
+                'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                rangeOn ? 'border-brand bg-brand/10 text-ink' : 'border-line bg-surface-3 text-ink-muted hover:text-ink',
+                busy && 'opacity-60',
+              )}
+            >
+              {rangeOn ? 'On' : 'Off'}
+            </button>
+          }
+        >
+          {rangeOn ? (
+            <div className="space-y-3">
+              <div>
+                <div className="mb-1.5 flex justify-between text-[11px] text-ink-faint">
+                  <span>Start</span>
+                  <span className="font-mono text-ink">{formatClock(effStart)}</span>
+                </div>
+                <Slider
+                  min={0}
+                  max={duration}
+                  step={0.1}
+                  value={effStart}
+                  onChange={(v) => setRange((r) => ({ start: Math.min(v, r.end - 0.1), end: r.end }))}
+                  ariaLabel="Range start"
+                />
+              </div>
+              <div>
+                <div className="mb-1.5 flex justify-between text-[11px] text-ink-faint">
+                  <span>End</span>
+                  <span className="font-mono text-ink">{formatClock(effEnd)}</span>
+                </div>
+                <Slider
+                  min={0}
+                  max={duration}
+                  step={0.1}
+                  value={effEnd}
+                  onChange={(v) => setRange((r) => ({ start: r.start, end: Math.max(v, r.start + 0.1) }))}
+                  ariaLabel="Range end"
+                />
+              </div>
+              <p className="text-[11px] text-ink-faint">
+                Exports {formatClock(outDuration)} of the {formatTime(duration)} timeline.
+              </p>
+            </div>
+          ) : (
+            <p className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-xs text-ink-faint">
+              Exports the whole {formatTime(duration)} timeline. Turn on to trim to a start and end.
+            </p>
+          )}
+        </Section>
+
         <Section label="File name">
           <div className="flex items-center rounded-xl border border-line bg-surface-2 px-3 focus-within:border-brand">
             <input
@@ -555,7 +623,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
           <div className="flex items-center justify-between">
             <div className="text-ink-muted">Output</div>
             <div className="flex items-center gap-2.5 font-mono text-xs text-ink">
-              <span>{formatTime(duration)}</span>
+              <span>{formatTime(outDuration)}</span>
               {isAudio ? (
                 <>
                   <span className="text-ink-faint">·</span>
