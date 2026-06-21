@@ -1,4 +1,4 @@
-import { type ChangeEvent, useRef, useState } from 'react';
+import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import {
   Aperture,
   ArrowDown,
@@ -47,6 +47,7 @@ const TRANSITION_ICONS: Record<TransitionId, LucideIcon> = {
 };
 import { isNeutralColor } from '@/lib/color';
 import { LUT_ORIGINAL_THUMB, lutsByCategory, lutThumbUrl } from '@/lib/lut';
+import { renderCustomLutThumb } from '@/lib/lutThumb';
 import { canAddTransition, maxTransitionDuration } from '@/lib/timeline';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
@@ -141,6 +142,35 @@ function FilterTile({
         </button>
       )}
     </div>
+  );
+}
+
+/** A custom (imported) LUT tile: renders its thumbnail from the .cube at runtime. */
+function CustomFilterTile({
+  cube,
+  label,
+  selected,
+  onClick,
+  onRemove,
+}: {
+  cube: string;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  onRemove: () => void;
+}) {
+  const [thumb, setThumb] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    renderCustomLutThumb(cube)
+      .then((url) => alive && setThumb(url))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [cube]);
+  return (
+    <FilterTile label={label} title={label} thumb={thumb} selected={selected} onClick={onClick} onRemove={onRemove} />
   );
 }
 
@@ -606,11 +636,10 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
           </div>
           <div className="grid grid-cols-3 gap-2">
             {customLuts.map((l) => (
-              <FilterTile
+              <CustomFilterTile
                 key={l.id}
+                cube={l.cube}
                 label={l.name}
-                title={l.name}
-                thumb={null}
                 selected={clip.color?.lut === l.id}
                 onClick={() => setLut(l.id)}
                 onRemove={() => removeLut(l.id)}

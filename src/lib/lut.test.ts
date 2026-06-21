@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isCustomLut, LUT_LOOKS, lutFileName, lutUrl, packLut, parseCube } from '@/lib/lut';
+import { isCustomLut, LUT_LOOKS, lutFileName, lutUrl, packLut, parseCube, sampleLut } from '@/lib/lut';
 
 // A 2^3 identity cube (red varies fastest), with comment / header lines to skip.
 const IDENTITY_2 = `# test cube
@@ -73,5 +73,22 @@ describe('bundled look assets', () => {
 
   it('has the baseline (original) thumbnail for the None option', () => {
     expect(existsSync(join(luts, 'thumbs', '_original.png'))).toBe(true);
+  });
+});
+
+describe('sampleLut', () => {
+  it('reproduces the input for an identity cube (trilinear)', () => {
+    const cube = parseCube(IDENTITY_2);
+    for (const [r, g, b] of [
+      [0, 0, 0],
+      [1, 1, 1],
+      [0.25, 0.5, 0.75],
+      [0.1, 0.9, 0.3],
+    ] as const) {
+      const [rr, gg, bb] = sampleLut(cube, r, g, b);
+      expect(rr).toBeCloseTo(r, 5);
+      expect(gg).toBeCloseTo(g, 5);
+      expect(bb).toBeCloseTo(b, 5);
+    }
   });
 });

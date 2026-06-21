@@ -157,3 +157,44 @@ export function packLut({ size, data }: ParsedCube): PackedLut {
   }
   return { width, height, size, pixels };
 }
+
+/**
+ * Trilinearly sample a parsed cube at (r,g,b) in 0..1 — the same interpolation
+ * ffmpeg `lut3d` and the preview shader use. Used to render a look's effect on a
+ * sample image, e.g. a thumbnail for an imported custom LUT.
+ */
+export function sampleLut({ size, data }: ParsedCube, r: number, g: number, b: number): [number, number, number] {
+  const d = size - 1;
+  const fr = clamp01(r) * d;
+  const fg = clamp01(g) * d;
+  const fb = clamp01(b) * d;
+  const r0 = Math.floor(fr);
+  const g0 = Math.floor(fg);
+  const b0 = Math.floor(fb);
+  const r1 = Math.min(r0 + 1, d);
+  const g1 = Math.min(g0 + 1, d);
+  const b1 = Math.min(b0 + 1, d);
+  const dr = fr - r0;
+  const dg = fg - g0;
+  const db = fb - b0;
+  const idx = (ri: number, gi: number, bi: number) => (ri + gi * size + bi * size * size) * 3;
+  const out: [number, number, number] = [0, 0, 0];
+  for (let c = 0; c < 3; c++) {
+    const c000 = data[idx(r0, g0, b0) + c];
+    const c100 = data[idx(r1, g0, b0) + c];
+    const c010 = data[idx(r0, g1, b0) + c];
+    const c110 = data[idx(r1, g1, b0) + c];
+    const c001 = data[idx(r0, g0, b1) + c];
+    const c101 = data[idx(r1, g0, b1) + c];
+    const c011 = data[idx(r0, g1, b1) + c];
+    const c111 = data[idx(r1, g1, b1) + c];
+    const x00 = c000 + (c100 - c000) * dr;
+    const x10 = c010 + (c110 - c010) * dr;
+    const x01 = c001 + (c101 - c001) * dr;
+    const x11 = c011 + (c111 - c011) * dr;
+    const y0 = x00 + (x10 - x00) * dg;
+    const y1 = x01 + (x11 - x01) * dg;
+    out[c] = y0 + (y1 - y0) * db;
+  }
+  return out;
+}
