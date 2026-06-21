@@ -96,7 +96,14 @@ export function Timeline() {
 
   const displayDuration = Math.max(projectDuration(clips), 8);
   const hasSelection = selectedIds.length > 0;
-  const canMerge = canMergeClips(clips.filter((c) => selectedIds.includes(c.id)));
+  const selectedClips = clips.filter((c) => selectedIds.includes(c.id));
+  const allHidden = hasSelection && selectedClips.every((c) => c.hidden);
+  // Selected clips that carry sound (a video with audio, or detached/standalone audio).
+  const mutableClips = selectedClips.filter((c) => {
+    const m = media.find((x) => x.id === c.mediaId);
+    return m?.kind === 'audio' || (m?.kind === 'video' && m.hasAudio);
+  });
+  const allMuted = mutableClips.length > 0 && mutableClips.every((c) => c.muted);
   const activeClip = clips.find((c) => c.id === activeId);
   const canKeyframe = !!activeClip && !activeClip.text;
   const kfAtPlayhead =
@@ -688,22 +695,22 @@ export function Timeline() {
             <Scissors size={16} />
           </button>
           <button
-            onClick={() => canMerge && mergeClips(selectedIds)}
-            disabled={!canMerge}
-            title="Merge selected clips (J)"
-            aria-label="Merge selected clips"
+            onClick={() => hasSelection && updateClips(selectedIds, { hidden: !allHidden })}
+            disabled={!hasSelection}
+            title={allHidden ? 'Show selection' : 'Hide selection'}
+            aria-label={allHidden ? 'Show selection' : 'Hide selection'}
             className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
           >
-            <Merge size={16} />
+            {allHidden ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
           <button
-            onClick={() => hasSelection && duplicateClips(selectedIds)}
-            disabled={!hasSelection}
-            title="Duplicate selection (⌘D)"
-            aria-label="Duplicate selection"
+            onClick={() => mutableClips.length > 0 && updateClips(mutableClips.map((c) => c.id), { muted: !allMuted })}
+            disabled={mutableClips.length === 0}
+            title={allMuted ? 'Unmute selection' : 'Mute selection'}
+            aria-label={allMuted ? 'Unmute selection' : 'Mute selection'}
             className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
           >
-            <CopyPlus size={16} />
+            {allMuted ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
           <button
             onClick={() => hasSelection && deleteClips(selectedIds)}
