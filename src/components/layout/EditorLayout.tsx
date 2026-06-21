@@ -25,21 +25,22 @@ export function EditorLayout({ rail, subrail, panel, stage, timeline }: EditorLa
   // keeps the tall sheet — it has nothing to preview. Desktop is untouched.
   const previewAbove = panel != null && panelOpen && tool !== 'media';
 
-  // Desktop-only: a saved timeline height (px) feeds the --tl-h var the lg height
-  // below reads, so users can trade space between the preview and the tracks.
-  // Mobile keeps its fixed height (the var is only consumed at lg).
+  // A saved timeline height (px) feeds the --tl-h var the heights below read, so
+  // users can drag the seam to trade space between the preview and the tracks.
+  // Shared across breakpoints; each keeps its own default and max-height cap.
   const wrapRef = useRef<HTMLDivElement>(null);
   const [timelineH, setTimelineH] = useState<number | null>(() => readPref<number | null>(TL_HEIGHT_KEY, null));
 
   const startResize = (e: ReactPointerEvent) => {
-    if (window.innerWidth < 1024) return; // a desktop affordance
     e.preventDefault();
     const wrap = wrapRef.current;
     const col = wrap?.parentElement;
     if (!wrap || !col) return;
     const startY = e.clientY;
     const startH = wrap.getBoundingClientRect().height;
-    const maxH = Math.max(180, col.getBoundingClientRect().height - 200); // keep room for the preview
+    // Mobile keeps a smaller preview so the tracks can take most of the screen.
+    const minPreview = window.innerWidth < 1024 ? 130 : 200;
+    const maxH = Math.max(180, col.getBoundingClientRect().height - minPreview);
     let next = startH;
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -74,7 +75,7 @@ export function EditorLayout({ rail, subrail, panel, stage, timeline }: EditorLa
             ref={wrapRef}
             style={tlStyle}
             className={cn(
-              'relative h-[220px] shrink-0 lg:h-[var(--tl-h,260px)] lg:max-h-[80dvh]',
+              'relative h-[var(--tl-h,220px)] max-h-[82dvh] shrink-0 lg:h-[var(--tl-h,260px)] lg:max-h-[80dvh]',
               previewAbove ? 'hidden lg:block' : 'block',
             )}
           >
@@ -85,9 +86,11 @@ export function EditorLayout({ rail, subrail, panel, stage, timeline }: EditorLa
               aria-orientation="horizontal"
               aria-label="Resize timeline"
               title="Drag to resize"
-              className="group absolute inset-x-0 top-0 z-20 hidden h-2 -translate-y-1/2 cursor-row-resize touch-none lg:block"
+              className="group absolute inset-x-0 top-0 z-20 flex h-4 -translate-y-1/2 cursor-row-resize touch-none items-center justify-center lg:h-2"
             >
               <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-transparent transition-colors group-hover:bg-brand/50" />
+              {/* A visible grip so the seam is discoverable / grabbable on touch. */}
+              <span className="relative h-1 w-10 rounded-full bg-line/70 lg:hidden" />
             </div>
             {timeline}
           </div>
