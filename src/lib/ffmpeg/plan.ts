@@ -89,6 +89,7 @@ export function buildExportPlan(
             fadeIn: 0,
             fadeOut: 0,
             shape: clip.shape,
+            textAnim: clip.textAnim,
             keyframes: clip.keyframes,
             transition: clip.transition,
             blendMode: clip.blendMode,

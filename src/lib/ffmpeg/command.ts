@@ -349,7 +349,7 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
     let taFade = '';
     let tadx = '';
     let tady = '';
-    if (c.kind === 'text' && c.textAnim && (c.textAnim.in || c.textAnim.out)) {
+    if ((c.kind === 'text' || c.kind === 'shape') && c.textAnim && (c.textAnim.in || c.textAnim.out)) {
       const d = Math.min(c.textAnim.duration, timelineLen(c) / 2);
       if (d > 1e-3) {
         const tend = c.start + timelineLen(c);

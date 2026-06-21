@@ -363,8 +363,21 @@ export function VideoPreview() {
           }
 
           if (clip.shape) {
+            // In/out animation (fade + slide), reusing the text-anim engine and
+            // matching the export's shape-overlay fade + offset.
+            const ta = clip.textAnim ? textAnimAt(clip, currentTime) : null;
+            const sstyle: CSSProperties = ta
+              ? {
+                  ...style,
+                  opacity: (typeof style.opacity === 'number' ? style.opacity : 1) * ta.opacity,
+                  transform:
+                    [slide, ta.dx || ta.dy ? `translate(${(ta.dx * 100).toFixed(2)}%, ${(ta.dy * 100).toFixed(2)}%)` : '']
+                      .filter(Boolean)
+                      .join(' ') || undefined,
+                }
+              : style;
             return (
-              <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={style}>
+              <div key={clip.id} className="pointer-events-none absolute overflow-hidden" style={sstyle}>
                 <ShapeLayer shape={clip.shape} boxW={rect.w * box.w} boxH={rect.h * box.h} />
               </div>
             );

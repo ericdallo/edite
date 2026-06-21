@@ -546,6 +546,24 @@ describe('blurred background', () => {
   });
 });
 
+describe('buildExportCommand shape animation', () => {
+  it('fades a shape overlay in/out using the text-anim engine', () => {
+    const g = graphOf(
+      build([
+        makeExportClip({
+          kind: 'shape',
+          start: 0,
+          in: 0,
+          out: 4,
+          hasAudio: false,
+          textAnim: { in: 'fade', out: null, duration: 0.5 },
+        }),
+      ]),
+    );
+    expect(g).toContain('fade=t=in:st=0.000:d=0.500:alpha=1');
+  });
+});
+
 describe('buildExportCommand range', () => {
   it('output-seeks and limits the duration to a sub-range', () => {
     const a = build([makeExportClip()], { duration: 10, range: { start: 2, end: 7 } }).args;

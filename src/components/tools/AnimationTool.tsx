@@ -1,9 +1,70 @@
 import { ChevronLeft, ChevronRight, Diamond, Trash2 } from 'lucide-react';
-import { DEFAULT_TEXT_ANIM, TEXT_ANIMS, type TextAnim } from '@/types/editor';
+import { type Clip, DEFAULT_TEXT_ANIM, TEXT_ANIMS, type TextAnim } from '@/types/editor';
 import { useEditorStore } from '@/store/editorStore';
 import { keyframeDelta } from '@/lib/timeline';
 import { chipClass, cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/Slider';
+
+/**
+ * Enter/exit animation (fade + directional slide) for a text or shape overlay,
+ * stored on the clip's `textAnim`. The preview matches the burned-in export.
+ */
+function InOutAnim({ clip, selectedIds }: { clip: Clip; selectedIds: string[] }) {
+  const updateClips = useEditorStore((s) => s.updateClips);
+  const anim: TextAnim = clip.textAnim ?? { in: null, out: null, duration: DEFAULT_TEXT_ANIM.duration };
+  const setAnim = (patch: Partial<TextAnim>) => updateClips(selectedIds, { textAnim: { ...anim, ...patch } });
+  const noun = clip.text ? 'text' : 'shape';
+  const row = (side: 'in' | 'out', label: string) => (
+    <div>
+      <div className="mb-2 text-xs font-medium text-ink-muted">{label}</div>
+      <div className="grid grid-cols-3 gap-2">
+        <button onClick={() => setAnim({ [side]: null } as Partial<TextAnim>)} className={chipClass(anim[side] == null)}>
+          None
+        </button>
+        {TEXT_ANIMS.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => setAnim({ [side]: a.id } as Partial<TextAnim>)}
+            className={chipClass(anim[side] === a.id)}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <div className="space-y-5">
+      <p className="text-xs leading-relaxed text-ink-faint">
+        Animate this {noun} as it enters and leaves. The preview matches the burned-in export.
+      </p>
+      {row('in', 'In')}
+      {row('out', 'Out')}
+      <div>
+        <div className="mb-2 flex items-center justify-between text-sm">
+          <span className="text-ink-muted">Duration</span>
+          <span className="font-mono text-ink">{anim.duration.toFixed(2)}s</span>
+        </div>
+        <Slider
+          min={0.1}
+          max={2}
+          step={0.05}
+          value={anim.duration}
+          onChange={(v) => setAnim({ duration: v })}
+          ariaLabel="Animation duration"
+        />
+      </div>
+      {(anim.in || anim.out) && (
+        <button
+          onClick={() => updateClips(selectedIds, { textAnim: undefined })}
+          className="text-xs text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+        >
+          Clear animation
+        </button>
+      )}
+    </div>
+  );
+}
 
 /** Keyframes closer than this (clip-local seconds) read as "at the playhead". */
 const EPS = 0.02;
@@ -21,7 +82,6 @@ export function AnimationTool() {
   const activeId = useEditorStore((s) => s.activeClipId);
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const clips = useEditorStore((s) => s.clips);
-  const updateClips = useEditorStore((s) => s.updateClips);
   const currentTime = useEditorStore((s) => s.playback.currentTime);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const setPlaying = useEditorStore((s) => s.setPlaying);
@@ -39,62 +99,7 @@ export function AnimationTool() {
     );
   }
   if (clip.text) {
-    const anim: TextAnim = clip.textAnim ?? { in: null, out: null, duration: DEFAULT_TEXT_ANIM.duration };
-    const setAnim = (patch: Partial<TextAnim>) =>
-      updateClips(selectedIds, { textAnim: { ...anim, ...patch } });
-    const row = (side: 'in' | 'out', label: string) => (
-      <div>
-        <div className="mb-2 text-xs font-medium text-ink-muted">{label}</div>
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={() => setAnim({ [side]: null } as Partial<TextAnim>)}
-            className={chipClass(anim[side] == null)}
-          >
-            None
-          </button>
-          {TEXT_ANIMS.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => setAnim({ [side]: a.id } as Partial<TextAnim>)}
-              className={chipClass(anim[side] === a.id)}
-            >
-              {a.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-    return (
-      <div className="space-y-5">
-        <p className="text-xs leading-relaxed text-ink-faint">
-          Animate this text as it enters and leaves. The preview matches the burned-in export.
-        </p>
-        {row('in', 'In')}
-        {row('out', 'Out')}
-        <div>
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-ink-muted">Duration</span>
-            <span className="font-mono text-ink">{anim.duration.toFixed(2)}s</span>
-          </div>
-          <Slider
-            min={0.1}
-            max={2}
-            step={0.05}
-            value={anim.duration}
-            onChange={(v) => setAnim({ duration: v })}
-            ariaLabel="Animation duration"
-          />
-        </div>
-        {(anim.in || anim.out) && (
-          <button
-            onClick={() => updateClips(selectedIds, { textAnim: undefined })}
-            className="text-xs text-ink-faint underline-offset-2 hover:text-ink hover:underline"
-          >
-            Clear animation
-          </button>
-        )}
-      </div>
-    );
+    return <InOutAnim clip={clip} selectedIds={selectedIds} />;
   }
 
   const keyframes = clip.keyframes ?? [];
@@ -124,6 +129,7 @@ export function AnimationTool() {
 
   return (
     <div className="space-y-5">
+      {clip.shape && <InOutAnim clip={clip} selectedIds={selectedIds} />}
       <p className="text-xs leading-relaxed text-ink-faint">
         Keyframes animate this clip over time. Park the playhead, add a keyframe, then move the playhead and
         drag the box on the preview to set the next one. Two or more keyframes create motion (zoom, pan, moving
