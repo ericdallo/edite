@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  BLEND_MODES,
   CHROMA_SWATCHES,
   type ChromaKey,
   type ColorAdjust,
@@ -511,6 +512,44 @@ export function EffectsTool({ sub = 'filters' }: { sub?: string }) {
         </div>
         {resetColor}
         {scopeNote}
+      </div>
+    );
+  }
+
+  if (sub === 'blend') {
+    const active = clip.blendMode;
+    const btn = (on: boolean) =>
+      cn(
+        'rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
+        on
+          ? 'border-brand bg-brand/10 text-ink'
+          : 'border-line bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink',
+      );
+    return (
+      <div className="space-y-3">
+        <div className="text-sm text-ink-muted">Blend mode</div>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={() => updateClips(selectedIds, { blendMode: undefined })}
+            className={cn(btn(!active), 'flex items-center justify-center gap-1.5')}
+          >
+            <Ban size={14} className="shrink-0" />
+            None
+          </button>
+          {BLEND_MODES.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => updateClips(selectedIds, { blendMode: b.id })}
+              className={btn(active === b.id)}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs leading-relaxed text-ink-faint">
+          Mixes this clip with the tracks below it — put it on a higher track over your base video for
+          light leaks, glows and textures.{count > 1 ? ` Applies to all ${count} selected clips.` : ''}
+        </p>
       </div>
     );
   }

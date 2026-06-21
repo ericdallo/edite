@@ -1,8 +1,9 @@
 import { isAudioFormat, TEXT_ANIM_OFFSET, textAnimUnit } from '@/types/editor';
-import type { ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId } from '@/types/editor';
+import type { BlendMode, ChromaKey, ColorAdjust, ExportFormat, ExportQuality, Keyframe, ShapeStyle, TextAnim, TextStyle, Transition, TransitionId } from '@/types/editor';
 import { ffmpegColorFilter } from '@/lib/color';
 import { lutFileName } from '@/lib/lut';
 import { ffmpegChromaFilter } from '@/lib/chroma';
+import { ffmpegBlendMode } from '@/lib/blend';
 import { transitionFamily } from '@/lib/timeline';
 import { keyframeExport } from './keyframes';
 
@@ -45,6 +46,8 @@ export interface ExportClip {
   color?: ColorAdjust;
   /** chroma key (green-screen removal), rendered as a chromakey filter. */
   chromaKey?: ChromaKey;
+  /** blend mode against the layers below (absent = normal `overlay`). */
+  blendMode?: BlendMode;
   /** transition INTO this clip (cross-dissolve / color dip) over its leading overlap. */
   transition?: Transition;
   /** position + scale keyframes; when 2+ the clip is animated via `t` expressions. */
@@ -386,9 +389,31 @@ export function buildExportCommand(inputNames: string[], p: MultiExportParams): 
       kf || sdx || sdy || tadx || tady
         ? `x='${baseX}${sdx}${tadx}':y='${baseY}${sdy}${tady}':eval=frame`
         : `${x}:${y}`;
-    graph.push(
-      `[${acc}][c${k}]overlay=${pos}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=repeat[ov${k}]`,
-    );
+    if (c.blendMode) {
+      // `overlay` only does normal compositing, so a blend mode needs a detour:
+      // drop the clip onto a transparent full-frame layer at the same (animated)
+      // position, `blend` that against the canvas with the chosen mode, then
+      // re-apply the clip's own alpha as a mask so only the clip's pixels — and
+      // only inside its time window — are affected. Mirrors the preview's CSS
+      // mix-blend-mode on the clip's layer.
+      const mode = ffmpegBlendMode(c.blendMode);
+      const win = `enable='between(t,${fmt(c.start)},${fmt(end)})'`;
+      graph.push(`color=c=black@0:s=${W}x${H}:r=${fps}:d=${fmt(duration)},format=rgba[tr${k}]`);
+      graph.push(`[tr${k}][c${k}]overlay=${pos}:eof_action=repeat[cf${k}]`);
+      graph.push(`[cf${k}]split[cfa${k}][cfb${k}]`);
+      graph.push(`[${acc}]split[ba${k}][bb${k}]`);
+      // `blend` needs planar RGB (gbrp); on packed rgba it produces wrong colours.
+      graph.push(`[ba${k}]format=gbrp[bp${k}]`);
+      graph.push(`[cfa${k}]format=gbrp[cp${k}]`);
+      graph.push(`[bp${k}][cp${k}]blend=all_mode=${mode}[bd${k}]`);
+      graph.push(`[cfb${k}]alphaextract[am${k}]`);
+      graph.push(`[bd${k}][am${k}]alphamerge[mb${k}]`);
+      graph.push(`[bb${k}][mb${k}]overlay=0:0:${win}:eof_action=repeat[ov${k}]`);
+    } else {
+      graph.push(
+        `[${acc}][c${k}]overlay=${pos}:enable='between(t,${fmt(c.start)},${fmt(end)})':eof_action=repeat[ov${k}]`,
+      );
+    }
     acc = `ov${k}`;
   });
   if (p.format === 'gif') {

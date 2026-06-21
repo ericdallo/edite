@@ -136,6 +136,8 @@ export interface Clip {
   color?: ColorAdjust;
   /** Chroma key (green-screen removal); when set the key color becomes transparent. */
   chromaKey?: ChromaKey;
+  /** Blend mode against the layers below this overlay clip (absent = normal). */
+  blendMode?: BlendMode;
   /**
    * A transition INTO this clip from the previous clip on the same track. The
    * clip overlaps its predecessor by `duration` seconds; that overlap is where
@@ -432,6 +434,27 @@ export const TRANSITIONS: TransitionOption[] = [
   { id: 'wipeDown', label: 'Wipe ↓' },
   { id: 'wipeUp', label: 'Wipe ↑' },
   { id: 'circleOpen', label: 'Iris' },
+];
+
+/**
+ * Blend mode for an overlay clip against the layers below it (absent = normal).
+ * Every id maps cleanly to both a CSS `mix-blend-mode` (preview) and an ffmpeg
+ * `blend=all_mode` (export), so the look matches in both.
+ */
+export type BlendMode = 'screen' | 'multiply' | 'overlay' | 'softlight' | 'lighten' | 'darken';
+
+export interface BlendModeOption {
+  id: BlendMode;
+  label: string;
+}
+
+export const BLEND_MODES: BlendModeOption[] = [
+  { id: 'screen', label: 'Screen' },
+  { id: 'multiply', label: 'Multiply' },
+  { id: 'overlay', label: 'Overlay' },
+  { id: 'softlight', label: 'Soft light' },
+  { id: 'lighten', label: 'Lighten' },
+  { id: 'darken', label: 'Darken' },
 ];
 
 export type ExportFormat = 'mp4' | 'webm' | 'gif' | 'mp3' | 'wav';

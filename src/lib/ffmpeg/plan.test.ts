@@ -111,6 +111,13 @@ describe('buildExportPlan', () => {
     expect(plan.clips[0].chromaKey).toEqual(chromaKey);
   });
 
+  it('carries a blend mode onto its export clip', () => {
+    const track = makeTrack({ id: 't1' });
+    const media = makeMedia({ id: 'm1' });
+    const plan = buildExportPlan([track], [makeClip({ trackId: 't1', mediaId: 'm1', blendMode: 'screen' })], [media]);
+    expect(plan.clips[0].blendMode).toBe('screen');
+  });
+
   it('passes keyframes through to a media export clip', () => {
     const track = makeTrack({ id: 't1' });
     const media = makeMedia({ id: 'm1' });

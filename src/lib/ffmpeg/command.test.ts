@@ -485,3 +485,22 @@ describe('buildExportCommand audio-only', () => {
     expect(strOf(cmd)).not.toContain('-map [vout]');
   });
 });
+
+describe('blend modes', () => {
+  it('renders a masked planar blend for a blended clip', () => {
+    const g = graphOf(build([makeExportClip({ blendMode: 'screen' })]));
+    expect(g).toContain('blend=all_mode=screen');
+    expect(g).toContain('format=gbrp'); // blend needs planar RGB
+    expect(g).toContain('alphamerge'); // re-applies the clip's alpha as a mask
+  });
+
+  it('maps soft light to the ffmpeg name', () => {
+    expect(graphOf(build([makeExportClip({ blendMode: 'softlight' })]))).toContain('blend=all_mode=softlight');
+  });
+
+  it('uses the plain overlay path and no blend when unset', () => {
+    const g = graphOf(build([makeExportClip()]));
+    expect(g).not.toContain('blend=all_mode');
+    expect(g).toContain('overlay=');
+  });
+});

@@ -3,6 +3,7 @@ import {
   Captions,
   Eraser,
   Gauge,
+  Layers,
   type LucideIcon,
   Move,
   Music,
@@ -47,6 +48,7 @@ export const SUBTOOLS: Partial<Record<ToolId, SubtoolDef[]>> = {
   effects: [
     { id: 'filters', label: 'Filters', icon: Palette, desc: 'One-tap colour looks' },
     { id: 'adjust', label: 'Adjust', icon: SlidersHorizontal, desc: 'Light, colour & effects grade' },
+    { id: 'blend', label: 'Blend', icon: Layers, desc: 'Mix this clip with the layers below' },
     { id: 'transition', label: 'Transition', icon: Blend, desc: 'Cross-fade from the previous clip' },
     { id: 'background', label: 'Remove BG', icon: Eraser, desc: 'Knock out a solid background' },
   ],

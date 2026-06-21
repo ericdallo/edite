@@ -14,6 +14,7 @@ import {
   transitionRenderAt,
 } from '@/lib/timeline';
 import { cssColorFilter, needsGradeShader } from '@/lib/color';
+import { cssBlendMode } from '@/lib/blend';
 import { clamp, cn } from '@/lib/utils';
 import { resolveSubtool } from '@/components/tools/subtools';
 import { TransformOverlay } from './TransformOverlay';
@@ -258,6 +259,7 @@ export function VideoPreview() {
             zIndex: active ? 1 : 0,
             transform: slide,
             clipPath: tr.clipPath ?? undefined,
+            mixBlendMode: clip.blendMode ? (cssBlendMode(clip.blendMode) as CSSProperties['mixBlendMode']) : undefined,
           };
 
           if (clip.text) {
